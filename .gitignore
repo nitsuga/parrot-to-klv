@@ -1,0 +1,7 @@
+# Build output (add your own build dirs)
+/build/
+/build-*/
+
+# Editor / OS cruft
+*.swp
+.DS_Store

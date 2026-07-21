@@ -1,0 +1,37 @@
+# OPTIONAL — internal Markdown link check. DISABLED by default: the ".disabled"
+# suffix makes GitHub ignore this file, so it never runs until you enable it.
+#
+# To enable it in your project:
+#   git mv .github/workflows/link-check.yml.disabled .github/workflows/link-check.yml
+#   git commit -m "Enable link-check CI" && git push
+# It then runs on every push / pull request and fails if an internal Markdown
+# link points at a file that doesn't exist. (Ignores links inside inline-code and
+# HTML comments, so documented link *syntax* examples don't trip it.)
+name: link-check
+on: [push, pull_request]
+jobs:
+  links:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check internal Markdown links
+        run: |
+          python3 - <<'PY'
+          import re, os, glob, sys
+          bad = 0
+          for f in sorted(glob.glob('**/*.md', recursive=True)):
+              text = open(f, encoding='utf-8').read()
+              text = re.sub(r'<!--.*?-->', '', text, flags=re.DOTALL)  # drop HTML comments
+              text = re.sub(r'`[^`]*`', '', text)                      # drop inline code
+              base = os.path.dirname(f)
+              for m in re.findall(r'\]\(([^)]+)\)', text):
+                  t = m.split('#')[0].strip()
+                  if not t or t.startswith(('http://', 'https://', 'mailto:')):
+                      continue
+                  p = (os.path.join('context', t.lstrip('/')) if t.startswith('/')
+                       else os.path.normpath(os.path.join(base, t)))
+                  if not os.path.exists(p):
+                      print(f'BROKEN  {f}  ->  {m}'); bad += 1
+          print('all internal links resolve' if not bad else f'{bad} broken link(s)')
+          sys.exit(1 if bad else 0)
+          PY
