@@ -12,7 +12,7 @@ diverge; one fork can span several ADRs).
 
 | Fork | ADR | Status |
 |------|-----|--------|
-| — | — | — |
+| — | [0001 — Direct MP4 Parsing for Metadata Extraction](./0001-mp4-extraction-approach.md) | accepted |
 
-_No decisions recorded yet. Forks are tracked in [ROADMAP](../../planning/ROADMAP.md);
-when deliberated and resolved, they get an ADR and land here._
+_First decision (no formal fork): chosen direct MP4 parsing over GStreamer qtdemux
+based on investigation._

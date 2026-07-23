@@ -29,3 +29,7 @@
   and documented high-priority missing tags (IMAPB extended items: 92-93, 103,
   106-108, 112-114) for Phase 2+. Created [[field-mapping-analysis]] with 3-phase
   implementation plan. Phase 0 Foundation tasks 1-3 complete.
+* **Decision (accepted)**: ADR 0001 — Use direct MP4 box parsing for metadata
+  extraction rather than GStreamer qtdemux. Investigation showed qtdemux doesn't
+  expose metadata tracks as pads. Simple sequential parsing clearer for Phase 1.
+  Will use lightweight library (minimp4) or custom minimal reader.

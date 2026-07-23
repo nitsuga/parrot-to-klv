@@ -45,4 +45,5 @@ _(`type: Component` — modules / subsystems of the project.)_
 
 _(`type: Decision` — ADRs: the *why* of resolved forks.)_
 
-* [Decisions register](./decisions/index.md) — ADRs grouped under `decisions/`.
+* [Decisions register](./decisions/index.md) — ADRs grouped under `decisions/`
+* [0001 — Direct MP4 Parsing for Metadata Extraction](./decisions/0001-mp4-extraction-approach.md) — Use lightweight box parsing, not GStreamer qtdemux
