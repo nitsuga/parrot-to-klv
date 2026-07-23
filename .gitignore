@@ -1,7 +1,17 @@
-# Build output (add your own build dirs)
+# Build output
 /build/
 /build-*/
+
+# Test data (contains sensitive videos - never commit)
+/data/
+
+# Environment and secrets
+.env
+*.pem
+*.key
 
 # Editor / OS cruft
 *.swp
 .DS_Store
+.vscode/
+.idea/

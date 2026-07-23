@@ -5,12 +5,16 @@
      a fuller entry per significant implementation. Routine ingests/lint go here
      too. This is the ONLY home for history — PROGRESS.md is present-tense only. -->
 
-## 2000-01-01
+## 2026-07-23
 
-* **[EXAMPLE — replace or delete]** Initialized the OKF bundle from
-  `okf-project-template`: `index.md`, `log.md`, `CONVENTIONS.md`, and the
-  `decisions/` register.
-* **[EXAMPLE] Decision (accepted)**: Fork 1 →
-  [`0001-example-decision`](./decisions/0001-example-decision.md) (accepted) —
-  adopt the OKF-based documentation workflow. (A real decision log line is one
-  thin line like this: chronology + link, no restated rationale.)
+* **Project initialized** from `okf-project-template`. Defined scope: convert
+  Parrot telemetry from MP4 to MPEG-TS with MISB 0601 KLV. C++ with CMake,
+  FetchContent for libmisbklv. License: Apache 2.0.
+* **Domain types added**: `DataFormat` and `Standard` to the type vocabulary in
+  CONVENTIONS.md.
+* **Reference sources identified**: Parrot video metadata documentation (HTML),
+  libvideo-metadata repo (GitHub, reference only), libmisbklv MISB specs
+  (ST 0601.19, ST 0903.6, ST 1201.5).
+* **Phase plan established**: Phase 0 (Foundation), Phase 1 (Parse), Phase 2
+  (Transform), Phase 3 (Mux). First tasks: CMake setup, Parrot format research,
+  field mapping documentation.

@@ -3,7 +3,7 @@ type: Conventions
 title: Knowledge bundle conventions
 description: How the context/ OKF bundle is structured, written, and maintained.
 tags: [meta, okf, conventions]
-timestamp: 2000-01-01T00:00:00Z
+timestamp: 2026-07-23T18:30:00Z
 ---
 
 # Purpose
@@ -42,9 +42,8 @@ domain-neutral starter set (rename / add for your project):
 | `Concept` | A piece of durable domain or design knowledge. |
 | `Component` | A module / subsystem of the project. |
 | `Decision` | Architecture decision record — the *why* of a resolved (or proposed) fork. |
-
-<!-- e.g. a data project might add `Dataset`; a standards-heavy one `Standard
-     Reference`. Delete types you won't use. -->
+| `DataFormat` | Specification of a data format (Parrot metadata v1/v2/v3/proto, MISB KLV, MPEG-TS). |
+| `Standard` | A formal standard document (MISB ST 0601, ST 0903, etc.). |
 
 # Decisions
 

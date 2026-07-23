@@ -2,7 +2,7 @@
 okf_version: "0.1"
 ---
 
-# <PROJECT> Knowledge Bundle
+# Parrot to KLV Knowledge Bundle
 
 Agent-facing knowledge base for this project, in
 [OKF](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md)
@@ -18,7 +18,17 @@ Read [`CONVENTIONS.md`](./CONVENTIONS.md) before ingesting or editing.
 
 _(`type: Reference` — synthesis of an external source, citing the immutable original in `../references/`.)_
 
-<!-- * [Some Spec](./some-spec.md) — one-line summary. -->
+* Parrot video metadata documentation — HTML reference in `../references/Embedded Video Metadata - 8.4.2.html`
+* [libvideo-metadata](https://github.com/Parrot-Developers/libvideo-metadata) — Parrot's C library for metadata parsing (reference only, not built)
+* libmisbklv MISB specs — ST 0601.19, ST 0903.6, ST 1201.5 in `/home/schneiderer/workspaces/github/libmisbklv/references/`
+
+## Data Formats
+
+_(`type: DataFormat` — specification of data formats.)_
+
+## Standards
+
+_(`type: Standard` — formal standard documents.)_
 
 ## Concepts
 
@@ -33,6 +43,3 @@ _(`type: Component` — modules / subsystems of the project.)_
 _(`type: Decision` — ADRs: the *why* of resolved forks.)_
 
 * [Decisions register](./decisions/index.md) — ADRs grouped under `decisions/`.
-
-<!-- [EXAMPLE] The sections above are empty on purpose. As you ingest sources and
-     make decisions, add one bullet per concept here, grouped by type. -->

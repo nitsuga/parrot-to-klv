@@ -12,8 +12,7 @@ diverge; one fork can span several ADRs).
 
 | Fork | ADR | Status |
 |------|-----|--------|
-| 1 | [0001 — Adopt the OKF documentation workflow](./0001-example-decision.md) | accepted |
+| — | — | — |
 
-<!-- [EXAMPLE] The row above is the example ADR. Replace it with your project's
-     real first decision (or keep 0001 if you're keeping this workflow as your
-     first recorded decision). -->
+_No decisions recorded yet. Forks are tracked in [ROADMAP](../../planning/ROADMAP.md);
+when deliberated and resolved, they get an ADR and land here._

@@ -1,4 +1,4 @@
-# <PROJECT> — Progress
+# Parrot to KLV — Progress
 
 Current status only — **present tense, volatile, rewrite freely**. The
 chronological history (what landed when, decision detail) lives in
@@ -8,22 +8,21 @@ chronological history (what landed when, decision detail) lives in
 
 ## Now
 
-<!-- 1–3 lines on where the project actually is right now. -->
-
-Project scaffolded from `okf-project-template`. Fill in `CLAUDE.md` and start.
+Project initialized from `okf-project-template`. Scope defined: convert Parrot
+telemetry from MP4 to MPEG-TS with MISB 0601 KLV. Ready to begin Phase 0
+(Foundation).
 
 ## In progress
 
-<!-- What's actively mid-change right now (or "nothing"). -->
-
-- Nothing yet.
+- Running project setup (filling in docs, ingesting references, removing examples).
 
 ## Next
 
-<!-- The 1–3 IMMEDIATE actions. Candidate forks that need a decision first live in
-     ROADMAP's backlog — point to it, don't enumerate it here. -->
-
-- <first task>.
+1. Set up CMake build with FetchContent for libmisbklv, basic project structure.
+2. Research Parrot metadata binary formats (v1/v2/v3/proto) from libvideo-metadata
+   reference and documentation.
+3. Document Parrot → MISB 0601 field mapping strategy (which Parrot fields map to
+   which MISB tags).
 
 ## Known gaps
 

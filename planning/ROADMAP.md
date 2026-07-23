@@ -1,4 +1,4 @@
-# <PROJECT> — Roadmap
+# Parrot to KLV — Roadmap
 
 The plan: scope, sequencing, and **open** forks. Living doc — rewrite freely. For
 "where are we right now" see [PROGRESS.md](./PROGRESS.md). Resolved forks and
@@ -9,14 +9,26 @@ not duplicate it — it tracks scope, phases, and forks still open.
 
 ## Scope
 
-<!-- What this project is and isn't. A few lines. Note explicitly deferred areas. -->
+Convert Parrot drone telemetry metadata from MP4 files to MPEG-TS files with MISB
+0601 KLV streams. Support all Parrot metadata formats (v1, v2, v3, proto). Extract
+Parrot metadata from MP4 timed metadata track, map fields to MISB 0601, and remux
+video + KLV into MPEG-TS.
+
+**In scope:** Command-line tool and optional API, all Parrot formats, MISB 0601
+output.
+
+**Deferred/out of scope:** Real-time streaming (focus on file conversion first),
+GUI, other KLV standards beyond ST 0601.
 
 ## Phases
 
-<!-- Coarse sequencing. Mark status inline (done / in progress / next / deferred). -->
-
-- **Phase 0 — Foundation**: <repo setup, docs structure, initial ingests>.
-- **Phase 1 — <…>**: <…>.
+- **Phase 0 — Foundation** (in progress): Repo setup, CMake build with libmisbklv
+  via FetchContent, reference ingestion, field mapping research.
+- **Phase 1 — Parse**: Implement Parrot metadata extraction from MP4 (all formats:
+  v1, v2, v3, proto).
+- **Phase 2 — Transform**: Implement Parrot → MISB 0601 field mapping and
+  conversion logic.
+- **Phase 3 — Mux**: Integrate libmisbklv to remux video + KLV into MPEG-TS.
 
 ## Open forks
 

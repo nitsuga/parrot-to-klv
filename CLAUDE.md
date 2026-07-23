@@ -1,24 +1,12 @@
-# <PROJECT>
+# Parrot to KLV
 
-<!-- Replace this block with a 2–4 line description of YOUR project: what it is,
-     its scope, and any hard constraints. This is the first thing an agent reads;
-     keep it terse. -->
-
-One-line description of the project goes here.
+Converts Parrot drone telemetry metadata embedded in MP4 files to MPEG-TS files
+with video and MISB 0601 KLV streams. Provides both a command-line tool and an
+optional API for integration into other applications.
 
 > **This repo uses an OKF-based agent documentation workflow.** The sections
 > below tell an agent *how to work* here — where knowledge, decisions, and the
 > plan live, and the rules that keep those docs from rotting.
-
-## First run — set up this project
-
-If this copy still has template placeholders (`<PROJECT>`, `[EXAMPLE]` artifacts,
-an unfilled **Project preferences** section), it hasn't been customized yet. On
-your first interaction, **proactively offer to run the setup dialog** in
-[`SETUP.md`](SETUP.md) — a short Q&A that fills in the project's identity,
-preferences, and plan and removes the examples. If the user would rather set it
-up by hand, point them to [`README.md`](README.md) § Manual setup. When setup is
-complete, `SETUP.md` has you delete it and this section (it's one-time only).
 
 ## Agent knowledge base
 
@@ -76,19 +64,18 @@ So:
   green", "none open — see the register"), don't tally it. A specific number
   belongs only in a dated `log.md` snapshot (history, frozen at write time).
 
-## Project preferences (edit these)
+## Project preferences
 
-<!-- These are YOUR knobs, not part of the method. Set them to taste, then delete
-     this comment. -->
-
-- **Commit messages**: <e.g. no `Co-Authored-By` trailer · Conventional Commits ·
-  ticket prefixes — your call>.
-- **Repo layout**: list your top-level dirs and what each holds, e.g.
+- **Commit messages**: Conventional Commits format. No `Co-Authored-By` trailer.
+- **Repo layout**:
   - `references/` — immutable source-of-truth inputs. Read, never modify.
   - `context/` — agent knowledge bundle (maintain this).
   - `docs/` — human-facing guides (terse).
   - `planning/` — live plan + progress. Read first for "what now".
-  - `<src/ · assets/ · …>` — <your code / assets>.
-- **Build / test / run**: <how to build, test, and run this project>.
-- **Anything else an agent must know**: <domain constraints, coding style, review
-  expectations, …>.
+  - `src/` — C++ source code.
+  - `data/` — test input files (contains sensitive videos — never commit).
+- **Build / test / run**: C++ with CMake. Use FetchContent to pull libmisbklv.
+  Standard CMake workflow: `cmake -S . -B build && cmake --build build && ctest --test-dir build`.
+- **Security**: `data/` contains sensitive test videos with real location data.
+  Never commit files from `data/`. Never store or mention identifying information
+  (e.g., embedded GPS coordinates) in memory, logs, or documentation.
