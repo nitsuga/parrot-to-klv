@@ -37,3 +37,8 @@
   Unlicense/public domain) to `external/minimp4/`. Updated CMakeLists.txt to
   include vendored header. Standard practice for single-header libs (no
   build-time fetch, clear provenance via README).
+* **Phase 1 started — MP4 extractor WIP**: Created `Mp4MetadataExtractor` class
+  with minimp4 integration (pimpl pattern). Implements track finding, sample
+  extraction API. Build integration with local libmisbklv via CMAKE_PREFIX_PATH.
+  Status: Compiles with API corrections needed (minimp4 API differs from initial
+  assumptions). Next: Fix API usage, test extraction with P0330036.MP4.

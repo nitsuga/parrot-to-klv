@@ -8,25 +8,21 @@ chronological history (what landed when, decision detail) lives in
 
 ## Now
 
-**Phase 0 (Foundation) complete.** CMake in place, formats researched, field
-mapping analyzed. Ready to begin Phase 1 (Parse) implementation.
+**Phase 1 (Parse) started.** MP4 metadata extractor implemented (minimp4
+integration, pimpl pattern). Build configuration clean (FetchContent for
+libmisbklv). Status: WIP - minimp4 API usage needs corrections before testing.
 
 ## In progress
 
-- Nothing actively mid-change. Ready for Phase 1 work.
+- Fixing minimp4 API usage in `mp4_metadata_extractor.cpp` (handler type detection,
+  frame offset/size/duration signatures)
 
 ## Next
 
-1. ~~Set up CMake with FetchContent for libmisbklv~~ ✓ Done
-2. ~~Research Parrot metadata binary formats~~ ✓ Done
-3. ~~Document field mapping strategy~~ ✓ Done — [[field-mapping-analysis]]: 27
-   existing tags map directly, 9 high-priority IMAPB tags needed for Phase 2
-
-**Phase 1 — Parse** (next phase):
-1. Implement MP4 metadata track extraction (read `tkhd`, `tref`, `stsd` for MIME
-   type, sample data)
-2. Implement Parrot v3 binary parser (focus on ANAFI, most common modern format)
-3. Test with sample MP4 files from `data/` (when available)
+1. Test MP4 extraction with `data/P0330036.MP4`
+2. Implement Parrot v3 binary parser (fixed-point decoding, extensions)
+3. Implement Parrot proto parser (protobuf)
+4. Wire up field mapping to libmisbklv Message API
 
 ## Known gaps
 
