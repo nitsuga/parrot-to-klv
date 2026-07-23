@@ -33,3 +33,7 @@
   extraction rather than GStreamer qtdemux. Investigation showed qtdemux doesn't
   expose metadata tracks as pads. Simple sequential parsing clearer for Phase 1.
   Will use lightweight library (minimp4) or custom minimal reader.
+* **minimp4 vendored**: Added single-header MP4 parser (commit 4575afb, ~3.5K LOC,
+  Unlicense/public domain) to `external/minimp4/`. Updated CMakeLists.txt to
+  include vendored header. Standard practice for single-header libs (no
+  build-time fetch, clear provenance via README).

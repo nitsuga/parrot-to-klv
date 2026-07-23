@@ -19,6 +19,10 @@ add_executable(parrot-to-klv
   src/main.cpp
 )
 
+target_include_directories(parrot-to-klv PRIVATE
+  ${CMAKE_SOURCE_DIR}/external/minimp4  # Vendored single-header MP4 parser
+)
+
 target_link_libraries(parrot-to-klv PRIVATE
   misbklv::gst  # libmisbklv with GStreamer support
 )

@@ -74,6 +74,7 @@ So:
   - `planning/` — live plan + progress. Read first for "what now".
   - `src/` — C++ source code.
   - `data/` — test input files (contains sensitive videos — never commit).
+  - `external/` — vendored dependencies (minimp4 single-header library).
 - **Build / test / run**: C++ with CMake. Use FetchContent to pull libmisbklv.
   Standard CMake workflow: `cmake -S . -B build && cmake --build build && ctest --test-dir build`.
 - **Security**: `data/` contains sensitive test videos with real location data.
