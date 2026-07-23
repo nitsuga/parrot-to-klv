@@ -8,21 +8,20 @@ chronological history (what landed when, decision detail) lives in
 
 ## Now
 
-Project initialized from `okf-project-template`. Scope defined: convert Parrot
-telemetry from MP4 to MPEG-TS with MISB 0601 KLV. Ready to begin Phase 0
-(Foundation).
+Phase 0 (Foundation) in progress. CMake scaffolding in place, Parrot metadata
+formats researched and documented. Next: define field mapping strategy.
 
 ## In progress
 
-- Running project setup (filling in docs, ingesting references, removing examples).
+- Documenting Parrot → MISB 0601 field mapping strategy.
 
 ## Next
 
-1. Set up CMake build with FetchContent for libmisbklv, basic project structure.
-2. Research Parrot metadata binary formats (v1/v2/v3/proto) from libvideo-metadata
-   reference and documentation.
+1. ~~Set up CMake with FetchContent for libmisbklv~~ ✓ Done
+2. ~~Research Parrot metadata binary formats~~ ✓ Done (v1/v2/v3/proto documented
+   in [[parrot-metadata-formats]])
 3. Document Parrot → MISB 0601 field mapping strategy (which Parrot fields map to
-   which MISB tags).
+   which MISB 0601 tags, handling unit conversions and coordinate transforms)
 
 ## Known gaps
 

@@ -18,3 +18,8 @@
 * **Phase plan established**: Phase 0 (Foundation), Phase 1 (Parse), Phase 2
   (Transform), Phase 3 (Mux). First tasks: CMake setup, Parrot format research,
   field mapping documentation.
+* **Parrot metadata formats researched**: Analyzed v1, v2, v3, and proto formats
+  from documentation and libvideo-metadata source. Documented binary structures,
+  fixed-point encoding, extension mechanism, and field categories. Created
+  [[parrot-metadata-formats]] concept, [[parrot-video-metadata-docs]] and
+  [[libvideo-metadata]] references.

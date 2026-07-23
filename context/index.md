@@ -18,13 +18,14 @@ Read [`CONVENTIONS.md`](./CONVENTIONS.md) before ingesting or editing.
 
 _(`type: Reference` — synthesis of an external source, citing the immutable original in `../references/`.)_
 
-* Parrot video metadata documentation — HTML reference in `../references/Embedded Video Metadata - 8.4.2.html`
-* [libvideo-metadata](https://github.com/Parrot-Developers/libvideo-metadata) — Parrot's C library for metadata parsing (reference only, not built)
-* libmisbklv MISB specs — ST 0601.19, ST 0903.6, ST 1201.5 in `/home/schneiderer/workspaces/github/libmisbklv/references/`
+* [Parrot Video Metadata Documentation](./parrot-video-metadata-docs.md) — Official format specs (HTML in `../references/`)
+* [libvideo-metadata](./libvideo-metadata.md) — Parrot's C reference implementation (GitHub, not built as dependency)
 
 ## Data Formats
 
 _(`type: DataFormat` — specification of data formats.)_
+
+* [Parrot Video Metadata Formats](./parrot-metadata-formats.md) — Binary specifications for v1, v2, v3, proto formats
 
 ## Standards
 
