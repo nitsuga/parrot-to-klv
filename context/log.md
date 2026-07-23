@@ -23,3 +23,9 @@
   fixed-point encoding, extension mechanism, and field categories. Created
   [[parrot-metadata-formats]] concept, [[parrot-video-metadata-docs]] and
   [[libvideo-metadata]] references.
+* **Field mapping analysis completed**: Compared Parrot telemetry fields against
+  ST 0601.19 tags in libmisbklv's registry. Identified 27 currently implemented
+  tags, mapped Parrot fields to existing tags (Phase 1 viable with current impl),
+  and documented high-priority missing tags (IMAPB extended items: 92-93, 103,
+  106-108, 112-114) for Phase 2+. Created [[field-mapping-analysis]] with 3-phase
+  implementation plan. Phase 0 Foundation tasks 1-3 complete.

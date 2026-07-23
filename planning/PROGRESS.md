@@ -8,20 +8,25 @@ chronological history (what landed when, decision detail) lives in
 
 ## Now
 
-Phase 0 (Foundation) in progress. CMake scaffolding in place, Parrot metadata
-formats researched and documented. Next: define field mapping strategy.
+**Phase 0 (Foundation) complete.** CMake in place, formats researched, field
+mapping analyzed. Ready to begin Phase 1 (Parse) implementation.
 
 ## In progress
 
-- Documenting Parrot → MISB 0601 field mapping strategy.
+- Nothing actively mid-change. Ready for Phase 1 work.
 
 ## Next
 
 1. ~~Set up CMake with FetchContent for libmisbklv~~ ✓ Done
-2. ~~Research Parrot metadata binary formats~~ ✓ Done (v1/v2/v3/proto documented
-   in [[parrot-metadata-formats]])
-3. Document Parrot → MISB 0601 field mapping strategy (which Parrot fields map to
-   which MISB 0601 tags, handling unit conversions and coordinate transforms)
+2. ~~Research Parrot metadata binary formats~~ ✓ Done
+3. ~~Document field mapping strategy~~ ✓ Done — [[field-mapping-analysis]]: 27
+   existing tags map directly, 9 high-priority IMAPB tags needed for Phase 2
+
+**Phase 1 — Parse** (next phase):
+1. Implement MP4 metadata track extraction (read `tkhd`, `tref`, `stsd` for MIME
+   type, sample data)
+2. Implement Parrot v3 binary parser (focus on ANAFI, most common modern format)
+3. Test with sample MP4 files from `data/` (when available)
 
 ## Known gaps
 

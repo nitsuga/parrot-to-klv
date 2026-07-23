@@ -35,6 +35,8 @@ _(`type: Standard` — formal standard documents.)_
 
 _(`type: Concept` — durable domain / design knowledge.)_
 
+* [Parrot to MISB 0601 Field Mapping Analysis](./field-mapping-analysis.md) — Complete mapping of Parrot fields to ST 0601 tags, implementation phases, libmisbklv gaps
+
 ## Components
 
 _(`type: Component` — modules / subsystems of the project.)_
