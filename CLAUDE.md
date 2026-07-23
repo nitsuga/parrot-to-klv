@@ -28,6 +28,18 @@ each rule is in [`README.md`](README.md) § "Why these rules" — read it before
 relaxing a rule. A rule without its reason gets deleted the first time it's
 inconvenient.**
 
+### Before every commit checklist
+
+When you implement a significant change (new feature, phase start, decision):
+
+1. ✅ Code changes staged
+2. ✅ `context/log.md` updated (append dated entry)
+3. ✅ `planning/PROGRESS.md` updated (Now/In-progress/Next reflect current state)
+4. ✅ If decision made: ADR written, `context/decisions/index.md` updated
+
+**Never commit code without updating the docs that describe it.** If you're about
+to commit and haven't touched `log.md` or `PROGRESS.md`, stop and update them first.
+
 - [`context/log.md`](context/log.md) — the **durable chronological record**:
   what landed when, decision/change detail, routine ingests/lint. History lives
   here, newest-first.
@@ -53,7 +65,9 @@ So:
   rationale), and refresh PROGRESS's present state. Touch ROADMAP only if it
   opens/closes an *open* fork or shifts a phase.
 - **On implementing a significant change**: append a `log.md` entry (the detail)
-  and refresh PROGRESS's present state — a thin pointer, not a history.
+  and refresh PROGRESS's present state — a thin pointer, not a history. **DO THIS
+  IN THE SAME COMMIT** as the implementation. Never commit code without updating
+  both docs.
 - **Closing scrubs the future**: when you resolve a fork or complete a
   candidate / "Next" item, *delete its forward-looking mentions* (ROADMAP
   candidates, PROGRESS "Next") — not just the present-state bullet you're editing.
