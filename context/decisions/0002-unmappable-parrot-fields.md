@@ -2,7 +2,7 @@
 type: Decision
 title: ADR 0002 — Disposition of Parrot fields with no ST 0601 item
 description: Drop unmappable Parrot telemetry and report it, rather than smuggling it through a 0601 item that does not mean it
-status: proposed
+status: accepted
 fork: 1
 tags: [decision, mapping, misb, 0601, parrot]
 timestamp: 2026-07-25T21:15:00Z

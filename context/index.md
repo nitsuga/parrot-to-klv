@@ -49,4 +49,4 @@ _(`type: Decision` — ADRs: the *why* of resolved forks.)_
 
 * [Decisions register](./decisions/index.md) — ADRs grouped under `decisions/`
 * [0001 — Direct MP4 Parsing for Metadata Extraction](./decisions/0001-mp4-extraction-approach.md) — Use lightweight box parsing, not GStreamer qtdemux
-* [0002 — Disposition of Parrot fields with no ST 0601 item](./decisions/0002-unmappable-parrot-fields.md) — *(proposed)* Drop and report, don't repurpose items
+* [0002 — Disposition of Parrot fields with no ST 0601 item](./decisions/0002-unmappable-parrot-fields.md) — Drop and report, don't repurpose items

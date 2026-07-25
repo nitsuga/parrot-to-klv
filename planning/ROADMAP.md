@@ -38,11 +38,6 @@ A *fork* is a decision point — a branch in the plan/design that needs a choice
 Status legend: `OPEN` (undiscussed) · `PROPOSED` (Decision concept written,
 `status: proposed`) · `DECIDED` / `DEFERRED` (has an ADR — see the register).
 
-- **Fork 1 — Parrot telemetry with no ST 0601 item** (battery, link, exposure,
-  thermal, automation): drop it, repurpose adjacent items, or carry it in a
-  private Local Set on a second stream. Weighs conformance and consumer trust
-  against fidelity and scope.
-  `PROPOSED` — [ADR 0002](../context/decisions/0002-unmappable-parrot-fields.md).
 - **Tier 2 geometry fidelity** *(candidate)*: flat-earth intersection vs. a DTED
   terrain model for frame center, corner points, and slant/ground range. Weighs
   a data dependency against accuracy on sloped terrain. Opens when the transform

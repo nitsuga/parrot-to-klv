@@ -34,8 +34,8 @@
     proto `Location` carries **both** `altitude_egm96amsl` and
     `altitude_wgs84ellipsoid` — so the geoid conversion the old doc called for is
     unnecessary on proto.
-* **Fork 1 opened and deliberated: Parrot fields with no ST 0601 item** —
-  [ADR 0002](./decisions/0002-unmappable-parrot-fields.md), `status: proposed`.
+* **Fork 1 opened, deliberated, and accepted: Parrot fields with no ST 0601 item**
+  — [ADR 0002](./decisions/0002-unmappable-parrot-fields.md).
 
 * **README made human-facing; rule rationale moved into the bundle.** The
   top-level README carried two agent-facing sections inherited from the template

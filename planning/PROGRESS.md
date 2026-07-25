@@ -14,9 +14,10 @@ libmisbklv). Status: WIP - minimp4 API usage needs corrections before testing.
 
 The field mapping is settled against the complete ST 0601.19 registry:
 [[field-mapping-analysis]] is the implementation spec for the transform stage.
-libmisbklv needs no registry work for this project. Fork 1 (unmappable Parrot
-fields) is `PROPOSED` in [ADR 0002](../context/decisions/0002-unmappable-parrot-fields.md),
-awaiting acceptance.
+libmisbklv needs no registry work for this project. Parrot fields with no 0601
+item are dropped and reported, per
+[ADR 0002](../context/decisions/0002-unmappable-parrot-fields.md) — the transform
+stage owes a conversion coverage report alongside the KLV output.
 
 ## In progress
 

@@ -13,6 +13,7 @@ diverge; one fork can span several ADRs).
 | Fork | ADR | Status |
 |------|-----|--------|
 | — | [0001 — Direct MP4 Parsing for Metadata Extraction](./0001-mp4-extraction-approach.md) | accepted |
+| 1 | [0002 — Disposition of Parrot fields with no ST 0601 item](./0002-unmappable-parrot-fields.md) | accepted |
 
-_First decision (no formal fork): chosen direct MP4 parsing over GStreamer qtdemux
-based on investigation._
+_ADR 0001 predates formal fork numbering (no fork #): chosen direct MP4 parsing
+over GStreamer qtdemux based on investigation._
