@@ -26,6 +26,20 @@ struct ScrubOptions {
     /// safe to publish; it does nothing about a recognisable skyline. Set this
     /// when the output is destined to be committed.
     bool zero_media = false;
+
+    /// Blank the payload of every extension this tool does not understand,
+    /// keeping its id and length so parsers still skip it correctly.
+    ///
+    /// On by default, and it must stay that way for the tool's promise to hold.
+    /// Real ANAFI recordings carry a 0x4536 extension in every sample that the
+    /// reference documentation does not describe at all; if it holds coordinates
+    /// — plausible, since the protobuf schema's LFIC does — then passing it
+    /// through would leak the location out of a file reported as scrubbed.
+    /// An extension we cannot read is an extension we cannot clear.
+    ///
+    /// Clear this only to study what an unknown extension contains, and treat
+    /// the output as unscrubbed.
+    bool zero_unknown_extensions = true;
 };
 
 struct ScrubReport {
@@ -33,6 +47,9 @@ struct ScrubReport {
     uint32_t automation_extensions_rewritten = 0;
     uint32_t geotag_boxes_rewritten = 0;
     uint64_t media_bytes_zeroed = 0;
+    uint32_t unknown_extension_payloads_zeroed = 0;
+    /// Distinct extension ids encountered that this tool does not decode.
+    std::vector<uint16_t> unknown_extension_ids;
     bool ok = false;
     std::string error;
 

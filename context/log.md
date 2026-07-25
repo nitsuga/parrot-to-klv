@@ -7,6 +7,22 @@
 
 ## 2026-07-25
 
+* **Scrubber leak fixed: undecoded extension payloads passed straight through.**
+  Found immediately after the 0x4536 discovery below, and demonstrated with a
+  fixture whose 0x4536 payload held coordinates — `parrot-scrub` reported success,
+  listed its usual caveats, and left all of them in the output. Since real ANAFI
+  recordings carry 0x4536 in *every* sample, the tool's central promise was false
+  for exactly the files it exists to handle.
+  - Undecoded extension payloads are now blanked by default, id and length kept
+    so the extension stays well-formed and is skipped identically. Known-safe
+    extensions (timestamp, thermal) are preserved; automation is rewritten as
+    before. `--keep-unknown-extensions` opts out and the report then states the
+    output is **not** scrubbed.
+  - The regression test asserts the coordinates hidden inside the extension are
+    absent from the whole output — the same standard the other scrub tests use.
+  - The general rule this encodes: an extension we cannot decode is one we cannot
+    inspect, so it cannot be trusted. "Unknown" has to mean "cleared", not
+    "assumed harmless".
 * **v3 decoder verified against real Parrot ANAFI footage.** A real recording with
   hundreds of samples decoded successfully at 100% completion rate. All base
   structure fields parse correctly: state, mode, battery level, RSSI, satellite

@@ -7,6 +7,7 @@
 #include "mp4_metadata_extractor.hpp"
 #include "parrot_v3.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -45,9 +46,23 @@ int32_t to_q10_22(double deg) {
     return static_cast<int32_t>(std::lround(deg * kQ10_22));
 }
 
+struct SampleScrubResult {
+    bool rewrote_automation = false;
+    uint32_t unknown_payloads_zeroed = 0;
+    std::vector<uint16_t> unknown_ids;
+};
+
+/// Extensions whose contents are known and carry no geographic position.
+/// Everything else is unreadable to us, and therefore unclearable.
+bool is_known_safe_extension(uint16_t id) {
+    // Timestamp is a monotonic clock; thermal spots are frame-relative
+    // coordinates and temperatures, not places.
+    return id == kExtTimestamp || id == kExtThermal;
+}
+
 /// Rewrite the location fields of one v3 sample in place.
-/// Returns true if an automation extension was also rewritten.
-bool scrub_v3_sample(std::vector<uint8_t>& s, const ScrubValues& v) {
+SampleScrubResult scrub_v3_sample(std::vector<uint8_t>& s, const ScrubValues& v,
+                                  bool zero_unknown) {
     store_be32(s, kOffLatitude, static_cast<uint32_t>(to_q10_22(v.latitude_deg)));
     store_be32(s, kOffLongitude, static_cast<uint32_t>(to_q10_22(v.longitude_deg)));
 
@@ -58,7 +73,7 @@ bool scrub_v3_sample(std::vector<uint8_t>& s, const ScrubValues& v) {
     store_be32(s, kOffAltitudeAndSv, (static_cast<uint32_t>(alt) << 8) | sv);
 
     // The automation extension carries two more coordinate triples.
-    bool rewrote_automation = false;
+    SampleScrubResult result;
     const size_t declared = 4 + static_cast<size_t>(load_be16(s, 2)) * 4;
     size_t off = kParrotV3BaseSize;
     while (off + 4 <= declared && off + 4 <= s.size()) {
@@ -76,11 +91,19 @@ bool scrub_v3_sample(std::vector<uint8_t>& s, const ScrubValues& v) {
                 store_be32(s, base + 4, static_cast<uint32_t>(to_q10_22(v.longitude_deg)));
                 store_be32(s, base + 8, static_cast<uint32_t>(alt_q16_16));
             }
-            rewrote_automation = true;
+            result.rewrote_automation = true;
+        } else if (id != kExtAutomation && !is_known_safe_extension(id)) {
+            result.unknown_ids.push_back(id);
+            if (zero_unknown && payload_bytes > 0) {
+                // Blank the payload but keep id and length, so the extension is
+                // still well-formed and still skipped the same way.
+                std::fill_n(s.begin() + static_cast<long>(body), payload_bytes, uint8_t{0});
+                ++result.unknown_payloads_zeroed;
+            }
         }
         off = body + payload_bytes;
     }
-    return rewrote_automation;
+    return result;
 }
 
 /// Overwrite every digit of an ISO 6709 geotag string with '0', preserving
@@ -214,8 +237,18 @@ ScrubReport scrub_file(const std::string& input, const std::string& output,
             report.error = "sample " + std::to_string(i) + " is not decodable v3";
             return report;
         }
-        if (scrub_v3_sample(sample, options.values)) {
+        const auto result =
+            scrub_v3_sample(sample, options.values, options.zero_unknown_extensions);
+        if (result.rewrote_automation) {
             ++report.automation_extensions_rewritten;
+        }
+        report.unknown_extension_payloads_zeroed += result.unknown_payloads_zeroed;
+        for (uint16_t id : result.unknown_ids) {
+            if (std::find(report.unknown_extension_ids.begin(),
+                          report.unknown_extension_ids.end(),
+                          id) == report.unknown_extension_ids.end()) {
+                report.unknown_extension_ids.push_back(id);
+            }
         }
         std::copy(sample.begin(), sample.end(), file.begin() + static_cast<long>(offset));
         ++report.samples_rewritten;
@@ -243,6 +276,19 @@ ScrubReport scrub_file(const std::string& input, const std::string& output,
     report.warnings.push_back(
         "session metadata (serial number, friendly name, software version) is not "
         "scrubbed; it identifies the aircraft, not the location.");
+
+    if (!report.unknown_extension_ids.empty() && !options.zero_unknown_extensions) {
+        std::string ids;
+        for (uint16_t id : report.unknown_extension_ids) {
+            char buf[16];
+            std::snprintf(buf, sizeof(buf), "%s0x%04X", ids.empty() ? "" : ", ", id);
+            ids += buf;
+        }
+        report.warnings.push_back(
+            "undecoded extension(s) " + ids +
+            " were left intact at your request. Their contents are unknown and may "
+            "include position — treat this output as NOT scrubbed.");
+    }
 
     std::ofstream out(output, std::ios::binary | std::ios::trunc);
     if (!out) {

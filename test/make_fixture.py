@@ -244,6 +244,17 @@ def main() -> int:
             [v3_sample(i, timestamp_ext(33333 * i) + automation_ext() + thermal_ext()
                        + ext(0x4599, b"\x00\x00\x00\x00")) for i in range(8)],
             video),
+        # An undecoded extension holding coordinates. Real ANAFI recordings carry
+        # a 0x4536 extension in every sample that the reference does not describe;
+        # if it holds position, passing it through would leak location out of a
+        # file reported as scrubbed.
+        "parrot_v3_unknown_ext.mp4": build(
+            MIME_PREFIX + "com.parrot.videometadata3",
+            [v3_sample(i, timestamp_ext(33333 * i)
+                       + ext(0x4536, struct.pack(">ii", round(48.858370 * Q10_22),
+                                                 round(2.294481 * Q10_22))))
+             for i in range(8)],
+            video),
         # A metadata track that is not Parrot's -- must be rejected, not guessed.
         "foreign_meta.mp4": build("application/octet-stream;type=com.example.telemetry",
                                   samples, video),

@@ -3,6 +3,7 @@
 
 #include "parrot_scrub.hpp"
 
+#include <cstdio>
 #include <cstdlib>
 #include <iostream>
 #include <string>
@@ -20,7 +21,11 @@ void usage(const char* argv0) {
         << "  --lat <deg>     synthetic latitude (default 0)\n"
         << "  --lon <deg>     synthetic longitude (default 0)\n"
         << "  --alt <m>       synthetic altitude AMSL (default 0)\n"
-        << "  --zero-media    also blank the video and audio payloads\n\n"
+        << "  --zero-media    also blank the video and audio payloads\n"
+        << "  --keep-unknown-extensions\n"
+        << "                  leave undecoded extension payloads intact. Their contents\n"
+        << "                  are unknown and may include position; the output is then\n"
+        << "                  NOT scrubbed. For studying an extension, not for sharing.\n\n"
         << "Scrubs: the v3 telemetry track (latitude, longitude, altitude, and the\n"
         << "automation extension's target coordinates) and any ISO 6709 geotag in\n"
         << "moov/udta.\n\n"
@@ -45,6 +50,7 @@ int main(int argc, char* argv[]) {
         else if (arg == "--lon") next(options.values.longitude_deg);
         else if (arg == "--alt") next(options.values.altitude_amsl_m);
         else if (arg == "--zero-media") options.zero_media = true;
+        else if (arg == "--keep-unknown-extensions") options.zero_unknown_extensions = false;
         else if (arg == "-h" || arg == "--help") { usage(argv[0]); return 0; }
         else if (input.empty()) input = arg;
         else if (output.empty()) output = arg;
@@ -72,6 +78,18 @@ int main(int argc, char* argv[]) {
     }
     std::cout << "\n";
     std::cout << "Geotag boxes rewritten: " << report.geotag_boxes_rewritten << "\n";
+    if (!report.unknown_extension_ids.empty()) {
+        std::cout << "Undecoded extension(s) found:";
+        for (uint16_t id : report.unknown_extension_ids) {
+            std::printf(" 0x%04X", id);
+        }
+        std::cout << (report.unknown_extension_payloads_zeroed > 0
+                          ? " — payloads blanked in " : " — LEFT INTACT in ")
+                  << (report.unknown_extension_payloads_zeroed > 0
+                          ? report.unknown_extension_payloads_zeroed
+                          : report.samples_rewritten)
+                  << " sample(s)\n";
+    }
     if (report.media_bytes_zeroed > 0) {
         std::cout << "Media payload zeroed: " << report.media_bytes_zeroed << " bytes\n";
     }

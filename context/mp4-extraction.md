@@ -98,6 +98,16 @@ exercise:
    separately from the telemetry. Scrubbed by zeroing its digits, which
    preserves length (so no box resizes) and yields a valid coordinate.
 
+3. **Extensions it cannot decode.** Real ANAFI recordings carry a `0x4536`
+   extension in every sample that the reference documentation does not describe.
+   Its contents are unknown, and the protobuf schema's LFIC makes position a
+   plausible guess — so its payload is **blanked by default**, keeping the id and
+   length so the extension stays well-formed and is still skipped identically.
+   An extension we cannot read is one we cannot clear, and the alternative is
+   leaking location out of a file reported as scrubbed.
+   `--keep-unknown-extensions` opts out, for studying what an extension holds;
+   the report then says plainly that the output is not scrubbed.
+
 **It refuses anything it cannot fully scrub** — a proto-format file, or one with
 no Parrot track — and writes no output in that case. An output that looked
 scrubbed but still carried real coordinates would be worse than a failure.

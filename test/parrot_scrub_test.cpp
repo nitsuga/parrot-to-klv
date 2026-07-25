@@ -191,6 +191,66 @@ void test_refuses_what_it_cannot_scrub() {
     check(!foreign.ok, "non-Parrot file is refused");
 }
 
+void test_unknown_extension_payload_is_cleared() {
+    // An extension we cannot decode is an extension we cannot inspect, so it
+    // must be blanked rather than trusted. Real ANAFI files carry an undocumented
+    // 0x4536 in every sample; if it holds position, passing it through would leak
+    // location out of a file the tool reported as scrubbed.
+    const std::string out = temp("unknown_ext_scrubbed.mp4");
+    ScrubOptions opts;
+    opts.values.latitude_deg = 1.0;
+    opts.values.longitude_deg = 2.0;
+
+    const auto report = scrub_file(fixture("parrot_v3_unknown_ext.mp4"), out, opts);
+    check(report.ok, "scrub succeeds with an unknown extension present");
+    if (!report.ok) return;
+
+    check_eq(report.unknown_extension_ids.size(), size_t{1}, "one unknown extension id");
+    if (report.unknown_extension_ids.size() == 1) {
+        check_eq(report.unknown_extension_ids[0], uint16_t{0x4536}, "unknown id reported");
+    }
+    check_eq(report.unknown_extension_payloads_zeroed, uint32_t{8}, "every payload blanked");
+
+    // The coordinates hidden in that extension must be gone from the output.
+    const auto data = read_file(out);
+    const auto v_lat = static_cast<uint32_t>(std::lround(kOriginalLat * 4194304.0));
+    const auto v_lon = static_cast<uint32_t>(std::lround(kOriginalLon * 4194304.0));
+    const std::vector<uint8_t> needle{
+        static_cast<uint8_t>(v_lat >> 24), static_cast<uint8_t>(v_lat >> 16),
+        static_cast<uint8_t>(v_lat >> 8), static_cast<uint8_t>(v_lat),
+        static_cast<uint8_t>(v_lon >> 24), static_cast<uint8_t>(v_lon >> 16),
+        static_cast<uint8_t>(v_lon >> 8), static_cast<uint8_t>(v_lon)};
+    check(std::search(data.begin(), data.end(), needle.begin(), needle.end()) == data.end(),
+          "coordinates inside the unknown extension are gone");
+
+    check_eq(data.size(), read_file(fixture("parrot_v3_unknown_ext.mp4")).size(),
+             "blanking preserves file size");
+
+    // The sample must still parse: id and length survive, only the payload went.
+    auto extractor = Mp4MetadataExtractor::open(out);
+    check(extractor.has_value(), "file still opens");
+    if (extractor) {
+        auto frame = parse_v3(extractor->extract_all_samples().at(0).data);
+        check(frame.has_value(), "sample still parses after blanking");
+        if (frame) {
+            check_eq(frame->skipped_extension_ids.size(), size_t{1},
+                     "extension is still structurally present");
+        }
+    }
+
+    // Opting out must be possible, but must say plainly what it costs.
+    ScrubOptions keep = opts;
+    keep.zero_unknown_extensions = false;
+    const auto kept = scrub_file(fixture("parrot_v3_unknown_ext.mp4"), temp("kept.mp4"), keep);
+    check(kept.ok, "opt-out scrub succeeds");
+    check_eq(kept.unknown_extension_payloads_zeroed, uint32_t{0}, "nothing blanked on opt-out");
+    bool warned = false;
+    for (const auto& w : kept.warnings) {
+        if (w.find("NOT scrubbed") != std::string::npos) warned = true;
+    }
+    check(warned, "opt-out warns the output is not scrubbed");
+}
+
 void test_warns_about_imagery() {
     const auto report = scrub_file(fixture("parrot_v3.mp4"), temp("warn.mp4"), ScrubOptions{});
     check(report.ok, "scrub succeeds");
@@ -217,6 +277,7 @@ int main(int argc, char* argv[]) {
     test_original_coordinates_absent();
     test_zero_media();
     test_refuses_what_it_cannot_scrub();
+    test_unknown_extension_payload_is_cleared();
     test_warns_about_imagery();
 
     if (g_failures > 0) {

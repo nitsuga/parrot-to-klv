@@ -22,8 +22,10 @@ decodes and summarises; it withholds latitude/longitude unless given
 despite reference docs stating it doesn't exist; the decoder skips it correctly.
 
 **`parrot-scrub` replaces a recording's location fields** so a real flight can be
-committed as a fixture. It refuses any format it cannot fully scrub, and does not
-touch the imagery unless given `--zero-media`. See
+committed as a fixture. It refuses any format it cannot fully scrub, blanks the
+payload of any extension it cannot decode (which includes the undocumented
+0x4536 present in every real sample), and does not touch the imagery unless given
+`--zero-media`. See
 [MP4 metadata extraction](../context/mp4-extraction.md) § Scrubbing.
 
 The field mapping is settled against the complete ST 0601.19 registry —
