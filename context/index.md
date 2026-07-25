@@ -45,7 +45,8 @@ _(`type: Component` — modules / subsystems of the project.)_
 
 * [MP4 metadata extraction](./mp4-extraction.md) — locating, reading and scrubbing
   the Parrot track; the minimp4 / box-scan split, minimp4's traps, and how a real
-  recording becomes a shareable fixture
+  recording becomes a shareable fixture — plus conformance reports, which commit
+  real-encoder evidence without the recording
 
 ## Decisions
 

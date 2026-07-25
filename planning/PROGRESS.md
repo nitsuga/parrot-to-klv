@@ -21,6 +21,11 @@ decodes and summarises; it withholds latitude/longitude unless given
 100% decode success). Real recordings contain a 0x4536 extension in every frame
 despite reference docs stating it doesn't exist; the decoder skips it correctly.
 
+**`parrot-conform` commits real-encoder evidence without the recording** — a JSON
+report of sample sizes, extension shapes, decode rates and structural assertions,
+carrying no position, absolute time or device identity. `ctest` replays it against
+whatever sits in `data/` and skips where there is none.
+
 **`parrot-scrub` replaces a recording's location fields** so a real flight can be
 committed as a fixture. It refuses any format it cannot fully scrub, blanks the
 payload of any extension it cannot decode (which includes the undocumented
@@ -41,9 +46,11 @@ transform stage owes a conversion coverage report alongside the KLV output.
 
 ## Next
 
-1. Run `parrot-scrub` on a real recording and commit the result as a fixture —
-   the first test against a genuine Parrot encoder
-2. Implement Parrot proto parser (protobuf)
+1. On the machine with footage: `parrot-conform --scan data --reports
+   test/conformance`, then commit the reports — real-encoder evidence in CI
+   without the recording
+2. Implement Parrot proto parser (protobuf) — needs a fork on the protobuf
+   dependency (vendored `vmeta.proto` + protoc, vs. a minimal hand-rolled reader)
 3. Begin transform stage: direct field mappings (Parrot → ST 0601 items)
 
 ## Known gaps

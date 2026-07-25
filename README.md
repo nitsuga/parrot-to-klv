@@ -19,10 +19,11 @@ via `FetchContent`, so a standard workflow is all that's needed:
 cmake -S . -B build && cmake --build build && ctest --test-dir build
 ```
 
-This builds two tools: `parrot-to-klv` (the converter) and `parrot-scrub`, which
+This builds three tools: `parrot-to-klv` (the converter); `parrot-scrub`, which
 replaces a recording's location fields so a real flight can be shared as a test
-fixture — it refuses formats it cannot fully scrub, and leaves the imagery alone
-unless given `--zero-media`.
+fixture; and `parrot-conform`, which records what a real encoder produced as a
+committable JSON report carrying no position, absolute time or device identity —
+so real-footage evidence reaches the repository while the footage never does.
 
 The tests run against synthetic fixtures in `test/fixtures/`, so `ctest` needs no
 drone footage. Real test inputs live in `data/`, which is **gitignored** — it
@@ -59,6 +60,7 @@ src/                   C++ source (parrot-to-klv + parrot-scrub)
 test/                  tests + synthetic MP4 fixtures
   make_fixture.py      regenerates test/fixtures/
   fixtures/            committed synthetic MP4s — ctest needs no footage
+  conformance/         reports from real recordings (no location data)
 external/              vendored deps (minimp4 single-header MP4 parser)
 context/               agent-owned OKF knowledge bundle
   index.md             bundle catalog (read first)

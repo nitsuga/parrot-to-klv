@@ -7,6 +7,27 @@
 
 ## 2026-07-25
 
+* **`parrot-conform` added: real-encoder evidence without the recording.** The
+  test-data problem had two unsatisfying answers — commit a scrubbed video (still
+  imagery nobody wants in a repo) or source a public one (attempts kept turning up
+  files whose metadata track had been transcoded away). This commits the
+  *evidence* instead: a JSON report of what a real encoder produced — sample-size
+  histogram, extension ids with payload lengths, decode rate and error kinds,
+  quaternion norm range, aircraft-state ranges, and structural assertions.
+  - **No position, absolute time, or device identity, by construction** rather
+    than by filtering: nothing that reads a coordinate writes to the report, and
+    latitude/longitude appear only as range checks. `conformance_test` enforces it
+    negatively — renders a report from a fixture with known coordinates and fails
+    if any appear at any precision or in fixed-point form.
+  - `ctest` target `conformance_real_data` regenerates and compares against the
+    committed reports, so a decoder change that alters how a real recording reads
+    is caught. Skips (`SKIP_RETURN_CODE 77`) where `data/` is absent, empty, or
+    holds nothing applicable — a no-op in CI, a real regression test where the
+    footage lives. A non-Parrot video in `data/` is skipped, not failed.
+  - Reports are tied to recordings by SHA-256, so a report whose input was
+    replaced is detectable rather than silently stale.
+  - Side benefit: the report records `0x4536`'s payload length across every
+    sample, which is most of what would identify that undocumented extension.
 * **Doc lint.** Six pieces of drift, all from the last two days' work outrunning
   the docs describing it:
   - [[mp4-extraction]] still said "these fixtures prove MP4 handling only… the

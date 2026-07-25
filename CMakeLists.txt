@@ -21,6 +21,10 @@ add_executable(parrot-to-klv src/main.cpp)
 add_executable(parrot-scrub src/scrub_main.cpp)
 target_link_libraries(parrot-scrub PRIVATE parrot_extract)
 
+# Gets real-encoder evidence into the repo without the recording.
+add_executable(parrot-conform src/conform_main.cpp)
+target_link_libraries(parrot-conform PRIVATE parrot_extract)
+
 target_link_libraries(parrot-to-klv PRIVATE
   parrot_extract
   misbklv::gst  # libmisbklv with GStreamer support
@@ -32,6 +36,7 @@ add_library(parrot_extract STATIC
   src/mp4_metadata_extractor.cpp
   src/parrot_v3.cpp
   src/parrot_scrub.cpp
+  src/conformance.cpp
 )
 
 target_include_directories(parrot_extract PUBLIC
@@ -62,3 +67,18 @@ target_link_libraries(parrot_scrub_test PRIVATE parrot_extract)
 add_test(NAME parrot_scrub
          COMMAND parrot_scrub_test ${CMAKE_SOURCE_DIR}/test/fixtures
                                    ${CMAKE_CURRENT_BINARY_DIR})
+
+add_executable(conformance_test test/conformance_test.cpp)
+target_link_libraries(conformance_test PRIVATE parrot_extract)
+
+add_test(NAME conformance
+         COMMAND conformance_test ${CMAKE_SOURCE_DIR}/test/fixtures)
+
+# Replays the committed conformance reports against whatever real recordings sit
+# in data/ (gitignored). Skips cleanly where there is no footage, so it is a
+# no-op in CI and on machines that have never held a recording.
+add_test(NAME conformance_real_data
+         COMMAND parrot-conform --scan ${CMAKE_SOURCE_DIR}/data
+                                --reports ${CMAKE_SOURCE_DIR}/test/conformance
+                                --check)
+set_tests_properties(conformance_real_data PROPERTIES SKIP_RETURN_CODE 77)

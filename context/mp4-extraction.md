@@ -123,6 +123,46 @@ audio payloads (preserving their sizes) for output destined for a repository.
 Session metadata — serial number, friendly name, software version — is also left
 alone; it identifies the aircraft rather than the place.
 
+## Conformance reports: real-encoder evidence without the recording
+
+Fixtures generated from the documentation cannot catch a parser that is wrong in
+the same way the documentation is. Only real footage can — but real footage
+cannot be committed, and scrubbing it still leaves imagery nobody wants in a
+repository.
+
+`parrot-conform` (`src/conformance.{hpp,cpp}`, `src/conform_main.cpp`) resolves
+that by committing the *evidence* rather than the recording. It decodes every
+sample of a real file and writes a JSON report of what the encoder actually
+produced: sample-size histogram, extension ids with their payload lengths, decode
+rate and error kinds, quaternion norm range, aircraft-state ranges, and a set of
+pass/fail structural assertions.
+
+**The report carries no position, no absolute time, and no device identity** —
+not by filtering, but by construction: nothing that reads a coordinate ever
+writes to the report. Latitude and longitude appear only as range checks
+("was within ±90"), never as values.
+`test/conformance_test.cpp` enforces this negatively, rendering a report from a
+fixture with known coordinates and failing if any appear in the output at any
+precision or in fixed-point form. Extend that list when you add a report field.
+
+Workflow, on the machine that holds the footage:
+
+```
+./build/parrot-conform --scan data --reports test/conformance      # generate
+ctest --test-dir build -R conformance_real_data                    # verify
+```
+
+The `conformance_real_data` test regenerates and compares. It **skips** (ctest
+`SKIP_RETURN_CODE 77`) where `data/` is absent, empty, or holds nothing this
+checker applies to — so it is a no-op in CI and on machines that have never held
+a recording, while acting as a real regression test where the footage lives. A
+non-Parrot video in `data/` is skipped rather than failed; `data/` holds whatever
+the user put there.
+
+This is also how an undocumented extension gets pinned down: the report records
+`0x4536`'s payload length across every sample, which is most of what identifies
+its shape.
+
 ## Testing without footage
 
 `data/` holds real drone recordings with live location data and is never
