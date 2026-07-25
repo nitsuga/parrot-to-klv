@@ -91,8 +91,11 @@ So:
   - `docs/` — human-facing guides (terse).
   - `planning/` — live plan + progress. Read first for "what now".
   - `src/` — C++ source code.
-  - `test/` — tests plus synthetic MP4 fixtures (`make_fixture.py` regenerates
-    them). Tests must never require anything from `data/`.
+  - `test/` — tests, synthetic MP4 fixtures (`make_fixture.py` regenerates them),
+    and `conformance/` reports. **No test may require anything from `data/`**: the
+    suite must pass on a machine that has never held footage. One test
+    (`conformance_real_data`) *uses* `data/` when it is there and skips when it is
+    not — that is the only permitted relationship.
   - `data/` — test input files (contains sensitive videos — never commit).
   - `external/` — vendored dependencies (minimp4 single-header library).
 - **Build / test / run**: C++ with CMake. Use FetchContent to pull libmisbklv.

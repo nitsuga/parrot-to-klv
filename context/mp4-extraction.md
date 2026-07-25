@@ -1,7 +1,7 @@
 ---
 type: Component
-title: MP4 metadata extraction
-description: How the Parrot metadata track is located, read, and scrubbed — the minimp4 / box-scan division of labour, minimp4's traps, and how a real recording becomes a shareable fixture
+title: MP4 metadata extraction and Phase 1 tooling
+description: How the Parrot metadata track is located, read, scrubbed, and evidenced — the minimp4 / box-scan division of labour, minimp4's traps, and the two tools that let real footage inform the repo without entering it
 tags: [mp4, extraction, minimp4, phase-1]
 timestamp: 2026-07-25T22:30:00Z
 ---
@@ -28,6 +28,9 @@ parsing over GStreamer `qtdemux`) — see its follow-on note.
 | `test/mp4_extraction_test.cpp` | `ctest` target `mp4_extraction` |
 | `test/parrot_v3_test.cpp` | `ctest` target `parrot_v3` |
 | `test/parrot_scrub_test.cpp` | `ctest` target `parrot_scrub` |
+| `src/conformance.{hpp,cpp}`, `src/conform_main.cpp` | `parrot-conform` — see § Conformance reports |
+| `test/conformance_test.cpp` | `ctest` target `conformance` |
+| `test/conformance/` | committed reports; `conformance_real_data` replays them |
 
 ## Division of labour
 

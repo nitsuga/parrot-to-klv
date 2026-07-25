@@ -49,8 +49,8 @@ transform stage owes a conversion coverage report alongside the KLV output.
 1. On the machine with footage: `parrot-conform --scan data --reports
    test/conformance`, then commit the reports — real-encoder evidence in CI
    without the recording
-2. Implement Parrot proto parser (protobuf) — needs a fork on the protobuf
-   dependency (vendored `vmeta.proto` + protoc, vs. a minimal hand-rolled reader)
+2. Implement Parrot proto parser — resolve the protobuf-dependency fork in
+   [ROADMAP](./ROADMAP.md) first
 3. Begin transform stage: direct field mappings (Parrot → ST 0601 items)
 
 ## Known gaps

@@ -7,6 +7,18 @@
 
 ## 2026-07-25
 
+* **Doc lint after `parrot-conform`.** Four items, two of them rule violations
+  rather than ordinary staleness:
+  - `PROGRESS` "Next" had grown a *fork* — the protobuf-dependency choice for the
+    proto parser — stated inline. Forks live in ROADMAP; PROGRESS points at them.
+    Moved to ROADMAP candidates, PROGRESS now defers ("open work has one home").
+  - `CLAUDE.md` § Repo layout said "tests must never require anything from
+    `data/`", which reads as false now that `conformance_real_data` uses `data/`
+    when present. The rule still holds in substance and is now stated precisely:
+    no test may *require* footage, one test may *use* it and skip without.
+  - [[mp4-extraction]]'s Files table predated the conformance tool, and its title
+    and description still described a doc about extraction alone. Retitled to
+    cover the Phase 1 tooling it has actually accumulated.
 * **`parrot-conform` added: real-encoder evidence without the recording.** The
   test-data problem had two unsatisfying answers — commit a scrubbed video (still
   imagery nobody wants in a repo) or source a public one (attempts kept turning up
