@@ -7,6 +7,14 @@
 
 ## 2026-07-25
 
+* **Extraction verified against real Parrot footage.** `./build/parrot-to-klv
+  data/P0330036.MP4` detected 699 samples and extracted successfully — the box
+  scan and format detection survive a real ANAFI file the synthetic fixtures
+  don't represent.
+* **CMakeLists.txt fixed to use SSH URLs.** FetchContent was using HTTPS for
+  libmisbklv, prompting for GitHub credentials even with SSH keys configured.
+  Changed `GIT_REPOSITORY` from `https://github.com/...` to `git@github.com:...`
+  so it uses SSH authentication.
 * **MP4 metadata extraction works end to end.** The extractor did not compile;
   fixing it turned up seven distinct defects, most of them fabricated API:
   - `MP4D_frame_size()` and `MP4D_frame_duration()` do not exist in minimp4.

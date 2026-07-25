@@ -9,7 +9,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 include(FetchContent)
 FetchContent_Declare(
   misbklv
-  GIT_REPOSITORY https://github.com/nitsuga/libmisbklv.git
+  GIT_REPOSITORY git@github.com:nitsuga/libmisbklv.git
   GIT_TAG main
 )
 FetchContent_MakeAvailable(misbklv)
