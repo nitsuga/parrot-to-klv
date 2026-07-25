@@ -55,9 +55,10 @@ CLAUDE.md              how-to-work instructions (agent auto-loads)
 CMakeLists.txt         build (FetchContent pulls libmisbklv)
 .github/workflows/
   link-check.yml       CI — fails on broken internal doc links
-src/                   C++ source
+src/                   C++ source (parrot-to-klv + parrot-scrub)
 test/                  tests + synthetic MP4 fixtures
   make_fixture.py      regenerates test/fixtures/
+  fixtures/            committed synthetic MP4s — ctest needs no footage
 external/              vendored deps (minimp4 single-header MP4 parser)
 context/               agent-owned OKF knowledge bundle
   index.md             bundle catalog (read first)

@@ -36,7 +36,9 @@ The documentation covers:
    - Complete C struct definitions for v1, v2, v3
    - Bit masks and shifts for packed fields
    - Enum definitions (flying state, piloting mode, animations)
-   - Extension structures (timestamp, follow-me, automation, thermal, LFIC)
+   - Extension structures (timestamp, follow-me, automation, thermal). **Not**
+     LFIC: the reference documents no LFIC extension, though real recordings
+     carry an undocumented `0x4536` — see [[parrot-metadata-formats]]
 
 ## Key Sections
 

@@ -7,6 +7,26 @@
 
 ## 2026-07-25
 
+* **Doc lint.** Six pieces of drift, all from the last two days' work outrunning
+  the docs describing it:
+  - [[mp4-extraction]] still said "these fixtures prove MP4 handling only… the
+    sample payloads are invented", which stopped being true when the generator
+    started emitting real v3 structs. Replaced with a fixture table and the
+    sharper caveat that actually holds: fixtures generated *from* the docs cannot
+    catch a parser wrong in the same way the docs are — only real footage can,
+    and did.
+  - Its Files table listed four files out of nine, predating the v3 decoder and
+    the scrubber; its frontmatter description predated scrubbing too.
+  - [[field-mapping-analysis]] still asserted flatly that v2/v3 have "no LFIC",
+    contradicting the hedged 0x4536 status in [[parrot-metadata-formats]]. Items
+    40/41/42 now carry the same open question rather than a claim the sibling doc
+    withdraws.
+  - [[parrot-video-metadata-docs]] listed LFIC among the reference's documented
+    extension structures. It is not there.
+  - `parrot-metadata-formats.md` frontmatter still carried its 2026-07-23
+    timestamp and original description after being substantially rewritten.
+  - README structure block didn't mention `test/fixtures/` or that `src/` now
+    builds two tools.
 * **Scrubber leak fixed: undecoded extension payloads passed straight through.**
   Found immediately after the 0x4536 discovery below, and demonstrated with a
   fixture whose 0x4536 payload held coordinates — `parrot-scrub` reported success,

@@ -1,7 +1,7 @@
 ---
 type: Component
 title: MP4 metadata extraction
-description: How the Parrot metadata track is located and read out of an MP4 — the minimp4 / box-scan division of labour, and minimp4's traps
+description: How the Parrot metadata track is located, read, and scrubbed — the minimp4 / box-scan division of labour, minimp4's traps, and how a real recording becomes a shareable fixture
 tags: [mp4, extraction, minimp4, phase-1]
 timestamp: 2026-07-25T22:30:00Z
 ---
@@ -20,9 +20,14 @@ parsing over GStreamer `qtdemux`) — see its follow-on note.
 | File | Role |
 |------|------|
 | `src/mp4_box_scan.{hpp,cpp}` | Walks the box tree for what minimp4 discards |
-| `src/mp4_metadata_extractor.{hpp,cpp}` | Public API: `open()`, `extract_sample()` |
-| `test/make_fixture.py` | Generates synthetic MP4 fixtures |
+| `src/mp4_metadata_extractor.{hpp,cpp}` | Public API: `open()`, `extract_sample()`, `locate_sample()` |
+| `src/parrot_v3.{hpp,cpp}` | Decodes a v3 sample into `ParrotV3Frame` |
+| `src/parrot_scrub.{hpp,cpp}`, `src/scrub_main.cpp` | `parrot-scrub` — see § Scrubbing |
+| `src/main.cpp` | `parrot-to-klv` — extract, decode, summarise |
+| `test/make_fixture.py` | Generates the synthetic MP4 fixtures |
 | `test/mp4_extraction_test.cpp` | `ctest` target `mp4_extraction` |
+| `test/parrot_v3_test.cpp` | `ctest` target `parrot_v3` |
+| `test/parrot_scrub_test.cpp` | `ctest` target `parrot_scrub` |
 
 ## Division of labour
 
@@ -124,13 +129,26 @@ alone; it identifies the aircraft rather than the place.
 committed, so the suite runs on synthetic MP4s in `test/fixtures/`, built by
 `test/make_fixture.py` with Parrot's documented track layout
 (`tkhd`/`tref(cdsc)`/`hdlr('meta')`/`nmhd`/`stsd(TextMetaDataSampleEntry)`) and
-invented payloads. Covered: v3, proto, a writer that fills in `content_encoding`
-(which moves the MIME type to the second string in the sample entry), and a
-non-Parrot `meta` track that must be refused.
+**structurally valid** v3 payloads whose field values the tests assert against.
 
-**These fixtures prove MP4 handling only.** The sample payloads are invented, so
-nothing here exercises Parrot binary or protobuf parsing — that needs its own
-fixtures, built from the struct layouts in [[parrot-metadata-formats]].
+| Fixture | Covers |
+|---------|--------|
+| `parrot_v3.mp4` | v3 base structure + timestamp extension |
+| `parrot_v3_extensions.mp4` | every documented v3 extension, plus an unknown one to skip |
+| `parrot_v3_unknown_ext.mp4` | an undecoded extension holding coordinates — the scrub regression |
+| `parrot_v3_encoded.mp4` | writer that fills `content_encoding`, moving the MIME type to the second string |
+| `parrot_proto.mp4` | proto format — detection only; no proto parser yet |
+| `foreign_meta.mp4` | non-Parrot `meta` track that must be refused |
+
+The expected values live in `v3_base()` in the generator, and the tests assert
+against those same numbers — change one, change both.
+
+**What these fixtures cannot prove** is that Parrot's encoder agrees with the
+documentation, since they are generated *from* that documentation: a parser wrong
+in the same way as the docs would still pass. Only real footage settles that, and
+it has — see [[parrot-metadata-formats]] for what real recordings turned up that
+the reference does not describe. There are still no fixtures for the proto
+format.
 
 The box walker is bounded on depth and string length and is checked against
 truncated and single-byte-corrupted inputs under ASan+UBSan; keep that property

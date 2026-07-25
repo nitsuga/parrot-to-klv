@@ -43,8 +43,9 @@ _(`type: Concept` — durable domain / design knowledge.)_
 
 _(`type: Component` — modules / subsystems of the project.)_
 
-* [MP4 metadata extraction](./mp4-extraction.md) — locating and reading the Parrot
-  track; the minimp4 / box-scan split, and minimp4's traps
+* [MP4 metadata extraction](./mp4-extraction.md) — locating, reading and scrubbing
+  the Parrot track; the minimp4 / box-scan split, minimp4's traps, and how a real
+  recording becomes a shareable fixture
 
 ## Decisions
 
