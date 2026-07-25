@@ -43,6 +43,9 @@ _(`type: Concept` — durable domain / design knowledge.)_
 
 _(`type: Component` — modules / subsystems of the project.)_
 
+* [MP4 metadata extraction](./mp4-extraction.md) — locating and reading the Parrot
+  track; the minimp4 / box-scan split, and minimp4's traps
+
 ## Decisions
 
 _(`type: Decision` — ADRs: the *why* of resolved forks.)_

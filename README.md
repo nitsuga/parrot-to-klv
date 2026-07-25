@@ -19,8 +19,9 @@ via `FetchContent`, so a standard workflow is all that's needed:
 cmake -S . -B build && cmake --build build && ctest --test-dir build
 ```
 
-Test inputs live in `data/`, which is **gitignored** — it holds real drone footage
-with live location data and must never be committed.
+The tests run against synthetic fixtures in `test/fixtures/`, so `ctest` needs no
+drone footage. Real test inputs live in `data/`, which is **gitignored** — it
+holds footage with live location data and must never be committed.
 
 ## Project status
 
@@ -50,6 +51,8 @@ CMakeLists.txt         build (FetchContent pulls libmisbklv)
 .github/workflows/
   link-check.yml       CI — fails on broken internal doc links
 src/                   C++ source
+test/                  tests + synthetic MP4 fixtures
+  make_fixture.py      regenerates test/fixtures/
 external/              vendored deps (minimp4 single-header MP4 parser)
 context/               agent-owned OKF knowledge bundle
   index.md             bundle catalog (read first)

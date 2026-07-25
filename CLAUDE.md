@@ -91,6 +91,8 @@ So:
   - `docs/` — human-facing guides (terse).
   - `planning/` — live plan + progress. Read first for "what now".
   - `src/` — C++ source code.
+  - `test/` — tests plus synthetic MP4 fixtures (`make_fixture.py` regenerates
+    them). Tests must never require anything from `data/`.
   - `data/` — test input files (contains sensitive videos — never commit).
   - `external/` — vendored dependencies (minimp4 single-header library).
 - **Build / test / run**: C++ with CMake. Use FetchContent to pull libmisbklv.

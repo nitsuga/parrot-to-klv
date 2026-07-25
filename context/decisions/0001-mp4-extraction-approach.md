@@ -96,6 +96,20 @@ Accepted (2026-07-23)
 - Or use GStreamer for video path: `qtdemux.video_0 ! h264parse ! mpegtsmux`
   (decision deferred to Phase 3)
 
+# Follow-on (2026-07-25)
+
+Implementation took **both** options above, not one. minimp4 owns the sample
+index (chunk offsets, sizes, per-sample timestamps); a custom box reader
+(`src/mp4_box_scan.cpp`) supplies what minimp4 structurally cannot. Its
+`MP4D_track_t::SampleDescription` is a union covering `soun` and `vide` only, so
+a timed metadata track's sample entry — and with it the MIME type naming the
+Parrot format — is parsed past and discarded.
+
+That does not change this decision; it sharpens it. The reason to avoid qtdemux
+was that reaching a metadata track through it needs custom work anyway, and the
+same turns out to be true of any demuxer built for audio and video. See
+[[mp4-extraction]] for the resulting division of labour.
+
 # References
 
 - Investigation showed `gst-discoverer-1.0` on sample file didn't list metadata

@@ -41,6 +41,15 @@
   into `ctest` as `mp4_extraction`; the suite passes, and the box walker survives
   6701 malformed inputs (every truncation plus every single-byte corruption at
   three values) clean under ASan+UBSan.
+* **Doc lint after the extraction work.** New [[mp4-extraction]] Component doc
+  (first entry under `index.md` § Components) carries the durable knowledge the
+  above turned up — the division of labour and the minimp4 traps — so it isn't
+  re-derived from a log entry. ADR 0001 gained a follow-on note: implementation
+  took *both* of its options (minimp4 for the sample index, a custom reader for
+  the sample entry), which sharpens the decision rather than changing it. Also
+  added `test/` to the README and `CLAUDE.md` structure listings, and converted
+  two `[[wiki]]` links in `planning/` to relative Markdown — wiki links resolve
+  within the bundle, and the link-check CI only validates Markdown ones.
 * **Field mapping rewritten against the complete ST 0601.19 registry.** libmisbklv
   commit `a981a1a` registers §8.1–8.143 (all but deprecated Item 66), validated
   against the standard's worked examples, so the mapping could finally be settled

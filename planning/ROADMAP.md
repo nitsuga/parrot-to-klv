@@ -41,7 +41,8 @@ Status legend: `OPEN` (undiscussed) · `PROPOSED` (Decision concept written,
 - **Tier 2 geometry fidelity** *(candidate)*: flat-earth intersection vs. a DTED
   terrain model for frame center, corner points, and slant/ground range. Weighs
   a data dependency against accuracy on sloped terrain. Opens when the transform
-  stage reaches derived items — see [[field-mapping-analysis]] § Tier 2.
+  stage reaches derived items — see
+  [field mapping](../context/field-mapping-analysis.md) § Tier 2.
 
 Genuinely open (undeliberated) forks get a line here until they have an ADR;
 once decided they move to the [register](../context/decisions/index.md) and leave
