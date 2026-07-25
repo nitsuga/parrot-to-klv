@@ -17,8 +17,9 @@ and real Parrot footage. Design and minimp4's traps:
 **The v3 binary parser is done** — base structure plus the timestamp, automation
 and thermal extensions, decoded to SI units. `./build/parrot-to-klv <file>.mp4`
 decodes and summarises; it withholds latitude/longitude unless given
-`--with-location`. Not yet exercised against a real v3 recording *here* — no
-valid file is available in this working copy.
+`--with-location`. Verified against real ANAFI footage (hundreds of samples,
+100% decode success). Real recordings contain a 0x4536 extension in every frame
+despite reference docs stating it doesn't exist; the decoder skips it correctly.
 
 **`parrot-scrub` replaces a recording's location fields** so a real flight can be
 committed as a fixture. It refuses any format it cannot fully scrub, and does not

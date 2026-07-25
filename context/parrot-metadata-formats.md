@@ -143,10 +143,14 @@ uint16_t ext_length;  // Size in 32-bit words (excludes ext_id/ext_length)
 - **0x4534 (`E4`)**: Thermal — min/max/probe temperature spots (x, y, K in
   Q11.5), calibration state, per-spot validity flags
 
-There is **no binary LFIC extension.** LFIC (Location From Image Coordinates)
-exists only in the protobuf schema, as `LFICMetadata`. An earlier revision of
-this doc listed a `0x4536 (E6)` LFIC extension; that identifier appears nowhere
-in the reference.
+**0x4536 extension status unclear.** An earlier revision of this doc listed
+`0x4536 (E6)` as an LFIC (Location From Image Coordinates) extension, but that
+identifier appears nowhere in the reference documentation. However, real Parrot
+ANAFI v3 recordings contain a 0x4536 extension in every sample, suggesting the
+reference may be incomplete rather than the encoder being wrong. The extension's
+content and structure remain undocumented. LFIC does exist in the protobuf
+schema as `LFICMetadata`, but whether 0x4536 represents a binary encoding of it
+is unknown.
 
 Extensions are optional, order-independent, and 4-byte aligned (so every
 `ext_length` is a whole number of 32-bit words). Only one of each type may

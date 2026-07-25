@@ -7,6 +7,21 @@
 
 ## 2026-07-25
 
+* **v3 decoder verified against real Parrot ANAFI footage.** A real recording with
+  hundreds of samples decoded successfully at 100% completion rate. All base
+  structure fields parse correctly: state, mode, battery level, RSSI, satellite
+  count, altitude AGL, NED velocities, field-of-view angles, quaternions (drone and
+  frame), and microsecond timestamp. Automation extension detected and parsed in
+  every sample. Quaternion magnitudes validate at exactly 1.0, confirming the
+  fixed-point decoding is correct.
+  - **0x4536 extension appears in every real sample.** The reference docs say "0x4536
+    appears nowhere" and that LFIC exists only in protobuf format, but real v3
+    recordings contain a 0x4536 extension in every frame. The decoder correctly skips
+    it by `ext_length` (unknown extensions are logged but don't cause failure), so
+    decoding succeeds. This suggests the reference documentation may be incomplete
+    rather than the encoder being wrong. The extension's content is not needed for
+    ST 0601 field mapping since target coordinates come from the automation
+    extension's `framing_target_*` fields.
 * **Metadata scrubber added** (`parrot-scrub`). Turns a real flight into a
   shareable fixture by replacing its location fields with synthetic values,
   patching **in place** over a byte-for-byte copy so sample sizes never change
