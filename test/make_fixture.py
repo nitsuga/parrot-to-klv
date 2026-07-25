@@ -105,6 +105,16 @@ def video_trak(track_id: int, timescale: int, sizes: list[int], delta: int,
     return box(b"trak", tkhd(track_id, delta * len(sizes), 320, 240, 0) + mdia)
 
 
+def geotag(iso6709: str) -> bytes:
+    """moov/udta '\xa9xyz' -- Parrot records the flight's position here too.
+
+    A location leak entirely separate from the telemetry track, which is why the
+    scrubber has to handle it.
+    """
+    payload = struct.pack(">HH", len(iso6709), 0x15C7) + iso6709.encode()
+    return box(b"udta", box(b"\xa9xyz", payload))
+
+
 def build(mime: str, samples: list[bytes], video_samples: list[bytes],
           timescale: int = 30000, delta: int = 1000,
           content_encoding: str = "") -> bytes:
@@ -120,6 +130,7 @@ def build(mime: str, samples: list[bytes], video_samples: list[bytes],
 
     duration = delta * max(len(samples), len(video_samples))
     moov = box(b"moov", mvhd(timescale, duration, 3)
+               + geotag("+48.85837+002.29448+135.250/")
                + video_trak(1, timescale, [len(s) for s in video_samples], delta,
                             video_chunk_offset)
                + meta_trak(2, 1, timescale, [len(s) for s in samples], delta,

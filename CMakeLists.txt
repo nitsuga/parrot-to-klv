@@ -17,6 +17,10 @@ FetchContent_MakeAvailable(misbklv)
 # Project source files
 add_executable(parrot-to-klv src/main.cpp)
 
+# Turns a real recording into a shareable fixture by replacing its coordinates.
+add_executable(parrot-scrub src/scrub_main.cpp)
+target_link_libraries(parrot-scrub PRIVATE parrot_extract)
+
 target_link_libraries(parrot-to-klv PRIVATE
   parrot_extract
   misbklv::gst  # libmisbklv with GStreamer support
@@ -27,6 +31,7 @@ add_library(parrot_extract STATIC
   src/mp4_box_scan.cpp
   src/mp4_metadata_extractor.cpp
   src/parrot_v3.cpp
+  src/parrot_scrub.cpp
 )
 
 target_include_directories(parrot_extract PUBLIC
@@ -50,3 +55,10 @@ target_link_libraries(parrot_v3_test PRIVATE parrot_extract)
 
 add_test(NAME parrot_v3
          COMMAND parrot_v3_test ${CMAKE_SOURCE_DIR}/test/fixtures)
+
+add_executable(parrot_scrub_test test/parrot_scrub_test.cpp)
+target_link_libraries(parrot_scrub_test PRIVATE parrot_extract)
+
+add_test(NAME parrot_scrub
+         COMMAND parrot_scrub_test ${CMAKE_SOURCE_DIR}/test/fixtures
+                                   ${CMAKE_CURRENT_BINARY_DIR})

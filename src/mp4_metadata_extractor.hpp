@@ -78,6 +78,19 @@ public:
     /// @return Vector of samples, or empty on failure
     std::vector<MetadataSample> extract_all_samples();
 
+    /// Where a metadata sample sits in the file, as (absolute offset, size).
+    ///
+    /// For rewriting samples in place — patching a sample where it lies keeps
+    /// every box, table and chunk offset in the file valid.
+    std::optional<std::pair<uint64_t, uint32_t>> locate_sample(uint32_t sample_index) const;
+
+    /// Zero every sample of `track_index` within `file`, an in-memory image of
+    /// the same MP4. Returns the number of bytes zeroed.
+    ///
+    /// Sizes are preserved, so the file stays structurally intact — the media
+    /// simply no longer decodes to anything.
+    uint64_t zero_track_samples(int track_index, std::vector<uint8_t>& file) const;
+
 private:
     Mp4MetadataExtractor() = default;
 

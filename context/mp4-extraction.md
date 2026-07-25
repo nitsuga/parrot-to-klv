@@ -76,6 +76,38 @@ Because `MP4D_frame_offset()` returns size and timestamp alongside the offset,
 per-sample timestamps cost nothing — deriving them by summing durations from
 zero is quadratic and unnecessary.
 
+## Scrubbing a real recording
+
+`parrot-scrub` (`src/parrot_scrub.{hpp,cpp}`, `src/scrub_main.cpp`) turns a real
+flight into a shareable fixture by replacing its location-bearing fields with
+synthetic values. That buys what synthetic fixtures cannot: a specimen of the
+actual encoder, with real attitude, timing, and extension mix.
+
+It copies the file byte for byte and patches fields **in place**. Sample sizes
+never change, so every box, sample table and chunk offset stays valid, and the
+output is the original file in all respects but the coordinates.
+
+Two location channels have to be handled, and missing either defeats the
+exercise:
+
+1. The **v3 telemetry track** — latitude, longitude, altitude, and the
+   automation extension's framing-target and flight-destination triples. The
+   satellite count shares a word with the altitude and is preserved; it is not
+   location-bearing.
+2. The **`moov/udta` `©xyz` geotag** — an ISO 6709 string Parrot writes
+   separately from the telemetry. Scrubbed by zeroing its digits, which
+   preserves length (so no box resizes) and yields a valid coordinate.
+
+**It refuses anything it cannot fully scrub** — a proto-format file, or one with
+no Parrot track — and writes no output in that case. An output that looked
+scrubbed but still carried real coordinates would be worse than a failure.
+
+**It does not scrub the imagery.** A video of your street is still a video of
+your street once its coordinates are zeroed. `--zero-media` blanks the video and
+audio payloads (preserving their sizes) for output destined for a repository.
+Session metadata — serial number, friendly name, software version — is also left
+alone; it identifies the aircraft rather than the place.
+
 ## Testing without footage
 
 `data/` holds real drone recordings with live location data and is never

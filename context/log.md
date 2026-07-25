@@ -7,6 +7,24 @@
 
 ## 2026-07-25
 
+* **Metadata scrubber added** (`parrot-scrub`). Turns a real flight into a
+  shareable fixture by replacing its location fields with synthetic values,
+  patching **in place** over a byte-for-byte copy so sample sizes never change
+  and every box, table and chunk offset stays valid — the output is a specimen of
+  the real encoder in all respects but the coordinates.
+  - Two separate location channels: the v3 telemetry track (latitude, longitude,
+    altitude, and the automation extension's two coordinate triples) and the
+    `moov/udta` `©xyz` ISO 6709 geotag, which no metadata-level scrub would
+    otherwise touch. The geotag is neutralised by zeroing its digits, preserving
+    string length so nothing needs resizing.
+  - **Refuses what it cannot fully scrub** (proto format, non-Parrot files) and
+    writes no output — a file that looked scrubbed while still carrying real
+    coordinates would be worse than a failure.
+  - Does **not** touch the imagery; `--zero-media` blanks video/audio payloads
+    for output destined for a repository. The tool says so rather than leaving it
+    to be discovered.
+  - Tests assert the original coordinates' encoded byte pattern is absent from
+    the whole output, not merely that the decoded fields changed.
 * **Parrot v3 binary parser implemented** (`src/parrot_v3.{hpp,cpp}`). Decodes the
   72-byte base structure and the timestamp (0x4531), automation (0x4533) and
   thermal (0x4534) extensions, converting fixed-point to SI at parse time.

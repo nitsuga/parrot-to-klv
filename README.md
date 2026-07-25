@@ -19,6 +19,11 @@ via `FetchContent`, so a standard workflow is all that's needed:
 cmake -S . -B build && cmake --build build && ctest --test-dir build
 ```
 
+This builds two tools: `parrot-to-klv` (the converter) and `parrot-scrub`, which
+replaces a recording's location fields so a real flight can be shared as a test
+fixture — it refuses formats it cannot fully scrub, and leaves the imagery alone
+unless given `--zero-media`.
+
 The tests run against synthetic fixtures in `test/fixtures/`, so `ctest` needs no
 drone footage. Real test inputs live in `data/`, which is **gitignored** — it
 holds footage with live location data and must never be committed.

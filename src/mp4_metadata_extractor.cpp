@@ -242,6 +242,47 @@ std::optional<MetadataSample> Mp4MetadataExtractor::extract_sample(uint32_t samp
     return sample;
 }
 
+std::optional<std::pair<uint64_t, uint32_t>> Mp4MetadataExtractor::locate_sample(
+    uint32_t sample_index) const {
+    if (!impl_ || impl_->metadata_track_idx < 0) {
+        return std::nullopt;
+    }
+    const auto& track = impl_->demux.track[impl_->metadata_track_idx];
+    if (sample_index >= track.sample_count) {
+        return std::nullopt;
+    }
+    unsigned frame_bytes = 0;
+    const MP4D_file_offset_t offset =
+        MP4D_frame_offset(&impl_->demux, static_cast<unsigned>(impl_->metadata_track_idx),
+                          sample_index, &frame_bytes, nullptr, nullptr);
+    if (frame_bytes == 0) {
+        return std::nullopt;
+    }
+    return std::make_pair(static_cast<uint64_t>(offset), static_cast<uint32_t>(frame_bytes));
+}
+
+uint64_t Mp4MetadataExtractor::zero_track_samples(int track_index,
+                                                  std::vector<uint8_t>& file) const {
+    if (!impl_ || track_index < 0 ||
+        static_cast<unsigned>(track_index) >= impl_->demux.track_count) {
+        return 0;
+    }
+    const auto& track = impl_->demux.track[track_index];
+    uint64_t zeroed = 0;
+    for (unsigned i = 0; i < track.sample_count; ++i) {
+        unsigned frame_bytes = 0;
+        const MP4D_file_offset_t offset =
+            MP4D_frame_offset(&impl_->demux, static_cast<unsigned>(track_index), i, &frame_bytes,
+                              nullptr, nullptr);
+        if (frame_bytes == 0 || offset + frame_bytes > file.size()) {
+            continue;
+        }
+        std::fill_n(file.begin() + static_cast<long>(offset), frame_bytes, uint8_t{0});
+        zeroed += frame_bytes;
+    }
+    return zeroed;
+}
+
 std::vector<MetadataSample> Mp4MetadataExtractor::extract_all_samples() {
     std::vector<MetadataSample> samples;
     samples.reserve(sample_count());

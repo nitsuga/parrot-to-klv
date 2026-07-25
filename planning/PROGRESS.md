@@ -20,6 +20,11 @@ decodes and summarises; it withholds latitude/longitude unless given
 `--with-location`. Not yet exercised against a real v3 recording *here* — no
 valid file is available in this working copy.
 
+**`parrot-scrub` replaces a recording's location fields** so a real flight can be
+committed as a fixture. It refuses any format it cannot fully scrub, and does not
+touch the imagery unless given `--zero-media`. See
+[MP4 metadata extraction](../context/mp4-extraction.md) § Scrubbing.
+
 The field mapping is settled against the complete ST 0601.19 registry —
 [field mapping](../context/field-mapping-analysis.md) is the implementation spec
 for the transform stage, and libmisbklv needs no registry work for this project.
@@ -33,8 +38,8 @@ transform stage owes a conversion coverage report alongside the KLV output.
 
 ## Next
 
-1. Build the metadata scrubber — rewrite location fields in a real recording so
-   it becomes a committable fixture, solving the test-data problem outright
+1. Run `parrot-scrub` on a real recording and commit the result as a fixture —
+   the first test against a genuine Parrot encoder
 2. Implement Parrot proto parser (protobuf)
 3. Begin transform stage: direct field mappings (Parrot → ST 0601 items)
 
