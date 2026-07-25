@@ -11,9 +11,14 @@ chronological history (what landed when, decision detail) lives in
 **Phase 1 (Parse) in progress.** MP4 metadata extraction works end to end: the
 track is located, its format is read from the stsd MIME type, and samples come
 out with timestamps. Verified against both synthetic fixtures (`test/fixtures/`)
-and real Parrot footage (`data/P0330036.MP4` — 699 samples detected, extraction
-successful). Design and minimp4's traps:
+and real Parrot footage. Design and minimp4's traps:
 [MP4 metadata extraction](../context/mp4-extraction.md).
+
+**The v3 binary parser is done** — base structure plus the timestamp, automation
+and thermal extensions, decoded to SI units. `./build/parrot-to-klv <file>.mp4`
+decodes and summarises; it withholds latitude/longitude unless given
+`--with-location`. Not yet exercised against a real v3 recording *here* — no
+valid file is available in this working copy.
 
 The field mapping is settled against the complete ST 0601.19 registry —
 [field mapping](../context/field-mapping-analysis.md) is the implementation spec
@@ -28,7 +33,8 @@ transform stage owes a conversion coverage report alongside the KLV output.
 
 ## Next
 
-1. Implement Parrot v3 binary parser (fixed-point decoding, extensions)
+1. Build the metadata scrubber — rewrite location fields in a real recording so
+   it becomes a committable fixture, solving the test-data problem outright
 2. Implement Parrot proto parser (protobuf)
 3. Begin transform stage: direct field mappings (Parrot → ST 0601 items)
 

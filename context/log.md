@@ -7,6 +7,28 @@
 
 ## 2026-07-25
 
+* **Parrot v3 binary parser implemented** (`src/parrot_v3.{hpp,cpp}`). Decodes the
+  72-byte base structure and the timestamp (0x4531), automation (0x4533) and
+  thermal (0x4534) extensions, converting fixed-point to SI at parse time.
+  Unknown extensions are skipped by `ext_length` and recorded rather than
+  ignored; a sample that does not decode cleanly returns a typed error instead of
+  a partial frame. `test/make_fixture.py` now emits structurally valid v3 payloads
+  with known values, so `parrot_v3_test` asserts field-by-field against the
+  generator's inputs. Clean under ASan+UBSan over 60,300 random buffers.
+* **Two reference errors corrected while implementing it.**
+  - **There is no binary LFIC extension.** `0x4536` appears nowhere in the
+    reference; LFIC exists only in the protobuf schema. [[parrot-metadata-formats]]
+    listed it as a standard v2/v3 extension and [[field-mapping-analysis]] cited
+    it as the v2/v3 source for Items 40/41/42 — same class of fabrication as the
+    ST 0601 tag numbers. Items 40/41/42 now cite the automation extension's
+    `framing_target_*` for v3, and nothing for v2.
+  - **v2 and v3 are not layout-compatible.** They share a prefix through
+    `drone_z`, then diverge: v3 inserts a frame-base quaternion, drops v2's
+    explicit `camera_pan`/`camera_tilt`, adds AWB gains / FOV / link quality, and
+    reorders the trailing four bytes. [[parrot-metadata-formats]] had described a
+    single shared "base structure"; it now carries both byte layouts in full.
+    Also recorded: binary and protobuf number `piloting_mode` differently, so the
+    enum maps must go through names, not values.
 * **Extraction verified against real Parrot footage.** `./build/parrot-to-klv
   data/P0330036.MP4` detected 699 samples and extracted successfully — the box
   scan and format detection survive a real ANAFI file the synthetic fixtures

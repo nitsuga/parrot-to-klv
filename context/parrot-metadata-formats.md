@@ -82,22 +82,48 @@ Extensible format: base structure + optional extensions.
 Identifier: 0x5032 (v2) or 0x5033 (v3), followed by `length` (32-bit words,
 excludes `id`/`length` fields).
 
-**Common fields** (both v2 and v3):
-- Drone attitude (quaternion or Euler)
-- Camera orientation (pan, tilt)
-- Frame quaternion
-- Location (GPS lat/lon/alt, SV count)
-- Speed (NED)
-- Altitude (relative to takeoff)
-- Distance from home
-- Exposure time, gain
-- WiFi RSSI, battery %
-- Flying state, piloting mode
+**v2 and v3 are not layout-compatible** — they need separate decoders. They share
+a prefix through `drone_z` (offset 34), then diverge: v3 inserts a *frame base*
+quaternion, replaces v2's explicit `camera_pan`/`camera_tilt` with the difference
+between the base and frame quaternions, adds AWB gains, FOV, and link quality,
+and reorders the trailing bytes.
 
-**v3 additions:**
-- More flying states (user takeoff, motor ramping, emergency landing)
-- Automation animations (vs. v2 follow-me only)
-- Thermal metadata support
+**v3 base — 72 bytes** (`length` = 17 words with no extensions):
+
+| Off | Type | Field | Encoding |
+|-----|------|-------|----------|
+| 0 | uint16 | `id` | 0x5033 |
+| 2 | uint16 | `length` | 32-bit words after this pair, extensions included |
+| 4 | int32 | `ground_distance` | Q16.16, m |
+| 8 | int32 | `latitude` | Q10.22, deg |
+| 12 | int32 | `longitude` | Q10.22, deg |
+| 16 | int32 | `altitude_and_sv` | bits 31..8 = altitude AMSL Q16.8; bits 7..0 = SV count |
+| 20 | int16 ×3 | `north/east/down_speed` | Q8.8, m/s |
+| 26 | int16 | `air_speed` | Q8.8, m/s — **negative means no data** |
+| 28 | int16 ×4 | `drone_*` quaternion | Q2.14, W X Y Z |
+| 36 | int16 ×4 | `frame_base_*` quaternion | Q2.14, view without user pan/tilt |
+| 44 | int16 ×4 | `frame_*` quaternion | Q2.14 |
+| 52 | uint16 | `exposure_time` | Q8.8, ms |
+| 54 | uint16 | `gain` | ISO gain, direct |
+| 56 | uint16 ×2 | `awb_r_gain`, `awb_b_gain` | Q2.14 |
+| 60 | uint16 ×2 | `picture_hfov`, `picture_vfov` | Q8.8, **degrees** |
+| 64 | uint32 | `link_quality` | bits 31..8 = goodput kbit/s; bits 7..0 = quality 0–5 |
+| 68 | int8 | `wifi_rssi` | dBm |
+| 69 | uint8 | `battery_percentage` | % |
+| 70 | uint8 | `state` | bit 7 = binning; bits 6..0 = flying state |
+| 71 | uint8 | `mode` | bit 7 = animation; bits 6..0 = piloting mode |
+
+**v2 base — 56 bytes** (`length` = 13). Same through offset 34, then: `frame_*`
+quaternion (36), `camera_pan`/`camera_tilt` Q4.12 (44, 46), `exposure_time`,
+`gain` (48, 50), then `state`, `mode`, `wifi_rssi`, `battery_percentage`
+(52–55) — note the trailing four are ordered differently from v3.
+
+**Enum values differ between the binary formats and protobuf.** Binary
+`piloting_mode` is `MANUAL=0, RETURN_HOME=1, FLIGHT_PLAN=2, TRACKING=3,
+MAGIC_CARPET=4, MOVE_TO=5`; protobuf `PilotingMode` prepends `PM_UNKNOWN=0` and
+swaps the last two. Binary `flying_state` for v3 runs 0–8 and *does* match
+protobuf's `FS_*`. v1/v2 `flying_state` stops at 5 and v2's `piloting_mode`
+stops at 3 (`FOLLOW_ME`). Never map one numbering onto the other.
 
 ### Extension Mechanism
 
@@ -108,14 +134,23 @@ uint16_t ext_length;  // Size in 32-bit words (excludes ext_id/ext_length)
 // ... extension data (4-byte aligned) ...
 ```
 
-**Standard extensions:**
-- **0x4531 (`E1`)**: Timestamp — frame capture timestamp (µs, monotonic)
+**Standard extensions** — these four, and no others:
+- **0x4531 (`E1`)**: Timestamp — frame capture timestamp (µs, monotonic), two
+  32-bit halves. Should always be present in *recorded* metadata.
 - **0x4532 (`E2`)**: Follow-me (v2 only) — target location, mode, animation
-- **0x4533 (`E3`)**: Automation (v3 only) — framing target, flight destination, animation
-- **0x4534 (`E4`)**: Thermal — calibration state, min/max/probe temperature spots
-- **0x4536 (`E6`)**: LFIC (Location From Image Coordinates) — target cursor position, location
+- **0x4533 (`E3`)**: Automation (v3 only) — framing target lat/lon/alt, flight
+  destination lat/lon/alt, animation, follow-me / look-at-me / angle-locked flags
+- **0x4534 (`E4`)**: Thermal — min/max/probe temperature spots (x, y, K in
+  Q11.5), calibration state, per-spot validity flags
 
-Extensions are optional and order-independent. Parsers skip unknown extensions.
+There is **no binary LFIC extension.** LFIC (Location From Image Coordinates)
+exists only in the protobuf schema, as `LFICMetadata`. An earlier revision of
+this doc listed a `0x4536 (E6)` LFIC extension; that identifier appears nowhere
+in the reference.
+
+Extensions are optional, order-independent, and 4-byte aligned (so every
+`ext_length` is a whole number of 32-bit words). Only one of each type may
+appear. Parsers must skip unknown extensions via `ext_length`.
 
 ## Protobuf Format (proto)
 

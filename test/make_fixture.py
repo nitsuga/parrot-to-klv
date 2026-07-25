@@ -127,13 +127,84 @@ def build(mime: str, samples: list[bytes], video_samples: list[bytes],
     return ftyp + mdat + moov
 
 
-def v3_sample(index: int) -> bytes:
-    """A v3 base struct is 0x5033 + length in 32-bit words, then the payload.
+# --- Parrot v3 metadata samples -------------------------------------------
+#
+# Field order and fixed-point scales come from the reference's metadata_v3_base
+# (72 bytes) and its extension structs. Values are invented but structurally
+# valid, so a decoder can be checked against exact expected output.
 
-    Contents are invented -- these fixtures exercise MP4 extraction, not the
-    Parrot parser, which gets its own fixtures when it exists.
-    """
-    body = bytes((index + i) & 0xFF for i in range(60))
+Q16_16, Q10_22, Q16_8, Q8_8, Q2_14, Q11_5 = 1 << 16, 1 << 22, 1 << 8, 1 << 8, 1 << 14, 1 << 5
+
+
+def v3_base(index: int) -> bytes:
+    """The 72-byte v3 base structure. `length` is filled in by v3_sample()."""
+    # A quaternion that is genuinely unit-norm, so a decoder's norm check is
+    # meaningful: 60 degrees about Z.
+    qw, qz = 0.86602540, 0.5
+
+    body = struct.pack(
+        ">iiii",
+        round(12.5 * Q16_16),                       # ground_distance (m)
+        round(48.858370 * Q10_22),                  # latitude (deg)
+        round(2.294481 * Q10_22),                   # longitude (deg)
+        (round(135.25 * Q16_8) << 8) | 11,          # altitude Q16.8 << 8 | sv_count
+    )
+    body += struct.pack(">hhhh",
+                        round(3.5 * Q8_8),          # north_speed
+                        round(-1.25 * Q8_8),        # east_speed
+                        round(0.75 * Q8_8),         # down_speed
+                        round(4.0 * Q8_8))          # air_speed
+    for q in (qw, 0.0, 0.0, qz):                    # drone_quat
+        body += struct.pack(">h", round(q * Q2_14))
+    for q in (1.0, 0.0, 0.0, 0.0):                  # frame_base_quat
+        body += struct.pack(">h", round(q * Q2_14))
+    for q in (qw, 0.0, 0.0, qz):                    # frame_quat
+        body += struct.pack(">h", round(q * Q2_14))
+    body += struct.pack(">HH", round(8.25 * Q8_8), 200)          # exposure_time, gain
+    body += struct.pack(">HH", round(1.5 * Q2_14), round(1.25 * Q2_14))  # awb r/b
+    body += struct.pack(">HH", round(69.5 * Q8_8), round(43.75 * Q8_8))  # hfov, vfov
+    body += struct.pack(">I", (25000 << 8) | 4)     # goodput kbit/s << 8 | quality
+    body += struct.pack(">bBBB",
+                        -47,                        # wifi_rssi (dBm)
+                        77,                         # battery_percentage
+                        0x80 | 3,                   # binning | FLYING_STATE_FLYING
+                        0x80 | 2)                   # animation | PILOTING_MODE_FLIGHT_PLAN
+    assert len(body) == 68, len(body)               # 72 less the id/length pair
+    return body
+
+
+def ext(ext_id: int, payload: bytes) -> bytes:
+    assert len(payload) % 4 == 0, "extensions are 4-byte aligned"
+    return struct.pack(">HH", ext_id, len(payload) // 4) + payload
+
+
+def timestamp_ext(timestamp_us: int) -> bytes:
+    return ext(0x4531, struct.pack(">II", timestamp_us >> 32, timestamp_us & 0xFFFFFFFF))
+
+
+def automation_ext() -> bytes:
+    payload = struct.pack(">iii", round(48.86 * Q10_22), round(2.30 * Q10_22),
+                          round(140.0 * Q16_16))            # framing target
+    payload += struct.pack(">iii", round(48.87 * Q10_22), round(2.31 * Q10_22),
+                           round(150.0 * Q16_16))           # flight destination
+    payload += struct.pack(">BBH", 5, 0x01 | 0x04, 0)       # animation, flags, reserved
+    return ext(0x4533, payload)
+
+
+def thermal_ext() -> bytes:
+    payload = struct.pack(">hhh", round(0.25 * Q11_5), round(0.5 * Q11_5),
+                          round(283.15 * Q11_5))            # min spot
+    payload += struct.pack(">hhh", round(0.75 * Q11_5), round(0.25 * Q11_5),
+                           round(312.65 * Q11_5))           # max spot
+    payload += struct.pack(">hhh", round(0.5 * Q11_5), round(0.5 * Q11_5),
+                           round(295.15 * Q11_5))           # probe spot
+    payload += struct.pack(">BB", 2, 0x01 | 0x02)           # calib_state, validity flags
+    return ext(0x4534, payload)                             # 9*2 + 2 = 20 bytes, aligned
+
+
+def v3_sample(index: int, extensions: bytes = b"") -> bytes:
+    """0x5033 + length (32-bit words after the pair, extensions included)."""
+    body = v3_base(index) + extensions
     return struct.pack(">HH", 0x5033, len(body) // 4) + body
 
 
@@ -144,7 +215,8 @@ def main() -> int:
     out_dir = Path(sys.argv[1])
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    samples = [v3_sample(i) for i in range(8)]
+    # A recorded sample always carries the timestamp extension; 33333 µs apart.
+    samples = [v3_sample(i, timestamp_ext(33333 * i)) for i in range(8)]
     video = [bytes([0xDE, 0xAD, 0xBE, 0xEF, i]) for i in range(8)]
 
     fixtures = {
@@ -154,6 +226,13 @@ def main() -> int:
         # *second* string in the sample entry.
         "parrot_v3_encoded.mp4": build(MIME_PREFIX + "com.parrot.videometadata3", samples,
                                        video, content_encoding="binary"),
+        # Every extension the reference defines for v3, plus one unknown id that
+        # a parser must skip rather than choke on.
+        "parrot_v3_extensions.mp4": build(
+            MIME_PREFIX + "com.parrot.videometadata3",
+            [v3_sample(i, timestamp_ext(33333 * i) + automation_ext() + thermal_ext()
+                       + ext(0x4599, b"\x00\x00\x00\x00")) for i in range(8)],
+            video),
         # A metadata track that is not Parrot's -- must be rejected, not guessed.
         "foreign_meta.mp4": build("application/octet-stream;type=com.example.telemetry",
                                   samples, video),

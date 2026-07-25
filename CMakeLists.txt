@@ -26,6 +26,7 @@ target_link_libraries(parrot-to-klv PRIVATE
 add_library(parrot_extract STATIC
   src/mp4_box_scan.cpp
   src/mp4_metadata_extractor.cpp
+  src/parrot_v3.cpp
 )
 
 target_include_directories(parrot_extract PUBLIC
@@ -43,3 +44,9 @@ target_link_libraries(mp4_extraction_test PRIVATE parrot_extract)
 
 add_test(NAME mp4_extraction
          COMMAND mp4_extraction_test ${CMAKE_SOURCE_DIR}/test/fixtures)
+
+add_executable(parrot_v3_test test/parrot_v3_test.cpp)
+target_link_libraries(parrot_v3_test PRIVATE parrot_extract)
+
+add_test(NAME parrot_v3
+         COMMAND parrot_v3_test ${CMAKE_SOURCE_DIR}/test/fixtures)

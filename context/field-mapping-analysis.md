@@ -62,8 +62,8 @@ base struct (Bebop 2 / Disco / ANAFI). *Session* = untimed MP4 session metadata.
 | 18 | Sensor Relative Azimuth | `camera.quat` ⊖ `drone.quat` → yaw | `frame_*` ⊖ `drone_*` | relative quaternion → Euler, rad→deg, wrap to [0, 360) |
 | 19 | Sensor Relative Elevation | ditto → pitch | ditto | rad→deg, ±180 |
 | 20 | Sensor Relative Roll | ditto → roll | ditto | rad→deg, wrap to [0, 360) |
-| 40/41/42 | Target Location Lat/Lon/Elev | `lfic[].location` | ext `0x4536` (LFIC) | direct. LFIC *is* cursor-on-target; prefer `LFIC_TYPE_COT` when several are present |
-| 45/46 | Target Error Estimate CE90/LE90 | `lfic[].horizontal_radial_accuracy` / `horizontal_tangential_accuracy` | ext `0x4536` | approximate — Parrot's two horizontal accuracies are not literally CE90/LE90. **Open question** |
+| 40/41/42 | Target Location Lat/Lon/Elev | `lfic[].location` | automation ext `0x4533` `framing_target_*` (v3 only) | proto: LFIC *is* cursor-on-target — prefer `LFIC_TYPE_COT` when several are present. v2/v3 have **no LFIC**; the automation extension's framing target is the nearest equivalent, and v2 has neither |
+| 45/46 | Target Error Estimate CE90/LE90 | `lfic[].horizontal_radial_accuracy` / `horizontal_tangential_accuracy` | — | **proto only.** Approximate even there: Parrot's radial/tangential horizontal accuracies are not literally CE90/LE90. **Open question** |
 | 51 | Platform Vertical Speed | `-drone.speed.down` | `-down_speed` (Q8.8) | **negate.** 0601 §8.51 is "relative to zenith" (positive up); Parrot NED is positive down |
 | 56 | Platform Ground Speed | `hypot(speed.north, speed.east)` | `hypot(north_speed, east_speed)` | round to uint8 m/s, clamp at 255 |
 | 65 | UAS Datalink LS Version | — | — | constant `19` |
@@ -81,6 +81,12 @@ base struct (Bebop 2 / Disco / ANAFI). *Session* = untimed MP4 session metadata.
 | 134 | Zoom Percentage | `camera.zoom_level` | — | proto only. Parrot's `zoom_level` is a multiplier, 0601 wants IMAPB 0..100 % — needs a defined mapping |
 
 ### Enum maps
+
+Named below with the **protobuf** enumerators. The binary formats use the same
+concepts with *different numeric values* — binary `piloting_mode` starts at
+`MANUAL=0` where protobuf starts at `PM_UNKNOWN=0`, and the two disagree on the
+last pair. Map through the names, never the numbers; see
+[[parrot-metadata-formats]] § v2/v3.
 
 **Item 125 Platform Status** (ST 0601.19 Table 11), from `FlyingState` × `PilotingMode`:
 
