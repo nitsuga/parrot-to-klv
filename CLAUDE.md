@@ -21,14 +21,7 @@ v0.1 bundle.
 - For the live plan and status, read [`planning/PROGRESS.md`](planning/PROGRESS.md)
   and [`planning/ROADMAP.md`](planning/ROADMAP.md).
 
-## Planning hygiene
-
-Each doc has one job — keep them from re-narrating each other. **The *why* behind
-each rule is in [`README.md`](README.md) § "Why these rules" — read it before
-relaxing a rule. A rule without its reason gets deleted the first time it's
-inconvenient.**
-
-### Before every commit checklist
+## Before every commit checklist
 
 When you implement a significant change (new feature, phase start, decision):
 
@@ -39,6 +32,16 @@ When you implement a significant change (new feature, phase start, decision):
 
 **Never commit code without updating the docs that describe it.** If you're about
 to commit and haven't touched `log.md` or `PROGRESS.md`, stop and update them first.
+
+What goes in each doc — and the rules behind this checklist — is **Planning
+hygiene** below.
+
+## Planning hygiene
+
+Each doc has one job — keep them from re-narrating each other. **The *why* behind
+each rule is in [`README.md`](README.md) § "Why these rules" — read it before
+relaxing a rule. A rule without its reason gets deleted the first time it's
+inconvenient.**
 
 - [`context/log.md`](context/log.md) — the **durable chronological record**:
   what landed when, decision/change detail, routine ingests/lint. History lives

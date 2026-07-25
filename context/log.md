@@ -5,6 +5,28 @@
      a fuller entry per significant implementation. Routine ingests/lint go here
      too. This is the ONLY home for history — PROGRESS.md is present-tense only. -->
 
+## 2026-07-25
+
+* **Doc-workflow consistency pass.** Three fixes to the docs describing the
+  workflow itself:
+  - `CLAUDE.md` — promoted "Before every commit checklist" from `###` to `##`.
+    As a subsection it structurally swallowed the doc-role bullets and the "So:"
+    rules that belong to § Planning hygiene, orphaning them from their intro
+    sentence. Now a sibling section, still ahead of the hygiene rules.
+  - `README.md` § "Why these rules" — added the missing rationale for the
+    same-commit rule. The rule landed without one, which § Planning hygiene
+    itself warns against ("a rule without its reason gets deleted the first time
+    it's inconvenient").
+  - `README.md` — completed the setup step that was skipped when this project was
+    created: the file was still `okf-project-template`'s README verbatim (template
+    title/intro, Quick Start, Manual setup, a dead `SETUP.md` link, 0BSD license
+    line, template Structure block). Replaced with this project's identity, build
+    instructions, real structure, and the Apache 2.0 license line. The doc taxonomy
+    and "Why these rules" sections were kept, per `SETUP.md` § 2.
+* The checklist and the same-commit rationale are being ported back upstream to
+  `okf-project-template`; the README fix is local (the template's own README is
+  correct as-is).
+
 ## 2026-07-23
 
 * **Project initialized** from `okf-project-template`. Defined scope: convert

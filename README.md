@@ -1,39 +1,40 @@
-# okf-project-template
+# Parrot to KLV
 
-A starter template for **agent-driven projects** that keeps project knowledge,
-decisions, and plan in a small set of Markdown docs an AI agent maintains — and,
-crucially, *instructions that tell the agent how to work* so those docs don't rot.
+Converts Parrot drone telemetry metadata embedded in MP4 files into MPEG-TS files
+carrying the video alongside a MISB ST 0601 KLV stream. Provides a command-line
+tool and an optional API for integration into other applications.
 
-It's built on the
-[OKF](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md)
-knowledge-catalog format (that's the `context/` bundle) and adds a
-planning/decisions/working-hygiene layer around it. It is **not** an official OKF
-artifact — OKF is one of the four parts.
+Parrot writes telemetry into a timed-metadata track inside the MP4 (formats v1,
+v2, v3, and protobuf). This project extracts that track, maps its fields onto
+MISB ST 0601 tags, and remuxes video + KLV into MPEG-TS. Real-time streaming, a
+GUI, and KLV standards beyond ST 0601 are out of scope — see
+[`planning/ROADMAP.md`](planning/ROADMAP.md).
 
-## Quick Start
+## Build
 
-**1. Make your own copy.** On this repo's GitHub page, click **"Use this
-template" → Create a new repository** (or
-`gh repo create my-project --template <owner>/okf-project-template --private`).
-Then clone your new repo locally.
+C++ with CMake. [libmisbklv](https://github.com/nitsuga/libmisbklv) is pulled in
+via `FetchContent`, so a standard workflow is all that's needed:
 
-**2. Customize it — let an agent walk you through it (recommended).** Open the new
-project in your coding agent (e.g. Claude Code) and paste this:
+```
+cmake -S . -B build && cmake --build build && ctest --test-dir build
+```
 
-> I just created this project from **okf-project-template** and it still has the
-> template's placeholders. Please run the setup dialog in `SETUP.md`: ask me what
-> you need to know, fill in the project's docs (name, scope, preferences, first
-> tasks), and remove the example/placeholder content when we're done.
+Test inputs live in `data/`, which is **gitignored** — it holds real drone footage
+with live location data and must never be committed.
 
-The agent runs a short Q&A, fills in the docs, deletes the example artifacts, and
-removes the onboarding scaffolding — leaving a clean, customized project. Prefer
-to do it by hand? Follow [Manual setup](#manual-setup) below instead.
+## Project status
 
-**3. Start working.** Your project now has a knowledge bundle (`context/`), a
-decision register (ADRs), a living plan (`planning/`), and agent working rules
-(`CLAUDE.md`) — all wired together.
+This README describes what the project *is*. For what's happening right now, read
+[`planning/PROGRESS.md`](planning/PROGRESS.md) (present state) and
+[`context/log.md`](context/log.md) (what landed when). Status is deliberately not
+duplicated here — see § "Why these rules" below.
 
 ## The doc taxonomy
+
+> This project uses an agent documentation workflow generated from
+> [okf-project-template](https://github.com/nitsuga/okf-project-template). The two
+> sections below explain that workflow; the rules an agent follows live in
+> [`CLAUDE.md`](CLAUDE.md).
 
 Four top-level doc directories, each with one job:
 
@@ -47,31 +48,8 @@ Four top-level doc directories, each with one job:
 Plus [`CLAUDE.md`](CLAUDE.md) at the root — the *how-to-work* instructions an
 agent auto-loads: the doc roles above and the planning-hygiene rules below.
 
-## Manual setup
-
-The by-hand alternative to the agent dialog (Quick Start step 2) — the same
-result, done yourself:
-
-1. Copy/clone this tree into your new project (or use it as a GitHub template).
-2. Fill in [`CLAUDE.md`](CLAUDE.md): the project description (top) and the
-   **Project preferences** section (commit policy, repo layout, build/test/run).
-3. Set the real `timestamp` in `context/CONVENTIONS.md` frontmatter; trim the
-   `type` vocabulary to your domain.
-4. Delete (or replace) the **example artifacts**, each marked with an
-   `[EXAMPLE — replace or delete]` note:
-   - `context/decisions/0001-example-decision.md` (a worked ADR)
-   - the example entry in `context/log.md`
-   - the example rows/sections in `context/index.md`,
-     `context/decisions/index.md`, `planning/ROADMAP.md`, `planning/PROGRESS.md`
-5. Start working. On the first real decision, write ADR `0001`.
-
-To find every spot that needs your attention (and confirm you got them all when
-done), grep for the markers:
-`grep -rnE '<PROJECT>|<[a-z][^>]*>|\[EXAMPLE|<!--' --include='*.md' .`
-
-**Optional CI:** a GitHub Action that fails on broken internal doc links ships
-**disabled**. Enable it any time with
-`git mv .github/workflows/link-check.yml.disabled .github/workflows/link-check.yml`.
+**Doc-link CI:** [`.github/workflows/link-check.yml`](.github/workflows/link-check.yml)
+runs on push and pull request, and fails on broken internal doc links.
 
 ## Why these rules
 
@@ -84,6 +62,12 @@ earned its place by a failure mode:
 - **History → `log.md`, present-state → `PROGRESS.md`.** A curated knowledge base
   must not carry volatile session history, and a status doc must not accrete a
   "Done" pile. Keeping them separate keeps each trustworthy.
+- **Docs land in the *same commit* as the code.** A doc updated "later" is a doc
+  that is wrong in between — and agents, reviewers, and your future self all read
+  the repo *at a commit*, not at "later". Deferring also means reconstructing what
+  changed from memory, so the entry arrives thin or never arrives at all. So the
+  commit that changes behaviour carries its own `log.md` + `PROGRESS.md` update;
+  the checklist at the top of `CLAUDE.md` is the gate that enforces it.
 - **No live tallies.** A count ("19 tests", "forks 1–15") is wrong the moment the
   next change lands, and nobody remembers to update prose numbers. Describe the
   *state* ("all tests green", "none open — see the register"); a number is only
@@ -105,25 +89,26 @@ decisions) and the future (open/candidate work).
 
 ```
 CLAUDE.md              how-to-work instructions (agent auto-loads)
-SETUP.md               one-time setup dialog (agent-run; self-deletes after)
+CMakeLists.txt         build (FetchContent pulls libmisbklv)
 .github/workflows/
-  link-check.yml.disabled   optional CI (rename to enable — fails on broken links)
+  link-check.yml       CI — fails on broken internal doc links
+src/                   C++ source
+external/              vendored deps (minimp4 single-header MP4 parser)
 context/               agent-owned OKF knowledge bundle
   index.md             bundle catalog (read first)
   CONVENTIONS.md       frontmatter, types, ADR format, ingest/query/lint
   log.md               durable chronological record
   decisions/
     index.md           decided register: fork ↔ ADR ↔ status
-    0001-*.md          ADRs (one example included)
+    0001-*.md          ADRs
 planning/
   ROADMAP.md           scope, phases, open + candidate forks
   PROGRESS.md          present state: Now / In-progress / Next
-references/            immutable inputs (read-only)
+references/            immutable inputs (read-only) — Parrot metadata spec
 docs/                  human-facing guides
+data/                  test inputs — gitignored, never committed
 ```
 
 ## License
 
-[0BSD](LICENSE) (Zero-Clause BSD) — use, copy, and modify this template freely,
-**no attribution required**. Projects you generate from it are yours to license
-however you like (keep 0BSD or swap in your own `LICENSE`).
+[Apache 2.0](LICENSE).
