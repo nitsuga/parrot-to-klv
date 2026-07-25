@@ -3,6 +3,8 @@
 
 #include "mp4_metadata_extractor.hpp"
 
+#include "mp4_box_scan.hpp"
+
 #define MINIMP4_IMPLEMENTATION
 #include "minimp4.h"
 
@@ -16,9 +18,13 @@ namespace parrot_to_klv {
 struct Mp4MetadataExtractor::Impl {
     FILE* file = nullptr;
     MP4D_demux_t demux = {};
+    bool demux_open = false;
     int metadata_track_idx = -1;
 
     ~Impl() {
+        if (demux_open) {
+            MP4D_close(&demux);
+        }
         if (file) {
             fclose(file);
         }
@@ -27,46 +33,78 @@ struct Mp4MetadataExtractor::Impl {
 
 namespace {
 
-// minimp4 callback: read bytes from file
-int read_callback(int64_t offset, void* buffer, size_t size, void* token) {
-    FILE* file = static_cast<FILE*>(token);
-    if (fseek(file, offset, SEEK_SET) != 0) {
-        return 0;
+/// Parrot writes `application/octet-stream;type=com.parrot.videometadata3`.
+/// Match on the `type=` parameter; the media type prefix carries no information.
+std::optional<ParrotFormat> format_from_mime(const std::string& mime) {
+    const auto pos = mime.find("com.parrot.videometadata");
+    if (pos == std::string::npos) {
+        return std::nullopt;
     }
-    return static_cast<int>(fread(buffer, 1, size, file));
+    const std::string suffix = mime.substr(pos + std::strlen("com.parrot.videometadata"));
+    if (suffix == "1") return ParrotFormat::V1;
+    if (suffix == "2") return ParrotFormat::V2;
+    if (suffix == "3") return ParrotFormat::V3;
+    if (suffix == "proto") return ParrotFormat::Proto;
+    return std::nullopt;
 }
 
-// Find metadata track (handler type 'meta' or 'nmhd')
-int find_metadata_track(const MP4D_demux_t& demux) {
-    for (unsigned i = 0; i < demux.track_count; ++i) {
-        // Check handler type - metadata tracks have handler_type = 'meta'
-        // Also check for 'nmhd' (null media header) which Parrot uses
-        const auto& track = demux.track[i];
-        if (track.handler_type == MP4D_HANDLER_TYPE_NONE ||
-            track.handler_type == MP4D_HANDLER_TYPE_META) {
+int64_t file_size_of(FILE* file) {
+    if (std::fseek(file, 0, SEEK_END) != 0) {
+        return -1;
+    }
+    const int64_t size = std::ftell(file);
+    std::fseek(file, 0, SEEK_SET);
+    return size;
+}
+
+// minimp4 read callback. Returns *non-zero on failure* — see minimp4_fgets,
+// which treats any truthy return as an error.
+int read_callback(int64_t offset, void* buffer, size_t size, void* token) {
+    FILE* file = static_cast<FILE*>(token);
+    if (fseek(file, static_cast<long>(offset), SEEK_SET) != 0) {
+        return 1;
+    }
+    return fread(buffer, 1, size, file) != size;
+}
+
+/// Locate the Parrot metadata track among the scanned descriptions.
+/// Returns the index into `tracks`, or -1.
+int find_parrot_metadata_track(const std::vector<Mp4TrackDescription>& tracks) {
+    for (size_t i = 0; i < tracks.size(); ++i) {
+        if (tracks[i].handler_type == kHandlerMeta &&
+            format_from_mime(tracks[i].mime_format).has_value()) {
             return static_cast<int>(i);
         }
     }
     return -1;
 }
 
-// Extract MIME type from stsd box (sample description)
-std::string extract_mime_type(FILE* file, const MP4D_track_t& track) {
-    // For Parrot metadata, MIME type is in stsd as TextMetaDataSampleEntry
-    // Format: "application/octet-stream;type=<mime_type>"
-    // where <mime_type> is com.parrot.videometadata{1,2,3,proto}
-
-    // minimp4 stores sample description info in track.SampleDescription
-    // For text metadata, the format string should be present
-
-    // For now, try to detect from track properties
-    // We'll refine this based on actual file structure
-
-    // Placeholder: return empty, will be enhanced when we examine real MP4 structure
-    return "";
+/// Report what we did find, so a non-Parrot or unexpected file says why.
+void report_tracks(const std::vector<Mp4TrackDescription>& tracks) {
+    std::cerr << "Found " << tracks.size() << " track(s):\n";
+    for (size_t i = 0; i < tracks.size(); ++i) {
+        const auto& t = tracks[i];
+        std::cerr << "  Track " << i << ": id=" << t.track_id
+                  << " handler='" << fourcc_to_string(t.handler_type) << "'"
+                  << " sample_entry='" << fourcc_to_string(t.sample_entry_format) << "'";
+        if (!t.mime_format.empty()) {
+            std::cerr << " mime=\"" << t.mime_format << "\"";
+        }
+        std::cerr << "\n";
+    }
 }
 
 }  // namespace
+
+std::string to_string(ParrotFormat format) {
+    switch (format) {
+        case ParrotFormat::V1: return "v1";
+        case ParrotFormat::V2: return "v2";
+        case ParrotFormat::V3: return "v3";
+        case ParrotFormat::Proto: return "proto";
+    }
+    return "unknown";
+}
 
 std::optional<Mp4MetadataExtractor> Mp4MetadataExtractor::open(const std::string& file_path) {
     Mp4MetadataExtractor extractor;
@@ -79,47 +117,80 @@ std::optional<Mp4MetadataExtractor> Mp4MetadataExtractor::open(const std::string
         return std::nullopt;
     }
 
-    // Parse MP4 structure with minimp4
-    int ret = MP4D_open(&extractor.impl_->demux, read_callback, extractor.impl_->file, 0);
-    if (ret != 0) {
-        std::cerr << "Failed to parse MP4 file: " << file_path << " (error " << ret << ")" << std::endl;
+    const int64_t size = file_size_of(extractor.impl_->file);
+    if (size <= 0) {
+        std::cerr << "Empty or unreadable file: " << file_path << std::endl;
         return std::nullopt;
     }
 
-    // Find metadata track
-    int track_idx = find_metadata_track(extractor.impl_->demux);
+    // Recover what minimp4 discards: sample entry MIME types and tref links.
+    const auto tracks = scan_mp4_tracks(extractor.impl_->file);
+    if (tracks.empty()) {
+        std::cerr << "No 'moov' tracks found in: " << file_path << std::endl;
+        return std::nullopt;
+    }
+
+    const int track_idx = find_parrot_metadata_track(tracks);
     if (track_idx < 0) {
-        std::cerr << "No metadata track found in: " << file_path << std::endl;
-        std::cerr << "Found " << extractor.impl_->demux.track_count << " tracks:" << std::endl;
-        for (unsigned i = 0; i < extractor.impl_->demux.track_count; ++i) {
-            std::cerr << "  Track " << i << ": handler_type="
-                      << extractor.impl_->demux.track[i].handler_type << std::endl;
-        }
+        std::cerr << "No Parrot metadata track in: " << file_path << "\n";
+        report_tracks(tracks);
+        return std::nullopt;
+    }
+    const auto& described = tracks[static_cast<size_t>(track_idx)];
+
+    // The MIME type names the payload format outright — never infer it.
+    const auto format = format_from_mime(described.mime_format);
+    if (!format) {
+        std::cerr << "Unrecognised Parrot MIME type: " << described.mime_format << std::endl;
+        return std::nullopt;
+    }
+
+    // Parse MP4 structure with minimp4, which owns the sample index.
+    // NB: file_size must be real — minimp4 treats read_pos >= read_size as EOF,
+    // so passing 0 aborts parsing at the first skip.
+    if (MP4D_open(&extractor.impl_->demux, read_callback, extractor.impl_->file, size) != 1) {
+        std::cerr << "Failed to parse MP4 file: " << file_path << std::endl;
+        return std::nullopt;
+    }
+    extractor.impl_->demux_open = true;
+
+    // Both enumerations follow 'trak' order, so the indices line up. Check that
+    // rather than trust it — a mismatch would silently read the wrong track.
+    if (static_cast<size_t>(track_idx) >= extractor.impl_->demux.track_count) {
+        std::cerr << "Track index " << track_idx << " beyond minimp4's "
+                  << extractor.impl_->demux.track_count << " track(s)" << std::endl;
+        return std::nullopt;
+    }
+    const auto& track = extractor.impl_->demux.track[track_idx];
+    if (track.handler_type != described.handler_type) {
+        std::cerr << "Track " << track_idx << " disagrees between scanners: box scan says '"
+                  << fourcc_to_string(described.handler_type) << "', minimp4 says '"
+                  << fourcc_to_string(track.handler_type) << "'" << std::endl;
         return std::nullopt;
     }
 
     extractor.impl_->metadata_track_idx = track_idx;
-    const auto& track = extractor.impl_->demux.track[track_idx];
-
-    // Extract MIME type (placeholder for now)
-    std::string mime_type = extract_mime_type(extractor.impl_->file, track);
-    if (mime_type.empty()) {
-        // Default to v3 for ANAFI (we'll detect properly later)
-        mime_type = "com.parrot.videometadata3";
-        std::cerr << "Warning: Could not detect MIME type, assuming: " << mime_type << std::endl;
-    }
 
     // Fill track info
     extractor.track_info_.track_index = track_idx;
-    extractor.track_info_.mime_type = mime_type;
+    extractor.track_info_.mime_type = described.mime_format;
+    extractor.track_info_.format = *format;
     extractor.track_info_.sample_count = track.sample_count;
     extractor.track_info_.duration_us =
-        (track.duration_units * 1000000ULL) / extractor.impl_->demux.timescale;
+        track.timescale > 0
+            ? ((static_cast<uint64_t>(track.duration_hi) << 32 | track.duration_lo) * 1000000ULL) /
+                  track.timescale
+            : 0;
 
     std::cout << "Found metadata track " << track_idx << ":" << std::endl;
-    std::cout << "  MIME type: " << mime_type << std::endl;
+    std::cout << "  MIME type: " << described.mime_format << std::endl;
+    std::cout << "  Format: " << to_string(*format) << std::endl;
     std::cout << "  Samples: " << track.sample_count << std::endl;
-    std::cout << "  Duration: " << (extractor.track_info_.duration_us / 1000000.0) << " s" << std::endl;
+    std::cout << "  Duration: " << (extractor.track_info_.duration_us / 1000000.0) << " s"
+              << std::endl;
+    if (described.cdsc_track_ids.empty()) {
+        std::cout << "  Note: no tref/cdsc reference to a video track" << std::endl;
+    }
 
     return extractor;
 }
@@ -139,35 +210,34 @@ std::optional<MetadataSample> Mp4MetadataExtractor::extract_sample(uint32_t samp
         return std::nullopt;
     }
 
-    // Get sample offset and size
-    int64_t offset = MP4D_frame_offset(&impl_->demux, impl_->metadata_track_idx,
-                                       sample_index, nullptr);
-    uint32_t size = MP4D_frame_size(&impl_->demux, impl_->metadata_track_idx, sample_index);
-
-    if (offset < 0 || size == 0) {
+    // One call yields offset, size and timestamp together. The timestamp is in
+    // *track* timescale units — minimp4's header comment saying otherwise is
+    // wrong; see its MP4D_frame_offset, which reads tr->timestamp[].
+    unsigned frame_bytes = 0;
+    unsigned timestamp_units = 0;
+    unsigned duration_units = 0;
+    const MP4D_file_offset_t offset =
+        MP4D_frame_offset(&impl_->demux, static_cast<unsigned>(impl_->metadata_track_idx),
+                          sample_index, &frame_bytes, &timestamp_units, &duration_units);
+    if (frame_bytes == 0) {
         return std::nullopt;
     }
 
     // Read sample data
     MetadataSample sample;
-    sample.data.resize(size);
+    sample.data.resize(frame_bytes);
 
-    if (fseek(impl_->file, offset, SEEK_SET) != 0) {
+    if (fseek(impl_->file, static_cast<long>(offset), SEEK_SET) != 0) {
+        return std::nullopt;
+    }
+    if (fread(sample.data.data(), 1, frame_bytes, impl_->file) != frame_bytes) {
         return std::nullopt;
     }
 
-    size_t bytes_read = fread(sample.data.data(), 1, size, impl_->file);
-    if (bytes_read != size) {
-        return std::nullopt;
-    }
-
-    // Calculate timestamp (in microseconds)
-    // Get timestamp from track using sample index
-    uint64_t timestamp_units = 0;
-    for (uint32_t i = 0; i < sample_index; ++i) {
-        timestamp_units += MP4D_frame_duration(&impl_->demux, impl_->metadata_track_idx, i);
-    }
-    sample.timestamp_us = (timestamp_units * 1000000ULL) / track.timescale;
+    sample.timestamp_us =
+        track.timescale > 0
+            ? (static_cast<uint64_t>(timestamp_units) * 1000000ULL) / track.timescale
+            : 0;
 
     return sample;
 }

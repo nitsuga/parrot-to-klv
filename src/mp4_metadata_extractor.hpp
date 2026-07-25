@@ -17,12 +17,27 @@ struct MetadataSample {
     std::vector<uint8_t> data;  ///< Raw metadata bytes
 };
 
+/// Parrot metadata format, as named by the stsd MIME type.
+///
+/// This selects the payload parser, so it is never guessed: a track whose MIME
+/// type we do not recognise is rejected rather than assumed.
+enum class ParrotFormat {
+    V1,     ///< com.parrot.videometadata1 — Bebop / Bebop 2 (deprecated)
+    V2,     ///< com.parrot.videometadata2 — Bebop 2, Disco, Bluegrass
+    V3,     ///< com.parrot.videometadata3 — ANAFI range
+    Proto,  ///< com.parrot.videometadataproto — ANAFI Ai / UKR
+};
+
+/// Human-readable name for a format, for diagnostics.
+std::string to_string(ParrotFormat format);
+
 /// Result of MP4 metadata track identification
 struct MetadataTrackInfo {
-    int track_index;  ///< Track index in MP4 file
-    std::string mime_type;  ///< MIME type from stsd (e.g., "com.parrot.videometadata3")
-    uint32_t sample_count;  ///< Number of metadata samples
-    uint64_t duration_us;  ///< Track duration in microseconds
+    int track_index = -1;  ///< Track index in MP4 file
+    std::string mime_type;  ///< MIME type from stsd, verbatim
+    ParrotFormat format = ParrotFormat::V3;  ///< Format the MIME type names
+    uint32_t sample_count = 0;  ///< Number of metadata samples
+    uint64_t duration_us = 0;  ///< Track duration in microseconds
 };
 
 /// MP4 metadata track extractor

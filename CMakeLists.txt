@@ -15,20 +15,31 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(misbklv)
 
 # Project source files
-add_executable(parrot-to-klv
-  src/main.cpp
+add_executable(parrot-to-klv src/main.cpp)
+
+target_link_libraries(parrot-to-klv PRIVATE
+  parrot_extract
+  misbklv::gst  # libmisbklv with GStreamer support
+)
+
+# Extraction sources, shared by the tool and its tests.
+add_library(parrot_extract STATIC
+  src/mp4_box_scan.cpp
   src/mp4_metadata_extractor.cpp
 )
 
-target_include_directories(parrot-to-klv PRIVATE
+target_include_directories(parrot_extract PUBLIC
   ${CMAKE_SOURCE_DIR}/src
   ${CMAKE_SOURCE_DIR}/external/minimp4  # Vendored single-header MP4 parser
 )
 
-target_link_libraries(parrot-to-klv PRIVATE
-  misbklv::gst  # libmisbklv with GStreamer support
-)
-
 # Enable testing
 enable_testing()
-# Tests will be added here
+
+# Fixtures are synthetic and committed (test/make_fixture.py regenerates them);
+# real Parrot footage carries live location data and is never committed.
+add_executable(mp4_extraction_test test/mp4_extraction_test.cpp)
+target_link_libraries(mp4_extraction_test PRIVATE parrot_extract)
+
+add_test(NAME mp4_extraction
+         COMMAND mp4_extraction_test ${CMAKE_SOURCE_DIR}/test/fixtures)

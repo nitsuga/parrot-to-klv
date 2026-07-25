@@ -7,6 +7,40 @@
 
 ## 2026-07-25
 
+* **MP4 metadata extraction works end to end.** The extractor did not compile;
+  fixing it turned up seven distinct defects, most of them fabricated API:
+  - `MP4D_frame_size()` and `MP4D_frame_duration()` do not exist in minimp4.
+    `MP4D_frame_offset()` takes six arguments, was called with four, and returns
+    an *unsigned* `MP4D_file_offset_t`, so the `offset < 0` guard was dead. Its
+    out-params supply size and timestamp together, which also deleted an O(n²)
+    loop that re-summed durations from zero for every sample (~162M iterations
+    on a 10-minute 30 fps track).
+  - `MP4D_HANDLER_TYPE_META`/`_NONE` do not exist — minimp4 defines only `VIDE`
+    and `SOUN`. `track.duration_units` does not exist either (`duration_hi`/`lo`).
+  - The read callback returned the byte count, but minimp4 treats **any truthy
+    return as failure** (see `minimp4_fgets`), so a successful read read as an
+    error. `MP4D_open` returns 1 on success and the caller tested `!= 0`.
+  - `MP4D_open(..., 0)` passed a zero file size; minimp4 treats
+    `read_pos >= read_size` as EOF, so parsing aborted at the first skip.
+  - `MP4D_close()` was never called — the per-track index arrays leaked.
+* **Format detection is real, and no longer guesses.** `extract_mime_type()` was
+  a stub returning `""`, and the caller then *defaulted to v3* — which would have
+  fed a proto-format ANAFI Ai file to the v3 binary parser and produced confident
+  garbage. minimp4 cannot supply it: `MP4D_track_t::SampleDescription` is a union
+  covering `soun` and `vide` only, so a metadata track's sample entry is parsed
+  past and dropped. New `src/mp4_box_scan.{hpp,cpp}` walks the box tree directly
+  (consistent with [ADR 0001](./decisions/0001-mp4-extraction-approach.md)) and
+  recovers `tkhd` track IDs, `hdlr` handler types, the `stsd` sample entry, and
+  `tref`/`cdsc` links. The MIME type now yields a typed `ParrotFormat`, and an
+  unrecognised one is a hard error listing what was found.
+* **Test fixtures are synthetic and committed.** `test/make_fixture.py` builds
+  MP4s with Parrot's documented track layout and invented payloads, so extraction
+  is testable without committing footage that carries live location data. Covers
+  v3, proto, a writer that fills in `content_encoding` (moving the MIME type to
+  the second string), and a non-Parrot `meta` track that must be refused. Wired
+  into `ctest` as `mp4_extraction`; the suite passes, and the box walker survives
+  6701 malformed inputs (every truncation plus every single-byte corruption at
+  three values) clean under ASan+UBSan.
 * **Field mapping rewritten against the complete ST 0601.19 registry.** libmisbklv
   commit `a981a1a` registers §8.1–8.143 (all but deprecated Item 66), validated
   against the standard's worked examples, so the mapping could finally be settled
