@@ -27,63 +27,20 @@ with live location data and must never be committed.
 This README describes what the project *is*. For what's happening right now, read
 [`planning/PROGRESS.md`](planning/PROGRESS.md) (present state) and
 [`context/log.md`](context/log.md) (what landed when). Status is deliberately not
-duplicated here — see § "Why these rules" below.
+duplicated here, so it can't drift.
 
-## The doc taxonomy
+## Working on this project
 
-> This project uses an agent documentation workflow generated from
-> [okf-project-template](https://github.com/nitsuga/okf-project-template). The two
-> sections below explain that workflow; the rules an agent follows live in
-> [`CLAUDE.md`](CLAUDE.md).
-
-Four top-level doc directories, each with one job:
-
-| Dir | Role | Audience |
-|-----|------|----------|
-| `references/` | **Immutable** source-of-truth inputs (specs, standards, prior art). Read, never modify. | inputs |
-| `context/` | **Agent-owned** knowledge bundle (OKF): synthesized concepts + the decision register (ADRs). | agent |
-| `planning/` | **Volatile** plan + present state — `ROADMAP.md` (scope/phases/open forks) and `PROGRESS.md` (Now/Next). | both |
-| `docs/` | **Human-facing** authored guides (terse). | humans |
-
-Plus [`CLAUDE.md`](CLAUDE.md) at the root — the *how-to-work* instructions an
-agent auto-loads: the doc roles above and the planning-hygiene rules below.
+The docs are maintained by an AI agent following the working rules in
+[`CLAUDE.md`](CLAUDE.md) — a pre-commit checklist and a set of planning-hygiene
+rules that keep each doc to one job. The reasoning behind those rules is in
+[`context/workflow-rationale.md`](context/workflow-rationale.md), and the
+directory taxonomy in [`context/CONVENTIONS.md`](context/CONVENTIONS.md)
+§ Layout. This workflow came from
+[okf-project-template](https://github.com/nitsuga/okf-project-template).
 
 **Doc-link CI:** [`.github/workflows/link-check.yml`](.github/workflows/link-check.yml)
 runs on push and pull request, and fails on broken internal doc links.
-
-## Why these rules
-
-The hygiene rules in `CLAUDE.md` look fussy until you've watched docs rot. Each
-earned its place by a failure mode:
-
-- **One job per doc.** When two docs narrate the same thing, one copy drifts and
-  you can't tell which is right. So: history lives only in `log.md`, the decided
-  register only in `decisions/index.md`, present state only in `PROGRESS.md`.
-- **History → `log.md`, present-state → `PROGRESS.md`.** A curated knowledge base
-  must not carry volatile session history, and a status doc must not accrete a
-  "Done" pile. Keeping them separate keeps each trustworthy.
-- **Docs land in the *same commit* as the code.** A doc updated "later" is a doc
-  that is wrong in between — and agents, reviewers, and your future self all read
-  the repo *at a commit*, not at "later". Deferring also means reconstructing what
-  changed from memory, so the entry arrives thin or never arrives at all. So the
-  commit that changes behaviour carries its own `log.md` + `PROGRESS.md` update;
-  the checklist at the top of `CLAUDE.md` is the gate that enforces it.
-- **No live tallies.** A count ("19 tests", "forks 1–15") is wrong the moment the
-  next change lands, and nobody remembers to update prose numbers. Describe the
-  *state* ("all tests green", "none open — see the register"); a number is only
-  ever a frozen snapshot in a dated `log.md` line.
-- **Closing scrubs the future / one home for open work.** Forward-looking content
-  drifts exactly like history: resolve an item but leave it listed under "Next" /
-  "candidate" elsewhere, and the docs now lie. So a candidate lives in *one* place
-  (ROADMAP's backlog), and resolving it means deleting its forward-looking
-  mentions too — not just updating the present-state bullet.
-- **Lint is the backstop.** Nothing fires it automatically, so run it periodically
-  (closing a fork, before a release). But the real lever is reducing what *can*
-  drift (the rules above), so the lint has little to catch.
-
-The meta-lesson: **duplication rots — in both tenses.** Most of these rules are
-one idea (don't say the same thing in two places) applied to the past (history,
-decisions) and the future (open/candidate work).
 
 ## Structure
 
@@ -97,6 +54,7 @@ external/              vendored deps (minimp4 single-header MP4 parser)
 context/               agent-owned OKF knowledge bundle
   index.md             bundle catalog (read first)
   CONVENTIONS.md       frontmatter, types, ADR format, ingest/query/lint
+  workflow-rationale.md  why each planning-hygiene rule exists
   log.md               durable chronological record
   decisions/
     index.md           decided register: fork ↔ ADR ↔ status

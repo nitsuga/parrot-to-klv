@@ -39,7 +39,8 @@ hygiene** below.
 ## Planning hygiene
 
 Each doc has one job — keep them from re-narrating each other. **The *why* behind
-each rule is in [`README.md`](README.md) § "Why these rules" — read it before
+each rule is in
+[`context/workflow-rationale.md`](context/workflow-rationale.md) — read it before
 relaxing a rule. A rule without its reason gets deleted the first time it's
 inconvenient.**
 

@@ -7,6 +7,21 @@
 
 ## 2026-07-25
 
+* **README made human-facing; rule rationale moved into the bundle.** The
+  top-level README carried two agent-facing sections inherited from the template
+  ("The doc taxonomy", "Why these rules"), which cluttered what a human sees and
+  put workflow directives outside the docs agents read.
+  - New [[workflow-rationale]] (`context/workflow-rationale.md`) is now the single
+    home for the per-rule reasoning; added to `index.md` § Bundle guide, and
+    `CLAUDE.md` § Planning hygiene points there instead of at the README.
+  - "The doc taxonomy" was **deleted, not moved** — it duplicated
+    [`CONVENTIONS.md`](./CONVENTIONS.md) § Layout, which already carries the same
+    four-directory table.
+  - README now runs: what it is → build → status pointer → a short "Working on
+    this project" pointer → structure → license. It states no rules itself.
+  - Same change upstream in `okf-project-template`, where the README keeps a short
+    pitch that links to the rationale rather than hosting it, and `SETUP.md` now
+    tells setup to delete both sections rather than keep them.
 * **Doc-workflow consistency pass.** Three fixes to the docs describing the
   workflow itself:
   - `CLAUDE.md` — promoted "Before every commit checklist" from `###` to `##`.
