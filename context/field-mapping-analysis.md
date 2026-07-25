@@ -1,403 +1,212 @@
 ---
 type: Concept
 title: Parrot to MISB 0601 Field Mapping Analysis
-description: Analysis of which Parrot metadata fields map to ST 0601 tags, identifying implemented vs. missing tags in libmisbklv
+description: Which Parrot telemetry fields map to which ST 0601.19 items, what must be derived geometrically, and what has no home in 0601
 tags: [mapping, parrot, misb, 0601, analysis]
-timestamp: 2026-07-23T19:30:00Z
+timestamp: 2026-07-25T21:00:00Z
 ---
 
 # Parrot to MISB 0601 Field Mapping Analysis
 
-Analysis of Parrot drone telemetry fields and their mapping to MISB ST 0601.19
-UAS Datalink Local Set tags, identifying what's already implemented in libmisbklv
-vs. what needs to be added.
+Maps Parrot drone telemetry ([[parrot-metadata-formats]]) onto MISB ST 0601.19
+UAS Datalink Local Set items.
 
 **Sources:**
 - [[parrot-metadata-formats]] — Parrot field definitions
-- libmisbklv `registry/uas0601.toml` — Currently implemented ST 0601 tags
-- libmisbklv `/references/ST0601.19.pdf` — Full ST 0601.19 specification
+- `references/Embedded Video Metadata - 8.4.2.html` — Parrot's `vmeta.proto` and
+  the v1/v2/v3 binary structs, verbatim
+- libmisbklv `registry/uas0601.toml` — the registered ST 0601.19 item set
+- libmisbklv `references/ST0601.19.txt` — the standard itself (per-item format
+  blocks, Tables 3/10/11/12)
 
-## Currently Implemented in libmisbklv
+## Registry status: no libmisbklv work required
 
-Based on `registry/uas0601.toml`, libmisbklv implements **27 ST 0601 tags**:
+libmisbklv registers the **full ST 0601.19 item set** (§8.1–8.143, less
+deprecated Item 66), validated against the standard's worked examples. Every
+item named below already exists with the correct codec, range, and special
+values. Nothing needs adding to `uas0601.toml` for this project.
 
-| Tag | Name | Units | Kind | Notes |
-|-----|------|-------|------|-------|
-| 1 | Checksum | - | uint16 | Mandatory, must be last |
-| 2 | Precision Time Stamp | µs | uint64 | Mandatory, µs since epoch |
-| 5 | Platform Heading Angle | deg | linear_lds | 0..360 |
-| 6 | Platform Pitch Angle | deg | linear_lds | -20..20 |
-| 7 | Platform Roll Angle | deg | linear_lds | -50..50 |
-| 11 | Image Source Sensor | - | utf8 | Camera/sensor name |
-| 12 | Image Coordinate System | - | utf8 | E.g., "Geodetic WGS84" |
-| 13 | Sensor Latitude | deg | linear_lds | -90..90 |
-| 14 | Sensor Longitude | deg | linear_lds | -180..180 |
-| 15 | Sensor True Altitude | m | linear_lds | -900..19000 (MSL) |
-| 16 | Sensor Horizontal FOV | deg | linear_lds | 0..180 |
-| 17 | Sensor Vertical FOV | deg | linear_lds | 0..180 |
-| 18 | Sensor Relative Azimuth Angle | deg | linear_lds | 0..360 |
-| 19 | Sensor Relative Elevation Angle | deg | linear_lds | -180..180 |
-| 20 | Sensor Relative Roll Angle | deg | linear_lds | 0..360 |
-| 21 | Slant Range | m | linear_lds | 0..5000000 |
-| 22 | Target Width | m | linear_lds | 0..10000 |
-| 23 | Frame Center Latitude | deg | linear_lds | -90..90 |
-| 24 | Frame Center Longitude | deg | linear_lds | -180..180 |
-| 25 | Frame Center Elevation | m | linear_lds | -900..19000 (HAE) |
-| 40 | Target Location Latitude | deg | linear_lds | -90..90 |
-| 41 | Target Location Longitude | deg | linear_lds | -180..180 |
-| 42 | Target Location Elevation | m | linear_lds | -900..19000 (HAE) |
-| 56 | Platform Ground Speed | m/s | uint8 | Direct value |
-| 57 | Ground Range | m | linear_lds | 0..5000000 |
-| 65 | UAS Datalink LS Version Number | - | uint8 | Mandatory, version |
-| 74 | VMTI Local Set | - | nested_ls | ST 0903 nesting |
+> **Correction, 2026-07-25.** The previous revision of this doc listed a large
+> set of "missing" tags to add, with tag numbers taken from assumption rather
+> than the standard. Nearly all were wrong (3, 53, 54, 92, 93, 103, 106, 107,
+> 108, 114, 134, 135 are all different items than claimed, and no "Sensor
+> Lat/Lon/Alt Extended" or "Platform Groundspeed Extended" item exists in 0601 at
+> all). It also premised a precision problem that does not exist: Item 13/14 are
+> int32 mapped over ±90/±180, i.e. ~4.7 mm resolution. **Trust `uas0601.toml`
+> over any tag number written from memory.**
 
-## Parrot → MISB 0601 Mapping (Direct)
+## Tier 1 — direct mappings
 
-Fields available in Parrot v3/proto formats that map directly to existing
-libmisbklv tags:
+Field-to-field, needing only unit/datum conversion. This covers essentially all
+of Parrot's usable telemetry.
 
-### Platform/Drone
-| Parrot Field | MISB Tag | Notes |
-|--------------|----------|-------|
-| `drone_quat` (yaw component) | 5 (Platform Heading) | Extract Euler yaw from quaternion |
-| `drone_pitch` | 6 (Platform Pitch) | Convert radians → degrees |
-| `drone_roll` | 7 (Platform Roll) | Convert radians → degrees |
-| `location.latitude` | 13 (Sensor Lat) | Use drone location as sensor location |
-| `location.longitude` | 14 (Sensor Lon) | Use drone location as sensor location |
-| `location.altitude` | 15 (Sensor True Alt) | EGM96 → MSL (minimal difference) |
-| `speed` (ground speed magnitude) | 56 (Platform Ground Speed) | Calculate from NED vector |
+`proto` = `vmeta.proto` `TimedMetadata` (ANAFI Ai / UKR). `v2/v3` = the binary
+base struct (Bebop 2 / Disco / ANAFI). *Session* = untimed MP4 session metadata.
 
-### Camera/Frame
-| Parrot Field | MISB Tag | Notes |
-|--------------|----------|-------|
-| `picture_hfov` | 16 (Sensor H FOV) | Already in degrees |
-| `picture_vfov` | 17 (Sensor V FOV) | Already in degrees |
-| `camera_pan` | 18 (Sensor Rel Azimuth) | Convert radians → degrees |
-| `camera_tilt` | 19 (Sensor Rel Elevation) | Convert radians → degrees |
+| Item | Name | proto source | v2/v3 source | Conversion |
+|------|------|--------------|--------------|------------|
+| 2 | Precision Time Stamp | `camera.utc_timestamp` | ext `0x4531` timestamp | proto is already µs since epoch — **but `camera.utc_timestamp_accuracy == 0` means invalid**. v2/v3 carry a monotonic clock only; anchor it to session `media_date`. |
+| 4 | Platform Tail Number | session `serial_number` | session `serial_number` | utf8 |
+| 5 | Platform Heading Angle | `drone.quat` → yaw | `drone_w..z` (Q2.14) → yaw | quat→Euler, rad→deg, wrap to [0, 360) |
+| 6 | Platform Pitch Angle | `drone.quat` → pitch | ditto | rad→deg. **Range is only ±20°** — see *Range traps* |
+| 7 | Platform Roll Angle | `drone.quat` → roll | ditto | rad→deg. **Range is only ±50°** |
+| 8 | Platform True Airspeed | — | `air_speed` (Q8.8) | round to uint8 m/s; **negative means no data** — omit the item |
+| 10 | Platform Designation | session `model` | session `model` | utf8, e.g. `"ANAFI Ai"` |
+| 11 | Image Source Sensor | `camera.spectrum` / `camera.subtype` | session camera info | `"EO"` / `"IR"` |
+| 12 | Image Coordinate System | — | — | constant `"Geodetic WGS84"` |
+| 13 | Sensor Latitude | `camera.location.latitude` | `latitude` (Q10.22) | direct. Prefer `camera.location` over `drone.location`; fall back when absent |
+| 14 | Sensor Longitude | `camera.location.longitude` | `longitude` (Q10.22) | direct |
+| 15 | Sensor True Altitude | `camera.location.altitude_egm96amsl` | `altitude_and_sv` bits 31..8 (Q16.8) | both sides are EGM96/AMSL — direct. **proto: zero means unknown** |
+| 16 | Sensor Horizontal FOV | `camera.hfov` | `picture_hfov` (Q8.8) | **proto is radians, v2/v3 is degrees** — do not share a code path |
+| 17 | Sensor Vertical FOV | `camera.vfov` | `picture_vfov` (Q8.8) | same asymmetry |
+| 18 | Sensor Relative Azimuth | `camera.quat` ⊖ `drone.quat` → yaw | `frame_*` ⊖ `drone_*` | relative quaternion → Euler, rad→deg, wrap to [0, 360) |
+| 19 | Sensor Relative Elevation | ditto → pitch | ditto | rad→deg, ±180 |
+| 20 | Sensor Relative Roll | ditto → roll | ditto | rad→deg, wrap to [0, 360) |
+| 40/41/42 | Target Location Lat/Lon/Elev | `lfic[].location` | ext `0x4536` (LFIC) | direct. LFIC *is* cursor-on-target; prefer `LFIC_TYPE_COT` when several are present |
+| 45/46 | Target Error Estimate CE90/LE90 | `lfic[].horizontal_radial_accuracy` / `horizontal_tangential_accuracy` | ext `0x4536` | approximate — Parrot's two horizontal accuracies are not literally CE90/LE90. **Open question** |
+| 51 | Platform Vertical Speed | `-drone.speed.down` | `-down_speed` (Q8.8) | **negate.** 0601 §8.51 is "relative to zenith" (positive up); Parrot NED is positive down |
+| 56 | Platform Ground Speed | `hypot(speed.north, speed.east)` | `hypot(north_speed, east_speed)` | round to uint8 m/s, clamp at 255 |
+| 65 | UAS Datalink LS Version | — | — | constant `19` |
+| 75 | Sensor Ellipsoid Height | `camera.location.altitude_wgs84ellipsoid` | — | **proto gives both datums directly — no geoid model needed.** v2/v3 carry AMSL only, so this item needs an EGM96 lookup or omission |
+| 79 | Sensor North Velocity | `drone.speed.north` | `north_speed` (Q8.8) | direct, ±327 m/s |
+| 80 | Sensor East Velocity | `drone.speed.east` | `east_speed` (Q8.8) | direct, ±327 m/s |
+| 90 | Platform Pitch Angle (Full) | `drone.quat` → pitch | ditto | **the item to actually trust** — ±90° |
+| 91 | Platform Roll Angle (Full) | `drone.quat` → roll | ditto | ±90° |
+| 112 | Platform Course Angle | `atan2(speed.east, speed.north)` | same | rad→deg, wrap [0, 360). **Undefined at zero ground speed** — omit below a threshold |
+| 113 | Altitude AGL | `drone.ground_distance` | `ground_distance` (Q16.16) | direct |
+| 123 | Number of NAVSATs in View | `*.location.sv_count` | `altitude_and_sv` bits 7..0 | direct uint8 |
+| 124 | Positioning Method Source | derived | derived | Table 10 bit-flags; set bit 1 (GPS) when `sv_count > 0`. Parrot does not say *which* constellation |
+| 125 | Platform Status | `drone.flying_state` + `piloting_mode` | `state` / `mode` | enum map — below |
+| 126 | Sensor Control Mode | `drone.piloting_mode`, `tracking.state` | `mode` | enum map — below |
+| 134 | Zoom Percentage | `camera.zoom_level` | — | proto only. Parrot's `zoom_level` is a multiplier, 0601 wants IMAPB 0..100 % — needs a defined mapping |
 
-### Timestamp
-| Parrot Field | MISB Tag | Notes |
-|--------------|----------|-------|
-| `frame_timestamp` or `frame_utc_timestamp` | 2 (Precision Time Stamp) | Convert to µs since 1970-01-01 epoch |
+### Enum maps
 
-### Metadata
-| Parrot Field | MISB Tag | Notes |
-|--------------|----------|-------|
-| `"EO"` or `"Thermal"` | 11 (Image Source Sensor) | Map camera spectrum |
-| `"Geodetic WGS84"` | 12 (Image Coordinate System) | Static value |
-| `19` (ST 0601.19) | 65 (UAS LS Version) | Use latest version |
+**Item 125 Platform Status** (ST 0601.19 Table 11), from `FlyingState` × `PilotingMode`:
 
-## Missing ST 0601 Tags (Needed for Parrot Data)
+| Parrot | 0601 value |
+|---|---|
+| `FS_LANDED` | 12 Landed-Parked |
+| `FS_MOTOR_RAMPING` | 3 Run-up |
+| `FS_TAKINGOFF`, `FS_USER_TAKEOFF` | 4 Take-off |
+| `FS_HOVERING`/`FS_FLYING` + `PM_MANUAL` | 6 Manual operation |
+| `FS_HOVERING`/`FS_FLYING` + `PM_TRACKING` | 7 Automated-orbit |
+| `FS_HOVERING`/`FS_FLYING` + `PM_FLIGHT_PLAN`/`PM_MOVETO` | 8 Transitioning |
+| `FS_HOVERING`/`FS_FLYING` + `PM_RETURN_HOME` | 9 Egress |
+| `FS_LANDING`, `FS_EMERGENCY_LANDING` | 10 Landing |
+| `FS_EMERGENCY` | 0 Active — Table 11 has no emergency value |
 
-High-priority tags that Parrot provides data for, but libmisbklv doesn't yet
-implement:
+**Item 126 Sensor Control Mode** (Table 12): `PM_TRACKING` with tracking active
+→ 6 Auto-Tracking; `PM_MANUAL` → 3 Manual Control; `FS_LANDED` → 1 Home
+Position; otherwise → 2 Uncontrolled.
 
-### Platform Speed/Velocity
-| Tag | Name | Units | Kind | Parrot Source | Priority |
-|-----|------|-------|------|---------------|----------|
-| **3** | **Platform Designation** | - | utf8 | `model` + `serial` | **Medium** |
-| **8** | **Platform True Airspeed** | m/s | uint8 | `air_speed` (proto only) | Medium |
-| **9** | **Platform Indicated Airspeed** | m/s | uint8 | - | Low (not available) |
-| **10** | **Platform Track Angle** | deg | uint16 | Calculated from `speed_ned` | Medium |
+## Tier 2 — derived geometry
 
-### Altitude/Elevation
-| Tag | Name | Units | Kind | Parrot Source | Priority |
-|-----|------|-------|------|---------------|----------|
-| **26** | **Offset Corner Lat Point 1** | deg | int32 | - | Low (can calculate) |
-| **27** | **Offset Corner Lon Point 1** | deg | int32 | - | Low (can calculate) |
-| **28** | **Offset Corner Lat Point 2** | deg | int32 | - | Low |
-| **29** | **Offset Corner Lon Point 2** | deg | int32 | - | Low |
-| **30** | **Offset Corner Lat Point 3** | deg | int32 | - | Low |
-| **31** | **Offset Corner Lon Point 3** | deg | int32 | - | Low |
-| **32** | **Offset Corner Lat Point 4** | deg | int32 | - | Low |
-| **33** | **Offset Corner Lon Point 4** | deg | int32 | - | Low |
-| **82** | **Corner Lat Point 1 (Full)** | deg | int32 | - | Low |
-| **83** | **Corner Lon Point 1 (Full)** | deg | int32 | - | Low |
-| **84** | **Corner Lat Point 2 (Full)** | deg | int32 | - | Low |
-| **85** | **Corner Lon Point 2 (Full)** | deg | int32 | - | Low |
-| **86** | **Corner Lat Point 3 (Full)** | deg | int32 | - | Low |
-| **87** | **Corner Lon Point 3 (Full)** | deg | int32 | - | Low |
-| **88** | **Corner Lat Point 4 (Full)** | deg | int32 | - | Low |
-| **89** | **Corner Lon Point 4 (Full)** | deg | int32 | - | Low |
+Not present in Parrot telemetry in any form; each requires projecting the gimbal
+boresight from the sensor position onto a terrain model.
 
-### Platform Position/Altitude (Extended)
-| Tag | Name | Units | Kind | Parrot Source | Priority |
-|-----|------|-------|------|---------------|----------|
-| **112** | **Platform Course Angle** | deg | IMAPB | Calculated from `speed_ned` | **High** |
-| **113** | **Platform AGL Altitude** | m | IMAPB | `ground_distance` | **High** |
-| **114** | **Platform Altitude Extended** | m | IMAPB | `altitude` (relative to takeoff) | **High** |
-| **115** | **Platform Ellipsoid Height** | m | IMAPB | `location.altitude` (WGS84) | Medium |
-| **116** | **Platform Ellipsoid Height Extended** | m | IMAPB | Same as 115, extended range | Medium |
+| Item | Name |
+|------|------|
+| 21 | Slant Range |
+| 22 | Target Width |
+| 23 / 24 / 25 | Frame Center Latitude / Longitude / Elevation |
+| 57 | Ground Range |
+| 78 | Frame Center Height Above Ellipsoid |
+| 82–89 | Corner Lat/Lon Points 1–4 (Full) |
+| 26–33 | Offset Corner Points 1–4 (compact alternative to 82–89) |
 
-### Platform Rates (Angular Velocities)
-| Tag | Name | Units | Kind | Parrot Source | Priority |
-|-----|------|-------|------|---------------|----------|
-| **117** | **Platform Pitch Rate** | deg/s | IMAPB | Not directly available | Low |
-| **118** | **Platform Roll Rate** | deg/s | IMAPB | Not directly available | Low |
-| **119** | **Platform Yaw Rate** | deg/s | IMAPB | Not directly available | Low |
+Inputs are all in Tier 1: sensor position (13/14/15), platform attitude (5/90/91),
+gimbal orientation (18/19/20), FOV (16/17), and AGL (113).
 
-### Platform Speed (Extended)
-| Tag | Name | Units | Kind | Parrot Source | Priority |
-|-----|------|-------|------|---------------|----------|
-| **103** | **Platform Groundspeed Extended** | m/s | IMAPB | `speed` magnitude | **High** |
-| **104** | **Platform True Airspeed Extended** | m/s | IMAPB | `air_speed` (proto) | Medium |
-| **105** | **Platform Indicated Airspeed Extended** | m/s | IMAPB | - | Low |
+Two fidelity levels, and the choice is independent of the registry:
 
-### Location/Position (Extended)
-| Tag | Name | Units | Kind | Parrot Source | Priority |
-|-----|------|-------|------|---------------|----------|
-| **106** | **Sensor Latitude Extended** | deg | IMAPB | `location.latitude` | **High** |
-| **107** | **Sensor Longitude Extended** | deg | IMAPB | `location.longitude` | **High** |
-| **108** | **Sensor True Altitude Extended** | m | IMAPB | `location.altitude` | **High** |
-| **109** | **Sensor Ellipsoid Height** | m | IMAPB | `location.altitude` | Medium |
-| **110** | **Sensor Ellipsoid Height Extended** | m | IMAPB | Same as 109, extended | Medium |
+- **Flat-earth** — intersect the boresight with a horizontal plane at
+  `sensor altitude − AGL`. No external data. Degrades on sloped terrain and
+  becomes meaningless near the horizon.
+- **DTED / terrain model** — real ray-cast. Accurate, but adds a data dependency
+  and a lookup path.
 
-### Sensor/Camera Extended
-| Tag | Name | Units | Kind | Parrot Source | Priority |
-|-----|------|-------|------|---------------|----------|
-| **90** | **Sensor Relative Roll Angle Extended** | deg | IMAPB | - | Low |
-| **91** | **Image Horizon Pixel Pack** | pack | VLP | - | Low |
-| **92** | **Sensor North Velocity** | m/s | IMAPB | `speed_ned.north` | **High** |
-| **93** | **Sensor East Velocity** | m/s | IMAPB | `speed_ned.east` | **High** |
-| **94** | **Image Horizon Pixel Pack (Ext)** | pack | VLP | - | Low |
+This is the substantive remaining engineering in the transform stage.
 
-### Frame/Image Extended
-| Tag | Name | Units | Kind | Parrot Source | Priority |
-|-----|------|-------|------|---------------|----------|
-| **96** | **Target Width Extended** | m | IMAPB | - | Low |
-| **97** | **Sensor Calibrated FOV** | deg | uint16 | `picture_hfov` / `picture_vfov` | Medium |
+## Tier 3 — VMTI (Item 74)
 
-### System/Link
-| Tag | Name | Units | Kind | Parrot Source | Priority |
-|-----|------|-------|------|---------------|----------|
-| **53** | **Link RSSI** | dBm | int8 | `wifi_rssi` | Medium |
-| **54** | **Battery Level** | % | uint8 | `battery_percentage` | **High** |
-| **55** | **Battery Voltage** | V | uint16 | Not available | Low |
+Proto `tracking.target` (a `BoundingBox` with class, confidence, and UID) and
+`proposal.proposals` map onto the ST 0903 VMTI Local Set, which libmisbklv
+registers as a nested LS (`child = "vmti_0903"`). Out of scope for the initial
+converter; noted so the data isn't forgotten.
 
-### Exposure/Camera Settings
-| Tag | Name | Units | Kind | Parrot Source | Priority |
-|-----|------|-------|------|---------------|----------|
-| **134** | **Exposure Time** | µs | uint32 | `exposure_time` (convert ms → µs) | Medium |
-| **135** | **ISO Sensitivity** | - | uint16 | `gain` or `iso_speed` | Medium |
+## No home in ST 0601
 
-## Coordinate System Transformations
+These Parrot fields have **no corresponding 0601 item**, and 0601 defines no
+vendor/user extension point to carry them:
 
-### Altitude Datums
-- **Parrot**: Uses EGM96 geoid (AMSL — Above Mean Sea Level)
-- **MISB 0601**:
-  - Tag 15 (Sensor True Altitude): MSL (essentially same as EGM96)
-  - Tags 109/110 (Ellipsoid Height): WGS84 ellipsoid (HAE — Height Above Ellipsoid)
-  - Tag 113 (AGL): Above Ground Level
+- `drone.battery_percentage`, `drone.battery_voltage`
+- Link telemetry — `WifiLinkMetadata` (rssi, quality, goodput),
+  `StarfishLinkMetadata` (per-link type/status/quality)
+- `camera.exposure_time`, `camera.iso_gain`, `camera.awb_r_gain`,
+  `camera.awb_b_gain`, `camera.principal_point`
+- `ThermalMetadata` — calibration state, min/max/probe spots, mask
+- `drone.altitude_ato` (altitude above take-off), `drone.position` (NED),
+  `drone.local_position`, `camera.local_position`
+- `automation` — animation, follow-me / look-at-me, destination
+- `location.horizontal_accuracy` / `vertical_accuracy` (0601's 45/46 are
+  *target* error, not sensor error)
+- `lfic[].grid_precision`, `tracking.quality` / `cookie`
+- `UserMetadata`, `PhotoMetadata`
 
-**Conversion needed:** EGM96 (AMSL) → WGS84 (HAE) requires geoid model lookup.
-For most locations, difference is <100m. Can use approximation or geoid library.
+Disposition is a live fork — see
+[ADR 0002](./decisions/0002-unmappable-parrot-fields.md).
 
-### Coordinate Frames
-- **Parrot**: NED (North-East-Down) for velocities
-- **MISB 0601**: Also NED for platform velocities (tags 92/93 are N/E components)
-
-No conversion needed for velocities, direct mapping.
-
-### Angular Units
-- **Parrot**: Radians for most angles
-- **MISB 0601**: Degrees for all angles
-
-**Conversion:** Multiply by (180/π) ≈ 57.2958.
+## Conversions
 
 ### Quaternion → Euler
-Parrot provides frame quaternions; MISB wants Euler angles for platform attitude.
 
-**Conversion:** Standard quaternion-to-Euler formula:
-- Yaw (ψ) = atan2(2(qw*qz + qx*qy), 1 - 2(qy² + qz²))
-- Pitch (θ) = asin(2(qw*qy - qz*qx))
-- Roll (φ) = atan2(2(qw*qx + qy*qz), 1 - 2(qx² + qy²))
+Parrot quaternions are scalar-first (W, X, Y, Z); v2/v3 encode them Q2.14.
 
-## Recommended Implementation Priority
+- Yaw (ψ) = `atan2(2(qw·qz + qx·qy), 1 − 2(qy² + qz²))`
+- Pitch (θ) = `asin(2(qw·qy − qz·qx))`
+- Roll (φ) = `atan2(2(qw·qx + qy·qz), 1 − 2(qx² + qy²))`
 
-### Phase 1 — Minimum Viable (Use Existing Tags)
-Implement conversion using **only currently implemented libmisbklv tags**:
+For the **relative** gimbal angles (Items 18/19/20), compose the frame quaternion
+with the conjugate of the drone quaternion before converting.
 
-**Required tags (all implemented):**
-- Tag 2: Precision Time Stamp
-- Tags 5-7: Platform attitude (heading, pitch, roll)
-- Tags 13-15: Sensor location + altitude
-- Tags 16-17: Sensor FOV
-- Tags 18-19: Sensor pointing (azimuth, elevation)
-- Tag 56: Platform ground speed
-- Tag 65: UAS LS Version
+### Units and datums
 
-**Can produce basic working KLV stream with telemetry overlay capability.**
+- Angles: Parrot radians → 0601 degrees (×180/π), except v2/v3 `picture_[hv]fov`
+  which are already degrees.
+- Altitude: proto supplies **both** `altitude_egm96amsl` (→ Item 15) and
+  `altitude_wgs84ellipsoid` (→ Item 75), so no geoid model is needed. v2/v3
+  supply AMSL only.
+- Velocity: both sides are NED. Only the vertical component flips sign (Item 51).
 
-### Phase 2 — Extended Position/Velocity (Add IMAPB Tags)
-Add extended IMAPB tags for better precision and range:
+### Range traps
 
-**High priority additions:**
-- Tag 103: Platform Groundspeed Extended (IMAPB)
-- Tags 106-108: Sensor Lat/Lon/Alt Extended (IMAPB)
-- Tag 112: Platform Course Angle (IMAPB)
-- Tag 113: Platform AGL Altitude (IMAPB)
-- Tags 92-93: Sensor North/East Velocity (IMAPB)
+- **Items 6/7 are narrow.** Platform Pitch is ±20°, Roll is ±50°. A quadcopter
+  exceeds those in ordinary flight, and out-of-range must be signalled with the
+  `0x8000` special value rather than clamped. Always emit **90/91** (±90°)
+  alongside; treat 6/7 as the legacy-compatibility pair.
+- **Item 56 is uint8 m/s.** 1 m/s quantization, 255 m/s ceiling, and 0601 has no
+  extended variant. Items 79/80 + 112 carry the precise velocity.
+- **Item 15 is uint16 mapped −900..19000 m** → ~0.3 m resolution. Item 75 has
+  the same resolution.
+- Items 79/80 saturate at ±327 m/s, and Item 51 at ±180 m/s — irrelevant for a
+  Parrot airframe.
 
-**Requires:** libmisbklv IMAPB codec (ST 1201) — **already implemented** per
-`st1201.md` and PROGRESS.md. Just needs registry entries added to `uas0601.toml`.
+## Open questions
 
-### Phase 3 — System/Camera Metadata
-Add system state and camera settings:
+- Item 2 for v2/v3: how to anchor the monotonic frame clock to wall time when
+  session `media_date` has second granularity.
+- Item 134: define `zoom_level` (a multiplier) → zoom percentage.
+- Items 45/46: whether Parrot's radial/tangential horizontal accuracies can
+  honestly be reported as CE90/LE90.
+- Tier 2 fidelity: flat-earth vs. DTED (see Tier 2).
+- Item 48 Security Local Set (ST 0102) — not derivable from Parrot data, but
+  many 0601 consumers expect it. Whether to synthesize a minimal one.
 
-- Tag 3: Platform Designation (drone model + serial)
-- Tag 54: Battery Level
-- Tag 53: Link RSSI
-- Tags 134-135: Exposure Time, ISO Sensitivity
+**Why:** Parrot's telemetry maps onto 0601 more completely than previously
+believed, and entirely with items libmisbklv already registers. The real work is
+geometric derivation, not registry extension.
 
-### Phase 4 — Corner Points & Advanced
-Low priority, can calculate from frame center + FOV + slant range:
-
-- Tags 82-89: Full corner points
-- Tags 26-33: Offset corner points
-
-## libmisbklv Extension Requirements
-
-### Tags to Add to `uas0601.toml`
-
-For **Phase 2** (high priority), add these IMAPB tags:
-
-```toml
-[[item]]
-tag = 92
-name = "Sensor North Velocity"
-units = "m/s"
-kind = "imapb"
-# IMAPB: variable length, dynamic range
-
-[[item]]
-tag = 93
-name = "Sensor East Velocity"
-units = "m/s"
-kind = "imapb"
-
-[[item]]
-tag = 103
-name = "Platform Groundspeed Extended"
-units = "m/s"
-kind = "imapb"
-
-[[item]]
-tag = 106
-name = "Sensor Latitude Extended"
-units = "deg"
-kind = "imapb"
-
-[[item]]
-tag = 107
-name = "Sensor Longitude Extended"
-units = "deg"
-kind = "imapb"
-
-[[item]]
-tag = 108
-name = "Sensor True Altitude Extended"
-units = "m"
-kind = "imapb"
-
-[[item]]
-tag = 112
-name = "Platform Course Angle"
-units = "deg"
-kind = "imapb"
-
-[[item]]
-tag = 113
-name = "Platform AGL Altitude"
-units = "m"
-kind = "imapb"
-
-[[item]]
-tag = 114
-name = "Platform Altitude Extended"
-units = "m"
-kind = "imapb"
-```
-
-For **Phase 3**, add:
-
-```toml
-[[item]]
-tag = 3
-name = "Platform Designation"
-kind = "utf8"
-
-[[item]]
-tag = 53
-name = "Link RSSI"
-units = "dBm"
-kind = "int"
-length = 1
-
-[[item]]
-tag = 54
-name = "Battery Level"
-units = "%"
-kind = "uint"
-length = 1
-
-[[item]]
-tag = 134
-name = "Exposure Time"
-units = "µs"
-kind = "uint"
-length = 4
-
-[[item]]
-tag = 135
-name = "ISO Sensitivity"
-kind = "uint"
-length = 2
-```
-
-## Field Mapping Table (Complete)
-
-Comprehensive Parrot → MISB 0601 mapping for reference:
-
-| Parrot Field | Type | MISB Tag | Phase | Notes |
-|--------------|------|----------|-------|-------|
-| `frame_timestamp` / `frame_utc_timestamp` | uint64 µs | 2 | 1 | Convert to epoch µs |
-| `model` + `serial` | string | 3 | 3 | Concatenate, e.g. "ANAFI-PI040416..." |
-| `drone_quat` (→ yaw) | float rad | 5 | 1 | Quat→Euler, rad→deg |
-| `drone_pitch` | float rad | 6 | 1 | rad→deg |
-| `drone_roll` | float rad | 7 | 1 | rad→deg |
-| `air_speed` | float m/s | 8, 104 | 3 | Direct (proto only) |
-| `speed_ned` (→ course) | NED | 10, 112 | 2 | atan2(E, N), rad→deg |
-| `camera_spectrum` | enum | 11 | 1 | Map to "EO"/"Thermal" |
-| - | - | 12 | 1 | Static "Geodetic WGS84" |
-| `location.latitude` | double deg | 13, 106 | 1, 2 | Direct (drone = sensor) |
-| `location.longitude` | double deg | 14, 107 | 1, 2 | Direct |
-| `location.altitude` | double m | 15, 108 | 1, 2 | EGM96 ≈ MSL, convert to HAE for 108 |
-| `picture_hfov` | float deg | 16 | 1 | Direct |
-| `picture_vfov` | float deg | 17 | 1 | Direct |
-| `camera_pan` | float rad | 18 | 1 | rad→deg |
-| `camera_tilt` | float rad | 19 | 1 | rad→deg |
-| - | - | 20 | - | Camera roll (not in Parrot) |
-| - | - | 21 | - | Slant range (need calculation) |
-| - | - | 22 | - | Target width (need calculation) |
-| - | - | 23-25 | - | Frame center (need calculation) |
-| - | - | 40-42 | - | Target location (tracking data) |
-| `wifi_rssi` | int8 dBm | 53 | 3 | Direct |
-| `battery_percentage` | uint8 % | 54 | 3 | Direct |
-| `speed` (magnitude) | float m/s | 56, 103 | 1, 2 | Calculate from NED |
-| - | - | 57 | - | Ground range (need calculation) |
-| - | - | 65 | 1 | Static 19 (ST 0601.19) |
-| - | - | 74 | - | VMTI (future: tracking data) |
-| `speed_ned.north` | float m/s | 92 | 2 | Direct |
-| `speed_ned.east` | float m/s | 93 | 2 | Direct |
-| `ground_distance` | double m | 113 | 2 | AGL altitude |
-| `altitude` (takeoff-relative) | double m | 114 | 2 | Altitude above takeoff |
-| `exposure_time` | float ms | 134 | 3 | Convert ms→µs |
-| `gain` / `iso_speed` | uint16/32 | 135 | 3 | Direct |
-
-**Why:** Parrot provides rich telemetry that maps cleanly to MISB 0601, but needs
-extended IMAPB tags for full fidelity. Phase 1 with existing tags is viable;
-Phase 2 adds precision; Phase 3 adds system metadata.
-
-**How to apply:** Use this as the field mapping specification when implementing
-the Parrot → MISB 0601 converter. Extend libmisbklv registry incrementally as
-needed (Phases 2-3).
+**How to apply:** Use the Tier 1 table as the implementation spec for the
+transform stage. Verify any tag number against `uas0601.toml` before writing code
+against it.

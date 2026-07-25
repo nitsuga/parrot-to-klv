@@ -38,15 +38,21 @@ A *fork* is a decision point — a branch in the plan/design that needs a choice
 Status legend: `OPEN` (undiscussed) · `PROPOSED` (Decision concept written,
 `status: proposed`) · `DECIDED` / `DEFERRED` (has an ADR — see the register).
 
-**None open yet.** Genuinely open (undeliberated) forks get a line here until they
-have an ADR; once decided they move to the
-[register](../context/decisions/index.md) and leave this list. Candidate future
-forks (not yet opened) can be listed here too — the single backlog. Incremental
-*work* that needs no fork lives in [PROGRESS](./PROGRESS.md) "Next", not here.
+- **Fork 1 — Parrot telemetry with no ST 0601 item** (battery, link, exposure,
+  thermal, automation): drop it, repurpose adjacent items, or carry it in a
+  private Local Set on a second stream. Weighs conformance and consumer trust
+  against fidelity and scope.
+  `PROPOSED` — [ADR 0002](../context/decisions/0002-unmappable-parrot-fields.md).
+- **Tier 2 geometry fidelity** *(candidate)*: flat-earth intersection vs. a DTED
+  terrain model for frame center, corner points, and slant/ground range. Weighs
+  a data dependency against accuracy on sloped terrain. Opens when the transform
+  stage reaches derived items — see [[field-mapping-analysis]] § Tier 2.
 
-<!-- e.g.
-- <One-line fork: the question, and what each option weighs>.
--->
+Genuinely open (undeliberated) forks get a line here until they have an ADR;
+once decided they move to the [register](../context/decisions/index.md) and leave
+this list. Candidate future forks (not yet opened) can be listed here too — the
+single backlog. Incremental *work* that needs no fork lives in
+[PROGRESS](./PROGRESS.md) "Next", not here.
 
 ## Fork lifecycle
 

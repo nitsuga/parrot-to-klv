@@ -12,6 +12,12 @@ chronological history (what landed when, decision detail) lives in
 integration, pimpl pattern). Build configuration clean (FetchContent for
 libmisbklv). Status: WIP - minimp4 API usage needs corrections before testing.
 
+The field mapping is settled against the complete ST 0601.19 registry:
+[[field-mapping-analysis]] is the implementation spec for the transform stage.
+libmisbklv needs no registry work for this project. Fork 1 (unmappable Parrot
+fields) is `PROPOSED` in [ADR 0002](../context/decisions/0002-unmappable-parrot-fields.md),
+awaiting acceptance.
+
 ## In progress
 
 - Fixing minimp4 API usage in `mp4_metadata_extractor.cpp` (handler type detection,
@@ -22,8 +28,12 @@ libmisbklv). Status: WIP - minimp4 API usage needs corrections before testing.
 1. Test MP4 extraction with `data/P0330036.MP4`
 2. Implement Parrot v3 binary parser (fixed-point decoding, extensions)
 3. Implement Parrot proto parser (protobuf)
-4. Wire up field mapping to libmisbklv Message API
 
 ## Known gaps
 
-<!-- Things missing / risks worth remembering, that aren't yet actionable "Next". -->
+- Deriving Items 21/22/23/24/25/57/78/82–89 needs a boresight-to-terrain
+  intersection — the substantive remaining work in the transform stage, and the
+  one part of the mapping with no direct Parrot source. Fidelity choice is a
+  candidate fork in [ROADMAP](./ROADMAP.md).
+- Item 2 for v2/v3 recordings: the frame clock is monotonic, so wall-clock
+  anchoring depends on session `media_date` (second granularity).

@@ -37,7 +37,7 @@ _(`type: Standard` — formal standard documents.)_
 
 _(`type: Concept` — durable domain / design knowledge.)_
 
-* [Parrot to MISB 0601 Field Mapping Analysis](./field-mapping-analysis.md) — Complete mapping of Parrot fields to ST 0601 tags, implementation phases, libmisbklv gaps
+* [Parrot to MISB 0601 Field Mapping Analysis](./field-mapping-analysis.md) — Which Parrot fields map to which ST 0601.19 items, what must be derived geometrically, what has no home in 0601
 
 ## Components
 
@@ -49,3 +49,4 @@ _(`type: Decision` — ADRs: the *why* of resolved forks.)_
 
 * [Decisions register](./decisions/index.md) — ADRs grouped under `decisions/`
 * [0001 — Direct MP4 Parsing for Metadata Extraction](./decisions/0001-mp4-extraction-approach.md) — Use lightweight box parsing, not GStreamer qtdemux
+* [0002 — Disposition of Parrot fields with no ST 0601 item](./decisions/0002-unmappable-parrot-fields.md) — *(proposed)* Drop and report, don't repurpose items

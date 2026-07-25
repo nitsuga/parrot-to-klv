@@ -7,6 +7,36 @@
 
 ## 2026-07-25
 
+* **Field mapping rewritten against the complete ST 0601.19 registry.** libmisbklv
+  commit `a981a1a` registers §8.1–8.143 (all but deprecated Item 66), validated
+  against the standard's worked examples, so the mapping could finally be settled
+  item by item instead of guessed.
+  - [[field-mapping-analysis]] was **substantially wrong above tag 65** and is
+    replaced, not amended. Its "missing tags" tables carried tag numbers written
+    from assumption: 3, 53, 54, 92, 93, 103, 106, 107, 108, 114, 134 and 135 are
+    all different items than it claimed, and the "Sensor Lat/Lon/Alt Extended" and
+    "Platform Groundspeed Extended" items it proposed adding do not exist in 0601
+    at all. It also premised a precision problem that isn't real — Items 13/14 are
+    int32 mapped over ±90/±180, ~4.7 mm.
+  - Its four-phase plan is gone with it. The old Phase 2/3 existed to extend
+    `uas0601.toml`; **no registry work is required for this project.** Replaced by
+    three tiers: direct mappings, derived geometry, VMTI.
+  - Real items the full registry unlocked: 90/91 Platform Pitch/Roll (Full), which
+    matter because Items 6/7 cap at ±20°/±50° and a quadcopter exceeds that
+    routinely; 79/80 Sensor North/East Velocity with 51 Platform Vertical Speed
+    (negated — §8.51 is zenith-positive, Parrot NED is down-positive); 75 Sensor
+    Ellipsoid Height; 123 NAVSATs in View ← `sv_count`; 124/125/126 positioning
+    and status enums; 134 Zoom Percentage; 40/41/42 Target Location ← the LFIC
+    extension, which the old doc had written off as unavailable.
+  - Re-read Parrot's `vmeta.proto` and the v2/v3 structs verbatim from
+    `references/`, correcting two things the format doc obscured: proto `hfov`/
+    `vfov` are **radians** while v2/v3 `picture_[hv]fov` are **degrees**, and
+    proto `Location` carries **both** `altitude_egm96amsl` and
+    `altitude_wgs84ellipsoid` — so the geoid conversion the old doc called for is
+    unnecessary on proto.
+* **Fork 1 opened and deliberated: Parrot fields with no ST 0601 item** —
+  [ADR 0002](./decisions/0002-unmappable-parrot-fields.md), `status: proposed`.
+
 * **README made human-facing; rule rationale moved into the bundle.** The
   top-level README carried two agent-facing sections inherited from the template
   ("The doc taxonomy", "Why these rules"), which cluttered what a human sees and
