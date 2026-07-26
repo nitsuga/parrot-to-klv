@@ -115,7 +115,7 @@ void test_report_captures_what_matters() {
     check_eq(report.timestamp_delta_min, uint64_t{33333}, "timestamp delta");
 
     check(!report.input_sha256.empty(), "input hashed");
-    check_eq(report.input_sha256.size(), size_t{64}, "sha256 is 64 hex chars");
+    check_eq(report.input_sha256.size(), size_t{32}, "xxhash is 32 hex chars (128 bits)");
 }
 
 void test_report_is_deterministic() {
