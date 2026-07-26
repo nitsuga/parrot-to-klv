@@ -1,12 +1,11 @@
-# OPTIONAL — internal Markdown link check. DISABLED by default: the ".disabled"
-# suffix makes GitHub ignore this file, so it never runs until you enable it.
+# Internal Markdown link check. Runs on every push / pull request and fails if an
+# internal Markdown link points at a file that doesn't exist. (Ignores links
+# inside inline-code and HTML comments, so documented link *syntax* examples
+# don't trip it.)
 #
-# To enable it in your project:
-#   git mv .github/workflows/link-check.yml.disabled .github/workflows/link-check.yml
-#   git commit -m "Enable link-check CI" && git push
-# It then runs on every push / pull request and fails if an internal Markdown
-# link points at a file that doesn't exist. (Ignores links inside inline-code and
-# HTML comments, so documented link *syntax* examples don't trip it.)
+# Enabled here. It arrived from okf-project-template carrying a header that said
+# it was disabled by a ".disabled" suffix — true of the template, not of this
+# copy, which was renamed on the way in.
 name: link-check
 on: [push, pull_request]
 jobs:
