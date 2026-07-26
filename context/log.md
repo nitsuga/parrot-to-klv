@@ -7,6 +7,23 @@
 
 ## 2026-07-26
 
+* **Real footage found an audio-track bug no fixture could — so the fixtures
+  now have audio.** A real Parrot MP4 carries video *and audio* alongside the
+  metadata track; every fixture here carried only video, so the mux never had to
+  link a pad it discards. Upstream fixed it (parsebin pad linking, plus an
+  H.264 `avc` → `byte-stream` mismatch) and the pin moved to `f9070fb`.
+  - `parrot_v3_video_audio.mp4` adds an AAC track in an `mp4a`/`esds` sample
+    entry on its own timescale — the shape of a real recording. `mux_test`
+    converts it like the others, where "the PMT lists exactly two streams" now
+    also asserts the audio was *dropped* rather than forwarded.
+  - **Honest limit on that guard: it does not reproduce the bug here.** On
+    gstreamer 1.20 `h264parse` already emits `byte-stream` and the pads link
+    regardless — the old pin converts the new fixture byte-identically to the
+    new pin. CI's 1.24 is the stack where a recurrence would show, which is the
+    transitive-include lesson again: green locally says nothing about a stack
+    you did not run on.
+  - The generator needs ffmpeg for this fixture too, and still only to
+    regenerate.
 * **Doc lint.** Four fixes, all of them the future going stale rather than the
   past being wrong:
   - **Two ADRs still deferred work to Phase 3, which has landed.**

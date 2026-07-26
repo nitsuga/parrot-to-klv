@@ -54,8 +54,6 @@ uses `data/` skips cleanly without it.
 
 1. Resolve fork 4, Tier 2 geometry fidelity, in [ROADMAP](./ROADMAP.md), then
    derive Items 21/22/23/24/25/57/78/82–89
-2. Run the mux against a real recording — every conversion so far is of a
-   synthetic fixture whose video is a 64x64 test pattern
 
 ## Known gaps
 
@@ -65,6 +63,11 @@ uses `data/` skips cleanly without it.
   now open in [ROADMAP](./ROADMAP.md).
 - Item 2 for v3 recordings is anchored to session `media_date`, so it inherits
   that field's **second** granularity. Frame-to-frame spacing stays exact.
+- The mux has run on real footage on an authorized machine — that is what found
+  the audio-track gap the fixtures now model. The suite here still only ever
+  converts synthetic input, and the fixture cannot reproduce that bug on
+  gstreamer 1.20; CI's newer stack is the guard. See
+  [mux stage](../context/mux-stage.md) § The fixtures this needed.
 - The proto parser has never seen a real recording, and its fixtures are encoded
   by our own hand-written encoder rather than a reference implementation — see
   [ADR 0003](../context/decisions/0003-protobuf-dependency.md) § Validation.
