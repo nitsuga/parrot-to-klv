@@ -7,6 +7,25 @@
 
 ## 2026-07-26
 
+* **Doc lint.** Four fixes, all of them the future going stale rather than the
+  past being wrong:
+  - **Two ADRs still deferred work to Phase 3, which has landed.**
+    [[0001-mp4-extraction-approach]]'s "Video handling TBD" is settled: the
+    GStreamer path won, but inside libmisbklv, so no video crosses our code and
+    the ADR's boundary holds rather than bends. [[0002-unmappable-parrot-fields]]
+    rejected a private Local Set on *scope* "until the primary path works end to
+    end" — that objection is now spent, and the remaining gate is the other half
+    of its condition, a concrete consumer.
+  - **README's structure block predated two tools and the new CI files** — it
+    listed `parrot-to-klv + parrot-scrub` (missing `parrot-conform`), only
+    minimp4 under `external/`, and only `link-check.yml` under workflows.
+  - **CLAUDE.md gained the two things a fresh agent would get wrong**: a bare
+    `ctest` here runs libmisbklv's suite as well (`-L parrot` is ours, and a new
+    test without the label is silently absent from CI), and regenerating the two
+    video fixtures needs ffmpeg.
+  - Checked and clean: every wiki link resolves (the lone `[[wiki]]` hit is
+    still prose *about* wiki links), no live tallies in present-tense docs, and
+    PROGRESS/ROADMAP carry no forward-looking mention of work now done.
 * **Build CI added** (`.github/workflows/build.yml`): configure, build and
   `ctest` on Ubuntu, on push and PR.
   - **Our tests now carry a `parrot` label and CI runs `ctest -L parrot`.**

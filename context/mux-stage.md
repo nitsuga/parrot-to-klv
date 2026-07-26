@@ -3,7 +3,7 @@ type: Component
 title: Mux stage — MP4 in, MPEG-TS with video + KLV out
 description: How a Parrot MP4 becomes an MPEG-TS carrying its own video unchanged plus a synchronous ST 0601 KLV stream — the one timeline both branches share, and what a failed conversion must not leave behind
 tags: [mux, mpegts, klv, gstreamer, libmisbklv, phase-3]
-timestamp: 2026-07-26T05:30:00Z
+timestamp: 2026-07-26T06:00:00Z
 ---
 
 # Mux stage

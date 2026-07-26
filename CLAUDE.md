@@ -92,7 +92,8 @@ So:
   - `docs/` — human-facing guides (terse).
   - `planning/` — live plan + progress. Read first for "what now".
   - `src/` — C++ source code.
-  - `test/` — tests, synthetic MP4 fixtures (`make_fixture.py` regenerates them),
+  - `test/` — tests, synthetic MP4 fixtures (`make_fixture.py` regenerates them;
+    the two with a real H.264 track need ffmpeg to regenerate, never to use),
     and `conformance/` reports. **No test may require anything from `data/`**: the
     suite must pass on a machine that has never held footage. One test
     (`conformance_real_data`) *uses* `data/` when it is there and skips when it is
@@ -100,8 +101,13 @@ So:
   - `data/` — test input files (contains sensitive videos — never commit).
   - `external/` — vendored dependencies (minimp4 and xxHash, both
     single-header).
-- **Build / test / run**: C++ with CMake. Use FetchContent to pull libmisbklv.
+- **Build / test / run**: C++ with CMake. FetchContent pulls libmisbklv at an
+  exact commit — bumping that pin is its own commit, never a drive-by.
   Standard CMake workflow: `cmake -S . -B build && cmake --build build && ctest --test-dir build`.
+  libmisbklv is a subproject, so a bare `ctest` runs its suite too — useful as
+  early warning when the pin moves. `ctest -L parrot` is this project's tests
+  alone, which is what CI runs; label every new test so it is not silently
+  absent there.
 - **Security**: `data/` contains sensitive test videos with real location data.
   Never commit files from `data/`. Never store or mention identifying information
   (e.g., embedded GPS coordinates) in memory, logs, or documentation.

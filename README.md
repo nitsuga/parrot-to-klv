@@ -75,15 +75,17 @@ dependency — setup in [`.github/workflows/README-ci.md`](.github/workflows/REA
 
 ```
 CLAUDE.md              how-to-work instructions (agent auto-loads)
-CMakeLists.txt         build (FetchContent pulls libmisbklv)
+CMakeLists.txt         build (FetchContent pulls libmisbklv at a pinned commit)
 .github/workflows/
+  build.yml            CI — builds and runs the suite on Ubuntu
   link-check.yml       CI — fails on broken internal doc links
-src/                   C++ source (parrot-to-klv + parrot-scrub)
+  README-ci.md         the one secret build.yml needs, and why
+src/                   C++ source (parrot-to-klv, parrot-scrub, parrot-conform)
 test/                  tests + synthetic MP4 fixtures
-  make_fixture.py      regenerates test/fixtures/
+  make_fixture.py      regenerates test/fixtures/ (ffmpeg for the video ones)
   fixtures/            committed synthetic MP4s — ctest needs no footage
   conformance/         reports from real recordings (no location data)
-external/              vendored deps (minimp4 single-header MP4 parser)
+external/              vendored deps (minimp4, xxHash — both single-header)
 context/               agent-owned OKF knowledge bundle
   index.md             bundle catalog (read first)
   CONVENTIONS.md       frontmatter, types, ADR format, ingest/query/lint

@@ -110,6 +110,19 @@ was that reaching a metadata track through it needs custom work anyway, and the
 same turns out to be true of any demuxer built for audio and video. See
 [[mp4-extraction]] for the resulting division of labour.
 
+# Follow-on (2026-07-26) — the deferred video question is settled
+
+"Video handling TBD" above deferred a choice to Phase 3: extract video samples
+ourselves and hand them to libmisbklv, or take a GStreamer video path. Phase 3
+took the GStreamer path — but not in this repository. libmisbklv's `KlvSink`
+grew a `video_source` (its ADR 0020) that builds `filesrc ! parsebin` into the
+same `mpegtsmux` the KLV goes to, so the elementary stream is re-muxed unchanged
+and no video ever crosses our code.
+
+That keeps this ADR's boundary intact rather than bending it: we still do not
+demux with GStreamer, because the thing GStreamer is good at — video — is the
+one thing we do not touch. See [[mux-stage]].
+
 # References
 
 - Investigation showed `gst-discoverer-1.0` on sample file didn't list metadata

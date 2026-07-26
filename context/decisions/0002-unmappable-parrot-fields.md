@@ -73,7 +73,13 @@ Emit conformant 0601 on one PID and a private Parrot LS on another.
 the data, and it breaks nothing for 0601-only consumers. It is rejected as
 *scope*: it needs a private LS design, a UL registration or a documented local
 key namespace, and muxer work, all before the primary conversion path works
-end-to-end. Revisit once Phase 3 lands, if a concrete consumer wants the data.
+end-to-end.
+
+*Update 2026-07-26:* Phase 3 has landed, so the scope objection is spent — the
+conversion path works end to end and a second stream is now a smaller job than
+when this was written. The remaining gate is the other half of the condition: a
+concrete consumer that wants the data. Until one exists, the coverage report
+naming what was dropped is the whole answer.
 
 ## Drop silently
 
