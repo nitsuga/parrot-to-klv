@@ -7,6 +7,12 @@
 
 ## 2026-07-26
 
+* **Optimized `parse_session_metadata` memory footprint.** `parse_session_metadata`
+  previously read the entire MP4 file into a `std::vector<uint8_t>`, which could
+  allocate multi-gigabytes of memory on large flight recordings. It now scans
+  top-level MP4 box headers to locate the `moov` container payload and buffers
+  only that box into memory (with a 100 MB ceiling guard) before parsing `moov/udta`
+  session tags. Verified clean against `session_metadata_test` and full test suite.
 * **Real footage found an audio-track bug no fixture could — so the fixtures
   now have audio.** A real Parrot MP4 carries video *and audio* alongside the
   metadata track; every fixture here carried only video, so the mux never had to
