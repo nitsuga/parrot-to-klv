@@ -200,8 +200,11 @@ with the conjugate of the drone quaternion before converting.
 
 ## Open questions
 
-- Item 2 for v2/v3: how to anchor the monotonic frame clock to wall time when
-  session `media_date` has second granularity.
+- ~~Item 2 for v3: anchoring the monotonic frame clock to wall time.~~
+  **Answered**: the session `media_date` is taken as the first sample's wall
+  time and each frame adds its elapsed monotonic µs, so spacing stays exact and
+  the absolute anchor inherits the field's second granularity. See
+  [[transform-stage]] § Item 2.
 - Item 134: define `zoom_level` (a multiplier) → zoom percentage.
 - Items 45/46: whether Parrot's radial/tangential horizontal accuracies can
   honestly be reported as CE90/LE90.

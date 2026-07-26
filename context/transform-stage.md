@@ -45,9 +45,11 @@ parser adds one normalizer and touches nothing else.
 
 ## What it emits
 
-Tier 1 of the mapping — roughly 29 items from a v3 frame with session metadata — encoded through
-libmisbklv's registry codec, assembled with the UL key, BER length and Item 1
-checksum. The packet is a real 0601 packet: `transform_test` parses every one it
+Tier 1 of the mapping — every direct field-to-field item with a source in the
+recording — encoded through libmisbklv's registry codec and assembled with the
+UL key, BER length and Item 1 checksum. A proto frame yields more than a v3 one,
+since proto carries the ellipsoid height, zoom, LFIC and the camera spectrum
+that v3 has no equivalent for. The packet is a real 0601 packet: `transform_test` parses every one it
 produces back through `misbklv::parse_packet` and decodes item by item, so
 values are checked as a consumer sees them rather than as we staged them.
 

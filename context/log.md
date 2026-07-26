@@ -7,6 +7,31 @@
 
 ## 2026-07-25
 
+* **Doc lint.** Five items, one of them a rule violation rather than ordinary
+  staleness:
+  - **PROGRESS had become a changelog.** Its "Now" had grown one triumphal
+    paragraph per landed feature — v3 parser, conform, scrub, proto, transform —
+    which is precisely the "Done history" the hygiene rules put in this log
+    instead. It also still opened with "Phase 1 (Parse) in progress", which the
+    corrected phase statuses contradict. Rewritten as present state: what the
+    tools do now, where the phases stand, what passes.
+  - **A live tally in durable prose**, also against the rules: PROGRESS claimed
+    "33 items, a v3 frame 29" and [[transform-stage]] "roughly 29 items". Both
+    now describe the state — every Tier 1 item with a source — and note that
+    proto yields more than v3 without counting either.
+  - [[field-mapping-analysis]]'s open question on anchoring Item 2 was answered
+    when session metadata landed; struck and pointed at the implementation.
+  - **[[0002-unmappable-parrot-fields]] gained a follow-on note.** The coverage
+    report it required now exists, which settles its open question about the
+    report format (human-readable), and the implementation added two things the
+    ADR did not anticipate: omissions need *reasons* rather than a bare list,
+    and the report is itself sensitive enough to withhold coordinates and the
+    serial by default.
+  - [[0004-shared-telemetry-snapshot]]'s assumption that "nothing parses the MP4
+    session metadata yet" stopped being true the same day; marked resolved.
+  - Checked and clean: every source and test file appears in a Files table,
+    every `ctest` target is documented, and all wiki links resolve (the lone
+    `[[wiki]]` hit is prose *about* wiki links in an old entry).
 * **Scope narrowed to v3 and proto; phase statuses corrected; fork 4 opened.**
   A planning pass, no code.
   - **Supported formats are now v3 and proto** — the ANAFI range and ANAFI Ai /

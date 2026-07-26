@@ -100,11 +100,30 @@ discarded.
 - Assumes the target consumers are standard 0601 tools. If the actual consumer
   is a single known system that would accept a private extension, the trade-off
   changes and the second-stream alternative becomes cheap to justify.
-- Report format (human-readable summary vs. machine-readable JSON vs. both) is
-  unsettled; it does not affect this decision.
+- ~~Report format (human-readable summary vs. machine-readable JSON vs. both).~~
+  **Settled** — human-readable summary; see the follow-on above.
 - Item 48 (Security LS) is a separate question — it is *absent* rather than
   *unmappable*, since it is not derived from Parrot data at all. Tracked as an
   open question in [[field-mapping-analysis]].
+
+# Follow-on (2026-07-26)
+
+The coverage report this ADR required now exists — `CoverageReport` in
+`src/transform.{hpp,cpp}`, printed by `parrot-to-klv --klv`. It resolves the
+format question left open below in favour of a **human-readable summary**:
+emitted items with values, omitted items each with a reason, and the dropped
+Parrot fields named as their own schema names them. A machine-readable form
+remains unbuilt and unneeded.
+
+Two things the implementation added that this ADR did not anticipate:
+
+- **Omissions need reasons, not just a list.** "Item 75 absent" is not
+  actionable; "the format does not carry it" versus "this frame did not" versus
+  "the mapping is an open question" are three different facts, and the report
+  distinguishes them.
+- **The report is itself sensitive.** It names values, including coordinates and
+  the airframe serial, so it withholds both by default under separate opt-ins.
+  See [[transform-stage]] § The coverage report.
 
 # Citations
 

@@ -102,10 +102,12 @@ divergences invisible at the call site rather than obvious.
 
 - Assumes v1/v2 will normalize into the same snapshot. v2 is a subset of v3 in
   substance, so this looks safe; v1 is deprecated and may never be implemented.
-- Session-level metadata (platform designation, tail number, camera model —
-  Items 4/10/11) is *not* in the snapshot, because nothing parses the MP4
-  session metadata yet. Those items are unmappable today for want of an input,
-  not for want of a mapping, and the coverage report says so.
+- Session-level metadata (platform designation, tail number — Items 4/10) is
+  *not* in the snapshot; it is per-file rather than per-frame, so `to_0601()`
+  takes it as a separate argument. **Since resolved**: `src/session_metadata.*`
+  parses it, and Items 4 and 10 are emitted where the recording carries the
+  tags. Item 11 came from proto's `camera.spectrum` and `camera.subtype`
+  instead, which *are* per-frame and did join the snapshot.
 
 # Citations
 
