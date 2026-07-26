@@ -50,6 +50,9 @@ _(`type: Component` — modules / subsystems of the project.)_
 * [Transform stage](./transform-stage.md) — Parrot telemetry to ST 0601: the
   format-neutral snapshot, the Tier 1 mapping and its sign/range traps, and the
   conversion coverage report
+* [Mux stage](./mux-stage.md) — MP4 to MPEG-TS with the source's video passed
+  through unchanged: the one timeline both branches share, and what a failed
+  conversion must not leave behind
 
 ## Decisions
 

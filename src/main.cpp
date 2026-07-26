@@ -2,6 +2,7 @@
 // Licensed under the Apache License, Version 2.0
 
 #include "mp4_metadata_extractor.hpp"
+#include "mux.hpp"
 #include "parrot_proto.hpp"
 #include "parrot_v3.hpp"
 #include "session_metadata.hpp"
@@ -158,6 +159,7 @@ int decode_all(Mp4MetadataExtractor& extractor, const SessionMetadata& session,
 
 int main(int argc, char* argv[]) {
     std::string input;
+    std::string output;
     bool with_location = false;
     bool show_klv = false;
     bool with_identity = false;
@@ -169,13 +171,18 @@ int main(int argc, char* argv[]) {
             show_klv = true;
         } else if (arg == "--with-identity") {
             with_identity = true;
+        } else if ((arg == "-o" || arg == "--output") && i + 1 < argc) {
+            output = argv[++i];
         } else if (input.empty()) {
             input = arg;
         }
     }
 
     if (input.empty()) {
-        std::cerr << "Usage: " << argv[0] << " <input.mp4> [--with-location]\n\n"
+        std::cerr << "Usage: " << argv[0] << " <input.mp4> [-o <output.ts>] [options]\n\n"
+                  << "  -o/--output converts: writes an MPEG-TS carrying the source's\n"
+                  << "  video unchanged plus an ST 0601 KLV stream. Without it the tool\n"
+                  << "  only reads the file and reports what it found.\n"
                   << "  Location is withheld by default so the output is safe to share;\n"
                   << "  --with-location prints latitude/longitude from the flight.\n"
                   << "  --klv maps each frame to ST 0601 and prints the conversion\n"
@@ -183,6 +190,26 @@ int main(int argc, char* argv[]) {
                   << "  --with-identity prints the airframe serial and geotag from the\n"
                   << "  session metadata, which are withheld by default.\n";
         return 1;
+    }
+
+    // Converting is the tool's job; the summary below is the inspection mode.
+    if (!output.empty()) {
+        const auto report = mux_to_ts(input, output);
+        if (!report.error.empty()) {
+            std::cerr << "Conversion failed: " << report.error << "\n";
+            return 1;
+        }
+        std::cout << "Wrote " << output << ": " << report.frames_emitted
+                  << " ST 0601 packets from " << report.samples_seen
+                  << " metadata samples";
+        if (report.frames_skipped > 0) {
+            std::cout << " (" << report.frames_skipped << " skipped)";
+        }
+        std::cout << ", video passed through unchanged\n";
+        if (show_klv) {
+            std::cout << "\n" << report.coverage.to_text({with_location, with_identity});
+        }
+        return 0;
     }
 
     auto extractor = Mp4MetadataExtractor::open(input);

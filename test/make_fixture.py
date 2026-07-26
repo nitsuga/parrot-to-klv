@@ -66,14 +66,15 @@ def stsd_mett(mime: str, content_encoding: str = "") -> bytes:
     return full_box(b"stsd", 0, 0, struct.pack(">I", 1) + entry)
 
 
-def stsd_avc1() -> bytes:
+def stsd_avc1(width: int = 320, height: int = 240, avcc: bytes = b"") -> bytes:
     entry = box(b"avc1", b"\x00" * 6 + struct.pack(">H", 1)
                 + b"\x00" * 16
-                + struct.pack(">HH", 320, 240)
+                + struct.pack(">HH", width, height)
                 + struct.pack(">II", 0x480000, 0x480000)
                 + struct.pack(">IHH", 0, 1, 0)
                 + b"\x00" * 30
-                + struct.pack(">Hh", 24, -1))
+                + struct.pack(">Hh", 24, -1)
+                + avcc)
     return full_box(b"stsd", 0, 0, struct.pack(">I", 1) + entry)
 
 
@@ -97,12 +98,14 @@ def meta_trak(track_id: int, video_track_id: int, timescale: int, sizes: list[in
 
 
 def video_trak(track_id: int, timescale: int, sizes: list[int], delta: int,
-               chunk_offset: int) -> bytes:
+               chunk_offset: int, width: int = 320, height: int = 240,
+               avcc: bytes = b"") -> bytes:
     vmhd = full_box(b"vmhd", 0, 1, struct.pack(">HHHH", 0, 0, 0, 0))
-    minf = box(b"minf", vmhd + dinf() + stbl(stsd_avc1(), sizes, delta, chunk_offset))
+    sample_desc = stsd_avc1(width, height, avcc)
+    minf = box(b"minf", vmhd + dinf() + stbl(sample_desc, sizes, delta, chunk_offset))
     mdia = box(b"mdia", mdhd(timescale, delta * len(sizes))
                + hdlr(b"vide", "VideoHandler") + minf)
-    return box(b"trak", tkhd(track_id, delta * len(sizes), 320, 240, 0) + mdia)
+    return box(b"trak", tkhd(track_id, delta * len(sizes), width, height, 0) + mdia)
 
 
 def geotag(iso6709: str) -> bytes:
@@ -151,7 +154,8 @@ def session_udta(iso6709: str) -> bytes:
 
 def build(mime: str, samples: list[bytes], video_samples: list[bytes],
           timescale: int = 30000, delta: int = 1000,
-          content_encoding: str = "", session: bool = True) -> bytes:
+          content_encoding: str = "", session: bool = True,
+          video: "H264Track | None" = None) -> bytes:
     """Assemble ftyp + mdat + moov. mdat first so chunk offsets are known up front."""
     ftyp = box(b"ftyp", b"isom" + struct.pack(">I", 512) + b"isomiso2avc1mp41")
 
@@ -167,10 +171,98 @@ def build(mime: str, samples: list[bytes], video_samples: list[bytes],
                + (session_udta("+48.85837+002.29448+135.250/") if session
                   else geotag("+48.85837+002.29448+135.250/"))
                + video_trak(1, timescale, [len(s) for s in video_samples], delta,
-                            video_chunk_offset)
+                            video_chunk_offset,
+                            *( (video.width, video.height, video.avcc) if video
+                               else (320, 240, b"") ))
                + meta_trak(2, 1, timescale, [len(s) for s in samples], delta,
                            meta_chunk_offset, mime, content_encoding))
     return ftyp + mdat + moov
+
+
+# --- a real H.264 video track ---------------------------------------------
+#
+# The other fixtures carry five bytes of 0xDEADBEEF per "frame", which is all the
+# metadata extractor ever needs -- it reads the *other* track. The mux stage does
+# not have that luxury: it hands the video elementary stream to gstreamer's
+# parsebin, which rejects anything that is not really H.264. So this fixture
+# carries a genuine encode.
+#
+# ffmpeg is needed to *regenerate* the fixture, never to use it: the committed
+# .mp4 is what the suite reads, so a machine with no encoder still runs every
+# test. Kept tiny (64x64, all-IDR, 8 frames) so the committed bytes stay small
+# and no stss box is needed -- with every sample a sync sample, its absence is
+# already correct.
+
+
+class H264Track:
+    """AVCC samples plus the avcC decoder config, as an MP4 needs them."""
+
+    def __init__(self, samples: list[bytes], avcc: bytes, width: int, height: int):
+        self.samples = samples
+        self.avcc = avcc
+        self.width = width
+        self.height = height
+
+
+def split_nals(annexb: bytes) -> list[bytes]:
+    """Annex-B byte stream -> NAL units, start codes stripped."""
+    nals = []
+    positions = []
+    i = 0
+    while i < len(annexb) - 3:
+        if annexb[i:i + 3] == b"\x00\x00\x01":
+            positions.append((i, 3) if i == 0 or annexb[i - 1] != 0 else (i - 1, 4))
+            i += 3
+        else:
+            i += 1
+    for n, (start, code_len) in enumerate(positions):
+        end = positions[n + 1][0] if n + 1 < len(positions) else len(annexb)
+        nals.append(annexb[start + code_len:end])
+    return [n for n in nals if n]
+
+
+def encode_h264(frames: int, width: int, height: int, fps: int) -> H264Track:
+    """Encode a test pattern with ffmpeg and repackage it as AVCC samples.
+
+    Access units are cut at each VCL NAL (types 1 and 5): x264 emits one slice
+    per picture at this size, so a VCL NAL *is* the end of a frame. Parameter
+    sets go into avcC, not into the samples, and AUD/SEI are dropped -- an MP4
+    sample is the picture, and h264parse re-inserts what a decoder needs.
+    """
+    import subprocess
+    import tempfile
+
+    with tempfile.NamedTemporaryFile(suffix=".h264") as out:
+        subprocess.run(
+            ["ffmpeg", "-y", "-loglevel", "error",
+             "-f", "lavfi", "-i", f"testsrc=size={width}x{height}:rate={fps}",
+             "-frames:v", str(frames), "-c:v", "libx264", "-g", "1",
+             "-pix_fmt", "yuv420p", "-f", "h264", out.name],
+            check=True)
+        annexb = Path(out.name).read_bytes()
+
+    sps, pps, samples, current = None, None, [], b""
+    for nal in split_nals(annexb):
+        kind = nal[0] & 0x1F
+        if kind == 7:
+            sps = nal
+        elif kind == 8:
+            pps = nal
+        elif kind in (1, 5):
+            current += struct.pack(">I", len(nal)) + nal
+            samples.append(current)
+            current = b""
+    if sps is None or pps is None:
+        raise RuntimeError("encoder produced no parameter sets")
+    if len(samples) != frames:
+        raise RuntimeError(f"expected {frames} access units, cut {len(samples)}")
+
+    # avcC: configurationVersion, profile/compat/level from the SPS, then
+    # 0xFF (4-byte NAL length prefixes) and 0xE1 (one SPS).
+    avcc_payload = (b"\x01" + sps[1:4] + b"\xff\xe1"
+                    + struct.pack(">H", len(sps)) + sps
+                    + b"\x01" + struct.pack(">H", len(pps)) + pps)
+    return H264Track(samples, box(b"avcC", avcc_payload), width, height)
 
 
 # --- Parrot v3 metadata samples -------------------------------------------
@@ -407,10 +499,26 @@ def main() -> int:
         "foreign_meta.mp4": build("application/octet-stream;type=com.example.telemetry",
                                   samples, video),
     }
+    # The only fixture whose video track is real H.264 -- the mux stage feeds
+    # that stream to gstreamer, which will not accept the dummy bytes above.
+    try:
+        h264 = encode_h264(frames=len(samples), width=64, height=64, fps=30)
+    except (FileNotFoundError, RuntimeError) as err:
+        print(f"parrot_v3_video.mp4: SKIPPED ({err}) -- needs ffmpeg with libx264",
+              file=sys.stderr)
+        h264 = None
+    else:
+        fixtures["parrot_v3_video.mp4"] = build(
+            MIME_PREFIX + "com.parrot.videometadata3", samples, h264.samples,
+            video=h264)
+        fixtures["parrot_proto_video.mp4"] = build(
+            MIME_PREFIX + "com.parrot.videometadataproto",
+            [proto_sample(i) for i in range(8)], h264.samples, video=h264)
+
     for name, data in fixtures.items():
         (out_dir / name).write_bytes(data)
         print(f"{name}: {len(data)} bytes")
-    return 0
+    return 0 if h264 else 1
 
 
 if __name__ == "__main__":

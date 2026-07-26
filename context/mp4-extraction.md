@@ -235,6 +235,11 @@ committed, so the suite runs on synthetic MP4s in `test/fixtures/`, built by
 | `parrot_v3_encoded.mp4` | writer that fills `content_encoding`, moving the MIME type to the second string |
 | `parrot_proto.mp4` | serialized `vmeta.TimedMetadata` — drone, camera, wifi link, LFIC, tracking, plus an unmapped field to skip |
 | `foreign_meta.mp4` | non-Parrot `meta` track that must be refused |
+| `parrot_v3_video.mp4`, `parrot_proto_video.mp4` | the same metadata beside a **real** H.264 track, for the mux — see [[mux-stage]] |
+
+Every fixture above but the last two carries five dummy bytes per video frame,
+which is all a metadata parser ever needs: it reads the other track. Only the
+mux hands the video anywhere that cares.
 
 The expected values live in `v3_base()` in the generator, and the tests assert
 against those same numbers — change one, change both.

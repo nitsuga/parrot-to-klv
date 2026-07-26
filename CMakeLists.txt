@@ -25,7 +25,12 @@ target_link_libraries(parrot-scrub PRIVATE parrot_extract)
 add_executable(parrot-conform src/conform_main.cpp)
 target_link_libraries(parrot-conform PRIVATE parrot_extract)
 
-target_link_libraries(parrot-to-klv PRIVATE
+target_link_libraries(parrot-to-klv PRIVATE parrot_mux)
+
+# The mux stage, split from parrot_extract because it is the one part that needs
+# a media backend: everything else parses and maps with no gstreamer in sight.
+add_library(parrot_mux STATIC src/mux.cpp)
+target_link_libraries(parrot_mux PUBLIC
   parrot_extract
   misbklv::gst  # libmisbklv with GStreamer support
 )
@@ -84,6 +89,14 @@ add_executable(transform_test test/transform_test.cpp)
 target_link_libraries(transform_test PRIVATE parrot_extract)
 
 add_test(NAME transform COMMAND transform_test)
+
+# The mux stage needs a media backend, so this test needs one too — it converts
+# a fixture and reads the result back as a consumer would.
+add_executable(mux_test test/mux_test.cpp)
+target_link_libraries(mux_test PRIVATE parrot_mux)
+
+add_test(NAME mux COMMAND mux_test ${CMAKE_SOURCE_DIR}/test/fixtures
+                           ${CMAKE_CURRENT_BINARY_DIR})
 
 add_executable(parrot_scrub_test test/parrot_scrub_test.cpp)
 target_link_libraries(parrot_scrub_test PRIVATE parrot_extract)

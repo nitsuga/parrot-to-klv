@@ -8,8 +8,11 @@ chronological history (what landed when, decision detail) lives in
 
 ## Now
 
-**Phases 0–1 are done and Phase 2 is most of the way there; Phase 3 (Mux) is the
-next work.** See [ROADMAP](./ROADMAP.md) for scope and phase status.
+**The pipeline runs end to end: `parrot-to-klv in.mp4 -o out.ts` writes an
+MPEG-TS carrying the recording's own video unchanged plus a synchronous ST 0601
+KLV stream.** Every phase has landed; what remains is depth, not plumbing —
+Tier 2 geometry (fork 4) and the deferred mapping questions. See
+[ROADMAP](./ROADMAP.md) for scope and phase status.
 
 **Parsing works end to end for both supported formats.** The metadata track is
 located and its format read from the stsd MIME type (never inferred); v3 and
@@ -26,10 +29,16 @@ could not carry ([ADR 0002](../context/decisions/0002-unmappable-parrot-fields.m
 What remains unemitted is unemittable without a decision or an input the
 recording lacks. Shape and traps: [transform stage](../context/transform-stage.md).
 
-**Three tools build.** `parrot-to-klv` converts and summarises (`--klv` for the
-0601 mapping and its coverage; location and device identity are withheld unless
-`--with-location` / `--with-identity`). `parrot-scrub` replaces a recording's
-location fields so a real flight can become a fixture. `parrot-conform` commits
+**The mux stage carries the video through untouched.** libmisbklv's `KlvSink`
+re-muxes the source's elementary stream (parsed, never decoded, so H.264 and
+H.265 both work) beside the KLV, and each packet is timestamped from its own
+metadata sample, so both branches share the file's timeline. Design, the
+timeline rule and the failure behaviour: [mux stage](../context/mux-stage.md).
+
+**Three tools build.** `parrot-to-klv` converts with `-o` and summarises without
+it (`--klv` for the 0601 mapping and its coverage; location and device identity
+are withheld unless `--with-location` / `--with-identity`). `parrot-scrub`
+replaces a recording's location fields so a real flight can become a fixture. `parrot-conform` commits
 real-encoder evidence without the recording, and reports from two real ANAFI
 flights are in [`test/conformance/`](../test/conformance/) — the standing answer
 to whether a real encoder produces what the decoder assumes.
@@ -43,9 +52,10 @@ uses `data/` skips cleanly without it.
 
 ## Next
 
-1. **Phase 3 (Mux)**: remux video + KLV into MPEG-TS through libmisbklv
-2. Resolve fork 4, Tier 2 geometry fidelity, in [ROADMAP](./ROADMAP.md), then
+1. Resolve fork 4, Tier 2 geometry fidelity, in [ROADMAP](./ROADMAP.md), then
    derive Items 21/22/23/24/25/57/78/82–89
+2. Run the mux against a real recording — every conversion so far is of a
+   synthetic fixture whose video is a 64x64 test pattern
 
 ## Known gaps
 

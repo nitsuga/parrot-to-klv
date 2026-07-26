@@ -44,8 +44,9 @@ streaming, GUI, KLV standards beyond ST 0601.
 - **Phase 2 — Transform** — *Tier 1 done*: Parrot → ST 0601 mapping with a
   conversion coverage report. Tier 2 derived geometry remains, gated on the
   open fork below.
-- **Phase 3 — Mux** — *next*: remux video + KLV into MPEG-TS through
-  libmisbklv.
+- **Phase 3 — Mux** — *done*: video + KLV remuxed into MPEG-TS through
+  libmisbklv's `KlvSink`, the source's elementary stream passed through
+  unchanged. See [mux stage](../context/mux-stage.md).
 
 ## Open forks
 

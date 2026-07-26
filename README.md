@@ -28,6 +28,21 @@ fixture; and `parrot-conform`, which records what a real encoder produced as a
 committable JSON report carrying no position, absolute time or device identity —
 so real-footage evidence reaches the repository while the footage never does.
 
+GStreamer development packages are needed, since the mux stage runs through
+libmisbklv's GStreamer backend.
+
+## Usage
+
+```
+parrot-to-klv flight.mp4 -o flight.ts     # convert
+parrot-to-klv flight.mp4 --klv            # inspect: what maps, what doesn't
+```
+
+The output carries the recording's own video elementary stream, unchanged, plus
+one ST 0601 packet per metadata sample. Without `-o` the tool only reads the
+file and reports; location and airframe identity are withheld from that report
+unless `--with-location` / `--with-identity` ask for them.
+
 The tests run against synthetic fixtures in `test/fixtures/`, so `ctest` needs no
 drone footage. Real test inputs live in `data/`, which is **gitignored** — it
 holds footage with live location data and must never be committed.

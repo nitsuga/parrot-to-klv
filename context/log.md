@@ -5,6 +5,42 @@
      a fuller entry per significant implementation. Routine ingests/lint go here
      too. This is the ONLY home for history — PROGRESS.md is present-tense only. -->
 
+## 2026-07-26
+
+* **Phase 3 landed: `parrot-to-klv in.mp4 -o out.ts` writes an MPEG-TS carrying
+  the recording's own video plus a synchronous ST 0601 KLV stream.** The
+  pipeline is end to end for both supported formats. Shape and traps:
+  [[mux-stage]].
+  - **libmisbklv's `KlvSink` gained a `video_source`** (its ADR 0020, upstream
+    `main`), which is what made this a loop rather than a container project:
+    `filesrc ! parsebin` joins the KLV appsrc into one `mpegtsmux`, so the
+    drone's H.264 (or an Ai's H.265) is re-muxed unchanged, never decoded.
+  - **The timeline is the metadata track's own sample times.** libmisbklv
+    requires both branches on one timeline — presentation time from the start of
+    the source file — and `MetadataSample::timestamp_us` is already on it, since
+    both tracks are timed from the start of the same MP4. Deliberately *not* the
+    frame's monotonic clock and not Item 2's UTC: those say when telemetry was
+    sampled, the PTS says where the packet sits in the file.
+  - **A failed conversion now leaves no output file.** libmisbklv unlinks only
+    for a failure while opening; a source whose video is declared but does not
+    parse opens fine and fails at EOS, leaving the sink's empty `.ts`. `mux.cpp`
+    removes it — but only a file this run created, so a pre-existing file at that
+    path survives a failed run.
+  - **Two new fixtures carry real H.264**, `parrot_v3_video.mp4` and
+    `parrot_proto_video.mp4`: gstreamer will not accept the five dummy bytes per
+    frame the extraction fixtures use. `make_fixture.py` encodes 8 all-IDR
+    64x64 frames with ffmpeg and repackages them as AVCC samples with an `avcC`.
+    ffmpeg is needed to regenerate, never to run the suite — the `.mp4` is
+    committed, so the "no test needs `data/`" rule is untouched.
+  - **`mux_test` reads the container, not our own encoder**: PMT lists video +
+    KLV (0x06/KLVA), packets come back byte-identical in sample order, and PES
+    timestamp intervals match the sample spacing. The timestamps have to be
+    parsed off the TS because libmisbklv's *extract* path reports every packet as
+    `kNoPts` — its reassembly drops the buffer timestamp. An upstream gap; what
+    this stage writes carries the times correctly.
+  - `parrot_mux` is a separate static library from `parrot_extract`, because it
+    is the one part of the tool that needs a media backend.
+
 ## 2026-07-25
 
 * **Doc lint.** Five items, one of them a rule violation rather than ordinary

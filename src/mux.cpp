@@ -1,0 +1,177 @@
+// Copyright 2026 Eric Schneider
+// Licensed under the Apache License, Version 2.0
+
+#include "mux.hpp"
+
+#include <cstdio>
+#include <filesystem>
+#include <optional>
+#include <span>
+#include <string>
+#include <utility>
+#include <vector>
+
+#include "misbklv/message.hpp"
+#include "misbklv/stream.hpp"
+
+#include "mp4_metadata_extractor.hpp"
+#include "parrot_proto.hpp"
+#include "parrot_v3.hpp"
+#include "session_metadata.hpp"
+#include "telemetry.hpp"
+
+namespace parrot_to_klv {
+namespace {
+
+std::string describe(misbklv::Error error) {
+    switch (error) {
+        case misbklv::Error::Truncated:        return "packet truncated";
+        case misbklv::Error::BadLength:        return "bad BER length";
+        case misbklv::Error::UnknownTag:       return "unknown tag";
+        case misbklv::Error::OutOfRange:       return "value out of range";
+        case misbklv::Error::MissingMandatory: return "mandatory item missing";
+        case misbklv::Error::RangeError:       return "value not encodable";
+        case misbklv::Error::Backend:          return "media pipeline failed";
+        case misbklv::Error::Unsupported:      return "unsupported by the backend";
+    }
+    return "unknown error";
+}
+
+/// Decode every metadata sample of one format and hand each mapped packet to
+/// `emit`, along with the sample's presentation time.
+///
+/// Templated over the frame type for the same reason the CLI's summary loop is:
+/// v3 and proto differ in what a frame *is*, not in how a track is walked.
+template <typename Parse, typename Normalize, typename Emit>
+void convert_all(Mp4MetadataExtractor& extractor, const SessionMetadata& session,
+                 Parse parse, Normalize normalize, Emit emit, MuxReport& report) {
+    // The first sample's clock is the origin the session media date anchors to,
+    // so it has to be read before the loop rather than discovered inside it.
+    uint64_t first_monotonic_us = 0;
+    if (auto first = extractor.extract_sample(0)) {
+        std::string ignored;
+        if (auto frame = parse(first->data, ignored)) {
+            first_monotonic_us = normalize(*frame).monotonic_us;
+        }
+    }
+
+    for (uint32_t i = 0; i < extractor.sample_count() && report.error.empty(); ++i) {
+        auto sample = extractor.extract_sample(i);
+        if (!sample) {
+            ++report.frames_skipped;
+            continue;
+        }
+        std::string error;
+        auto frame = parse(sample->data, error);
+        if (!frame) {
+            ++report.frames_skipped;
+            continue;
+        }
+        auto snapshot = normalize(*frame);
+        anchor_to_session(snapshot, session, first_monotonic_us);
+        auto klv = to_0601(snapshot, &session);
+        if (klv.packet.empty()) {
+            ++report.frames_skipped;
+            continue;
+        }
+        if (report.frames_emitted == 0) report.coverage = std::move(klv.coverage);
+        emit(klv.packet, sample->timestamp_us);
+    }
+}
+
+}  // namespace
+
+MuxReport mux_to_ts(const std::string& input, const std::string& output) {
+    MuxReport report;
+
+    auto extractor = Mp4MetadataExtractor::open(input);
+    if (!extractor) {
+        report.error = "no Parrot metadata track in " + input;
+        return report;
+    }
+    const auto& info = extractor->track_info();
+    if (info.format != ParrotFormat::V3 && info.format != ParrotFormat::Proto) {
+        report.error = "the " + to_string(info.format) +
+                       " format is not converted (see ROADMAP § Scope)";
+        return report;
+    }
+    report.samples_seen = extractor->sample_count();
+
+    SessionMetadata session;
+    if (FILE* handle = std::fopen(input.c_str(), "rb")) {
+        session = parse_session_metadata(handle);
+        std::fclose(handle);
+    }
+
+    // The sink owns both branches: it re-muxes `input`'s video elementary stream
+    // unchanged alongside the KLV we push. A failure to open the source surfaces
+    // on the first emit(), which is where the error below comes from.
+    //
+    // libmisbklv removes the output only for a failure while *opening*; one that
+    // surfaces later (a source whose video does not actually parse fails at EOS)
+    // leaves the empty file its sink created. A zero-byte .ts alongside an error
+    // message reads like a conversion that half-worked, so this run cleans up
+    // after itself — but only a file it created, never one that was there first.
+    const bool output_existed = std::filesystem::exists(output);
+    misbklv::KlvSink sink("file:" + output, /*realtime=*/false, input);
+
+    auto emit = [&](const std::vector<uint8_t>& packet, uint64_t timestamp_us) {
+        auto message = misbklv::Message::parse(
+            std::as_bytes(std::span<const uint8_t>(packet)));
+        if (!message) {
+            report.error = "encoded packet did not parse back: " +
+                           describe(message.error());
+            return;
+        }
+        // libmisbklv times the video branch from the start of the source file,
+        // and demands the KLV land on that same timeline. The metadata track's
+        // own sample times are already on it — both tracks are timed from the
+        // start of the same MP4 — so they convert straight to nanoseconds.
+        message->set_pts(static_cast<int64_t>(timestamp_us) * 1000);
+        if (auto pushed = sink.emit(*message); !pushed) {
+            report.error = "could not mux frame " +
+                           std::to_string(report.frames_emitted) + ": " +
+                           describe(pushed.error());
+            return;
+        }
+        ++report.frames_emitted;
+    };
+
+    if (info.format == ParrotFormat::V3) {
+        convert_all(
+            *extractor, session,
+            [](std::span<const uint8_t> data,
+               std::string& error) -> std::optional<ParrotV3Frame> {
+                ParrotV3Error err{};
+                auto frame = parse_v3(data, &err);
+                if (!frame) error = to_string(err);
+                return frame;
+            },
+            [](const ParrotV3Frame& f) { return from_v3(f); }, emit, report);
+    } else {
+        convert_all(
+            *extractor, session,
+            [](std::span<const uint8_t> data,
+               std::string& error) -> std::optional<ParrotProtoFrame> {
+                ParrotProtoError err{};
+                auto frame = parse_proto(data, &err);
+                if (!frame) error = to_string(err);
+                return frame;
+            },
+            [](const ParrotProtoFrame& f) { return from_proto(f); }, emit, report);
+    }
+
+    if (auto closed = sink.close(); !closed && report.error.empty()) {
+        report.error = "could not finish the output stream: " + describe(closed.error());
+    }
+    if (report.error.empty() && report.frames_emitted == 0) {
+        report.error = "no metadata sample converted to a KLV packet";
+    }
+    if (!report.error.empty() && !output_existed) {
+        std::error_code ignored;
+        std::filesystem::remove(output, ignored);
+    }
+    return report;
+}
+
+}  // namespace parrot_to_klv
