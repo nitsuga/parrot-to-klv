@@ -7,6 +7,14 @@
 
 ## 2026-07-25
 
+* **Report schema v3: `input_sha256` renamed to `input_hash`.** The field had
+  held an xxHash since v2 while still being named for SHA-256 — misleading in a
+  committed artifact, and the "kept for compatibility" justification was empty
+  since no v1 reports survived the v2 regeneration. The two committed reports
+  were edited in place rather than regenerated (the footage is gone); the
+  rename and the version bump are their only textual changes, and the renderer's
+  output on a fixture was diffed against them to confirm `--check` will still
+  match byte-for-byte when footage is present.
 * **Conformance reports committed for two real ANAFI recordings.** Ran
   `parrot-conform --scan data --reports test/conformance` on the machine that
   held the footage; the recordings have since been removed, the reports remain.

@@ -37,5 +37,5 @@ that have never held a recording. Where footage is present, a changed report
 means the decoder now reads that recording differently than when the report was
 committed — which is either a fix or a regression, and worth knowing which.
 
-Files here are matched to recordings by `input_sha256` (xxHash XXH3_128), so a
+Files here are matched to recordings by `input_hash` (xxHash XXH3_128), so a
 report whose recording has been replaced is detectable rather than silently wrong.

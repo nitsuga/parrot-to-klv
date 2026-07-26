@@ -126,13 +126,13 @@ int main(int argc, char* argv[]) {
             const uintmax_t size = fs::file_size(p, ec);
             std::cout << p.filename().string() << " (" << (size / (1024 * 1024)) << " MB):\n";
             const auto report = run_conformance(p.string(), "");
-            if (report.input_sha256.empty()) {
+            if (report.input_hash.empty()) {
                 std::cerr << "  failed to compute hash\n";
                 ++failures;
                 continue;
             }
             // Use first 16 chars of hash as anonymous filename
-            const std::string report_name = report.input_sha256.substr(0, 16);
+            const std::string report_name = report.input_hash.substr(0, 16);
             const int rc = emit(report, fs::path(reports_dir) / (report_name + ".json"), check);
             if (rc < 0) continue;
             ++applicable;
@@ -158,14 +158,14 @@ int main(int argc, char* argv[]) {
     std::cout << fs::path(input).filename().string() << " (" << (ec ? 0 : size / (1024 * 1024)) << " MB):\n";
     const auto report = run_conformance(input, label);
 
-    if (report.input_sha256.empty()) {
+    if (report.input_hash.empty()) {
         std::cerr << "  failed to compute hash\n";
         return 1;
     }
 
     // Default to hash-based anonymous filename if not specified
-    if (label.empty()) label = report.input_sha256.substr(0, 16);
-    if (out.empty()) out = report.input_sha256.substr(0, 16) + ".json";
+    if (label.empty()) label = report.input_hash.substr(0, 16);
+    if (out.empty()) out = report.input_hash.substr(0, 16) + ".json";
 
     const int rc = emit(report, out, check);
     return rc < 0 ? kSkipExitCode : rc;

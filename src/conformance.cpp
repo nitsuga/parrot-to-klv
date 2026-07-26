@@ -70,12 +70,12 @@ ConformanceReport run_conformance(const std::string& input, const std::string& l
         std::ostringstream out;
         out << std::hex << std::setw(16) << std::setfill('0') << hash.high64
             << std::setw(16) << std::setfill('0') << hash.low64;
-        r.input_sha256 = out.str();
+        r.input_hash = out.str();
         std::cout << " done\n";
     }
 
     // Use hash prefix as label if not explicitly provided (anonymizes sensitive filenames)
-    r.label = label.empty() ? r.input_sha256.substr(0, 16) : label;
+    r.label = label.empty() ? r.input_hash.substr(0, 16) : label;
 
     auto extractor = Mp4MetadataExtractor::open(input);
     if (!extractor) {
@@ -211,7 +211,7 @@ std::string to_json(const ConformanceReport& r) {
     o << "{\n";
     o << "  \"schema_version\": " << kReportSchemaVersion << ",\n";
     o << "  \"label\": \"" << json_escape(r.label) << "\",\n";
-    o << "  \"input_sha256\": \"" << r.input_sha256 << "\",\n";
+    o << "  \"input_hash\": \"" << r.input_hash << "\",\n";
     o << "  \"input_bytes\": " << r.input_bytes << ",\n";
     o << "  \"format\": \"" << json_escape(r.format) << "\",\n";
     o << "  \"sample_count\": " << r.sample_count << ",\n";

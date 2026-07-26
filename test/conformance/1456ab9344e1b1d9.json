@@ -1,7 +1,7 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "label": "1456ab9344e1b1d9",
-  "input_sha256": "1456ab9344e1b1d9056b6bee16d86d22",
+  "input_hash": "1456ab9344e1b1d9056b6bee16d86d22",
   "input_bytes": 91652211,
   "format": "v3",
   "sample_count": 699,

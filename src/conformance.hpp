@@ -26,7 +26,7 @@ namespace parrot_to_klv {
 /// adversary holding the report alone could locate.
 struct ConformanceReport {
     std::string label;        ///< caller-supplied name for the recording
-    std::string input_sha256; ///< xxHash XXH3_128 identifying the file (field name kept for compatibility)
+    std::string input_hash; ///< xxHash XXH3_128 identifying the file
     uint64_t input_bytes = 0;
 
     std::string format;  ///< "v3", "proto", ...
@@ -74,8 +74,10 @@ struct ConformanceReport {
 
 /// Report format version. Bump when fields change so a stale committed report
 /// is recognisable rather than silently compared against a new shape.
-/// Version 2: Changed input_sha256 from SHA-256 to xxHash XXH3_128 for speed.
-inline constexpr int kReportSchemaVersion = 2;
+/// Version 2: Changed the hash from SHA-256 to xxHash XXH3_128 for speed.
+/// Version 3: Renamed that field `input_sha256` -> `input_hash`, which is what
+/// it had held since v2.
+inline constexpr int kReportSchemaVersion = 3;
 
 /// Analyse a recording and build its report. Reads the file; writes nothing.
 ConformanceReport run_conformance(const std::string& input, const std::string& label);

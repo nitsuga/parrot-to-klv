@@ -114,8 +114,8 @@ void test_report_captures_what_matters() {
     check(report.flying_states_seen.count("flying") == 1, "flying state recorded");
     check_eq(report.timestamp_delta_min, uint64_t{33333}, "timestamp delta");
 
-    check(!report.input_sha256.empty(), "input hashed");
-    check_eq(report.input_sha256.size(), size_t{32}, "xxhash is 32 hex chars (128 bits)");
+    check(!report.input_hash.empty(), "input hashed");
+    check_eq(report.input_hash.size(), size_t{32}, "xxhash is 32 hex chars (128 bits)");
 }
 
 void test_report_is_deterministic() {
@@ -127,7 +127,7 @@ void test_report_is_deterministic() {
     // A different input must produce a different hash, or --check is worthless.
     const auto c = run_conformance(fixture("parrot_v3_extensions.mp4"), "x");
     const auto d = run_conformance(fixture("parrot_v3.mp4"), "x");
-    check(c.input_sha256 != d.input_sha256, "distinct inputs hash differently");
+    check(c.input_hash != d.input_hash, "distinct inputs hash differently");
 }
 
 void test_non_v3_is_reported_not_guessed() {
