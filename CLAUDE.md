@@ -97,7 +97,8 @@ So:
     (`conformance_real_data`) *uses* `data/` when it is there and skips when it is
     not — that is the only permitted relationship.
   - `data/` — test input files (contains sensitive videos — never commit).
-  - `external/` — vendored dependencies (minimp4 single-header library).
+  - `external/` — vendored dependencies (minimp4 and xxHash, both
+    single-header).
 - **Build / test / run**: C++ with CMake. Use FetchContent to pull libmisbklv.
   Standard CMake workflow: `cmake -S . -B build && cmake --build build && ctest --test-dir build`.
 - **Security**: `data/` contains sensitive test videos with real location data.
