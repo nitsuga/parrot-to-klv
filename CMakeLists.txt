@@ -5,12 +5,23 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# Fetch libmisbklv from GitHub
+# Fetch libmisbklv from GitHub, pinned to an exact commit.
+#
+# Not a branch: FetchContent does not re-fetch an already-populated dependency,
+# so tracking `main` lets two checkouts of identical source build against
+# different libmisbklv commits depending on when each was first configured.
+# Bumping this line is the reviewable record of moving to a new upstream.
+#
+# To develop both sides at once, point a build directory at a local checkout —
+# per build directory, nothing committed:
+#   cmake -S . -B build -DFETCHCONTENT_SOURCE_DIR_MISBKLV=~/workspaces/libmisbklv
+# and drop the redirect with -UFETCHCONTENT_SOURCE_DIR_MISBKLV. The redirect is
+# silent, so verify against the pin before trusting a green suite.
 include(FetchContent)
 FetchContent_Declare(
   misbklv
   GIT_REPOSITORY git@github.com:nitsuga/libmisbklv.git
-  GIT_TAG main
+  GIT_TAG f818fd95dfdd4f8d6d89f49a17ffc2bb208f514c  # read-path timestamps + doc lint
 )
 FetchContent_MakeAvailable(misbklv)
 

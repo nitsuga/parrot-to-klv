@@ -7,6 +7,13 @@
 
 ## 2026-07-26
 
+* **libmisbklv pinned to an exact commit** (`f818fd9`) instead of tracking
+  `main`. FetchContent does not re-fetch an already-populated dependency, so a
+  branch tag lets two checkouts of identical source build against different
+  upstream commits depending on when each was first configured — which had
+  already happened here: Phase 3 was verified against a local checkout while
+  `main` had moved on. Bumping the line is now the reviewable record of moving
+  upstream. Verified from a clean clone at the pin: full suite green.
 * **Both workarounds for libmisbklv gaps are gone — upstream fixed both**
   (its ADRs 0021 and 0022, raised from here after Phase 3 landed).
   - **Read-path timestamps exist now**, so `mux_test` reads presentation times

@@ -16,7 +16,8 @@ streaming, a GUI, an integration API, and KLV standards beyond ST 0601. See
 ## Build
 
 C++ with CMake. [libmisbklv](https://github.com/nitsuga/libmisbklv) is pulled in
-via `FetchContent`, so a standard workflow is all that's needed:
+via `FetchContent`, pinned to an exact commit in `CMakeLists.txt`, so a standard
+workflow is all that's needed:
 
 ```
 cmake -S . -B build && cmake --build build && ctest --test-dir build
