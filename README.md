@@ -1,13 +1,16 @@
 # Parrot to KLV
 
 Converts Parrot drone telemetry metadata embedded in MP4 files into MPEG-TS files
-carrying the video alongside a MISB ST 0601 KLV stream. Provides a command-line
-tool and an optional API for integration into other applications.
+carrying the video alongside a MISB ST 0601 KLV stream. A command-line tool.
 
-Parrot writes telemetry into a timed-metadata track inside the MP4 (formats v1,
-v2, v3, and protobuf). This project extracts that track, maps its fields onto
-MISB ST 0601 tags, and remuxes video + KLV into MPEG-TS. Real-time streaming, a
-GUI, and KLV standards beyond ST 0601 are out of scope — see
+Parrot writes telemetry into a timed-metadata track inside the MP4. This project
+supports the **v3 and proto** formats — the ANAFI range and ANAFI Ai / UKR,
+every Parrot drone still in production — extracting that track, mapping its
+fields onto MISB ST 0601 tags, and remuxing video + KLV into MPEG-TS.
+
+The older v2 format (Bebop 2, Disco, Bluegrass) is a possible add-on but is not
+planned; v1 is deprecated by Parrot and out of scope, as are real-time
+streaming, a GUI, an integration API, and KLV standards beyond ST 0601. See
 [`planning/ROADMAP.md`](planning/ROADMAP.md).
 
 ## Build

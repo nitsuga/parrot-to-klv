@@ -89,15 +89,18 @@ transform stage owes a conversion coverage report alongside the KLV output.
 
 ## Next
 
-1. Resolve the Tier 2 geometry-fidelity fork (flat-earth vs DTED) in
-   [ROADMAP](./ROADMAP.md), then derive Items 21/22/23/24/25/57/78/82–89
-2. Phase 3 (Mux): remux video + KLV into MPEG-TS through libmisbklv
+1. **Phase 3 (Mux)**: remux video + KLV into MPEG-TS through libmisbklv
+2. Resolve fork 4, Tier 2 geometry fidelity, in [ROADMAP](./ROADMAP.md), then
+   derive Items 21/22/23/24/25/57/78/82–89
 
 ## Known gaps
 
 - Deriving Items 21/22/23/24/25/57/78/82–89 needs a boresight-to-terrain
   intersection — the substantive remaining work in the transform stage, and the
-  one part of the mapping with no direct Parrot source. Fidelity choice is a
-  candidate fork in [ROADMAP](./ROADMAP.md).
-- Item 2 for v2/v3 recordings: the frame clock is monotonic, so wall-clock
-  anchoring depends on session `media_date` (second granularity).
+  one part of the mapping with no direct Parrot source. Its fidelity is fork 4,
+  now open in [ROADMAP](./ROADMAP.md).
+- Item 2 for v3 recordings is anchored to session `media_date`, so it inherits
+  that field's **second** granularity. Frame-to-frame spacing stays exact.
+- The proto parser has never seen a real recording, and its fixtures are encoded
+  by our own hand-written encoder rather than a reference implementation — see
+  [ADR 0003](../context/decisions/0003-protobuf-dependency.md) § Validation.

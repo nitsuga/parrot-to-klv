@@ -250,8 +250,11 @@ v1/v2 support can be added later if needed for older Bebop/Disco recordings.
 
 ## References
 
-- **Why:** This project needs to parse all Parrot metadata formats to convert to
-  MISB 0601 KLV for MPEG-TS output.
-- **How to apply:** Use libvideo-metadata headers and source as reference to
-  implement lightweight parsers for each format. Prioritize v3/proto for initial
-  implementation.
+- **Why:** This documents all four formats, but the project **supports v3 and
+  proto** (see [ROADMAP](../planning/ROADMAP.md) § Scope). v2 is kept here
+  because it is the deferred add-on and its layout is the part of this document
+  most likely to be needed next; v1 is documented for completeness only.
+- **How to apply:** Use libvideo-metadata headers and source as reference. The
+  v3 and proto parsers exist; a v2 parser would normalize into the same
+  `TelemetrySnapshot` per
+  [ADR 0004](./decisions/0004-shared-telemetry-snapshot.md).

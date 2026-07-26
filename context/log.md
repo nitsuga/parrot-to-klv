@@ -7,6 +7,26 @@
 
 ## 2026-07-25
 
+* **Scope narrowed to v3 and proto; phase statuses corrected; fork 4 opened.**
+  A planning pass, no code.
+  - **Supported formats are now v3 and proto** — the ANAFI range and ANAFI Ai /
+    UKR, every Parrot drone still in production, both implemented. **v2** (Bebop
+    2, Disco, Bluegrass) becomes a deferred add-on rather than committed scope;
+    ADR 0004's normalization boundary means it would add one normalizer and
+    touch nothing else if it ever lands. **v1** moves to out of scope, being
+    deprecated by Parrot. ROADMAP § Scope, README and CLAUDE.md all said "all
+    Parrot formats" and now say what is actually supported.
+  - **The open mapping questions and the integration API are deferred**, and
+    said to be so rather than left looking like pending work: Items 134, 45/46,
+    48 and Tier 3 VMTI stay enumerated in [[field-mapping-analysis]] § Open
+    questions, and each is currently *reported* as an omission rather than
+    guessed at, so deferring them costs correctness nothing.
+  - **Phase statuses corrected.** Phase 0 had read "(in progress)" while Phases
+    1 and 2 had largely landed. Now: 0 done, 1 done for the supported formats,
+    2 Tier 1 done, 3 next.
+  - **Fork 4 (Tier 2 geometry fidelity) promoted from candidate to `OPEN`** —
+    its stated trigger was the transform stage reaching the derived items, which
+    it now has.
 * **`camera.spectrum` added to the proto reader; Item 11 emitted — Tier 1 is
   now complete.** Field 17 of `CameraMetadata`, transcribed into
   `test/vmeta_subset.proto` alongside the `CameraSpectrum` enum, normalized to a

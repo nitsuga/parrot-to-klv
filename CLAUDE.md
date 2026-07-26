@@ -1,8 +1,9 @@
 # Parrot to KLV
 
 Converts Parrot drone telemetry metadata embedded in MP4 files to MPEG-TS files
-with video and MISB 0601 KLV streams. Provides both a command-line tool and an
-optional API for integration into other applications.
+with video and MISB 0601 KLV streams. A command-line tool, supporting the v3 and
+proto metadata formats; v2 is a deferred add-on and v1 is out of scope. See
+[`planning/ROADMAP.md`](planning/ROADMAP.md) § Scope.
 
 > **This repo uses an OKF-based agent documentation workflow.** The sections
 > below tell an agent *how to work* here — where knowledge, decisions, and the
