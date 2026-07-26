@@ -28,11 +28,14 @@ void usage(const char* argv0) {
         << "pass/fail assertions. Position, absolute time and device identity are\n"
         << "excluded by construction: no coordinate is ever written, only whether it\n"
         << "fell in range.\n\n"
+        << "Report files are named using the first 16 characters of the input file's\n"
+        << "xxHash, anonymizing sensitive source filenames while uniquely identifying\n"
+        << "each recording.\n\n"
         << "  --scan <dir>      analyse every .mp4/.MP4 in <dir> (e.g. data/)\n"
-        << "  --reports <dir>   where reports go, named by label\n"
+        << "  --reports <dir>   where reports go, named by hash prefix\n"
         << "  --check           regenerate and compare instead of writing; non-zero\n"
         << "                    exit if a report changed. This is the regression test.\n"
-        << "  --label <name>    name for a single recording (default: file stem)\n\n"
+        << "  --label <name>    override label in report (default: hash prefix)\n\n"
         << "Exits " << kSkipExitCode << " when --scan finds no recordings, so the\n"
         << "check is a no-op on machines without the footage.\n";
 }
@@ -120,10 +123,17 @@ int main(int argc, char* argv[]) {
         int failures = 0;
         int applicable = 0;
         for (const auto& p : inputs) {
-            const std::string name = p.stem().string();
-            std::cout << name << ":\n";
-            const auto report = run_conformance(p.string(), name);
-            const int rc = emit(report, fs::path(reports_dir) / (name + ".json"), check);
+            const uintmax_t size = fs::file_size(p, ec);
+            std::cout << p.filename().string() << " (" << (size / (1024 * 1024)) << " MB):\n";
+            const auto report = run_conformance(p.string(), "");
+            if (report.input_sha256.empty()) {
+                std::cerr << "  failed to compute hash\n";
+                ++failures;
+                continue;
+            }
+            // Use first 16 chars of hash as anonymous filename
+            const std::string report_name = report.input_sha256.substr(0, 16);
+            const int rc = emit(report, fs::path(reports_dir) / (report_name + ".json"), check);
             if (rc < 0) continue;
             ++applicable;
             failures += rc;
@@ -142,10 +152,21 @@ int main(int argc, char* argv[]) {
     }
 
     if (input.empty()) { usage(argv[0]); return 2; }
-    if (label.empty()) label = fs::path(input).stem().string();
-    if (out.empty()) out = label + ".json";
 
-    std::cout << label << ":\n";
-    const int rc = emit(run_conformance(input, label), out, check);
+    std::error_code ec;
+    const uintmax_t size = fs::file_size(input, ec);
+    std::cout << fs::path(input).filename().string() << " (" << (ec ? 0 : size / (1024 * 1024)) << " MB):\n";
+    const auto report = run_conformance(input, label);
+
+    if (report.input_sha256.empty()) {
+        std::cerr << "  failed to compute hash\n";
+        return 1;
+    }
+
+    // Default to hash-based anonymous filename if not specified
+    if (label.empty()) label = report.input_sha256.substr(0, 16);
+    if (out.empty()) out = report.input_sha256.substr(0, 16) + ".json";
+
+    const int rc = emit(report, out, check);
     return rc < 0 ? kSkipExitCode : rc;
 }

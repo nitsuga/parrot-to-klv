@@ -1,0 +1,36 @@
+{
+  "schema_version": 2,
+  "label": "a0ff2d3b1fdb07ab",
+  "input_sha256": "a0ff2d3b1fdb07ab238f03877f636f9c",
+  "input_bytes": 1243188353,
+  "format": "v3",
+  "sample_count": 10709,
+  "decoded": 10709,
+  "failed": 0,
+  "decode_errors": {},
+  "sample_size_histogram": {"144": 10709},
+  "extensions": {
+    "0x4531": {"count": 10709, "ext_length_words": [2], "payload_bytes": [8]},
+    "0x4533": {"count": 10709, "ext_length_words": [7], "payload_bytes": [28]},
+    "0x4536": {"count": 10709, "ext_length_words": [6], "payload_bytes": [24]}
+  },
+  "checks": {
+    "altitude_within_documented_range": true,
+    "battery_within_0_100": true,
+    "declared_length_matches_sample_size": true,
+    "fov_plausible": true,
+    "latitude_within_range": true,
+    "longitude_within_range": true,
+    "quaternions_are_unit_norm": true,
+    "timestamp_extension_always_present": true,
+    "timestamps_strictly_increasing": true
+  },
+  "quaternion_norm": {"min": 1.000, "max": 1.000},
+  "sv_count": {"min": 18, "max": 25},
+  "battery_percent": {"min": 66, "max": 97},
+  "wifi_rssi_dbm": {"min": -95, "max": -20},
+  "timestamp_delta_us": {"min": 33323, "max": 33411},
+  "flying_states_seen": ["emergency", "flying", "hovering", "landed", "taking-off"],
+  "piloting_modes_seen": ["manual"],
+  "field_of_view_seen": ["68.996 x 42.270", "69.000 x 42.270"]
+}
