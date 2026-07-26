@@ -8,9 +8,11 @@
 #include "mp4_box_scan.hpp"
 #include "mp4_metadata_extractor.hpp"
 
+#include <cstdint>
 #include <cstdio>
 #include <iostream>
 #include <string>
+#include <vector>
 
 using namespace parrot_to_klv;
 

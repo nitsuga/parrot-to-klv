@@ -9,6 +9,7 @@
 #include "parrot_v3.hpp"
 
 #include <cmath>
+#include <cstdint>
 #include <iostream>
 #include <string>
 #include <vector>

@@ -4,6 +4,10 @@
 #include "parrot_v3.hpp"
 
 #include <cmath>
+#include <cstdint>
+#include <optional>
+#include <span>
+#include <string>
 
 namespace parrot_to_klv {
 namespace {

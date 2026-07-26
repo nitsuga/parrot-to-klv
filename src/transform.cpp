@@ -6,7 +6,12 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
+#include <span>
 #include <sstream>
+#include <string>
+#include <utility>
+#include <vector>
 
 #include "misbklv/builder.hpp"
 #include "misbklv/packet.hpp"

@@ -10,9 +10,10 @@
 #include "transform.hpp"
 
 #include <algorithm>
+#include <cstdint>
+#include <cstdio>
 #include <iomanip>
 #include <iostream>
-#include <cstdio>
 #include <optional>
 #include <span>
 #include <string>

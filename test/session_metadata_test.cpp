@@ -10,6 +10,7 @@
 #include "telemetry.hpp"
 #include "transform.hpp"
 
+#include <cstdint>
 #include <cstdio>
 #include <iostream>
 #include <string>

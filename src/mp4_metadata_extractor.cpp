@@ -8,9 +8,15 @@
 #define MINIMP4_IMPLEMENTATION
 #include "minimp4.h"
 
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <iostream>
+#include <memory>
+#include <optional>
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace parrot_to_klv {
 

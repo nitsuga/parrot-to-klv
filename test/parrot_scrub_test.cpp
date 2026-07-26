@@ -9,12 +9,15 @@
 #include "parrot_scrub.hpp"
 #include "parrot_v3.hpp"
 
+#include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <cstdio>
 #include <fstream>
 #include <iostream>
 #include <iterator>
 #include <string>
+#include <utility>
 #include <vector>
 
 using namespace parrot_to_klv;

@@ -3,9 +3,13 @@
 
 #include "session_metadata.hpp"
 
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <ctime>
+#include <optional>
+#include <string>
+#include <utility>
 #include <vector>
 
 #include "mp4_box_scan.hpp"

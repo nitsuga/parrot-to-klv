@@ -15,10 +15,13 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <iostream>
 #include <map>
 #include <optional>
+#include <span>
 #include <string>
+#include <vector>
 
 using namespace parrot_to_klv;
 

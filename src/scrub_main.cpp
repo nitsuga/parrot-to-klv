@@ -3,6 +3,7 @@
 
 #include "parrot_scrub.hpp"
 
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>

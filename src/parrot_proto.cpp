@@ -3,7 +3,11 @@
 
 #include "parrot_proto.hpp"
 
+#include <cstdint>
 #include <cstring>
+#include <optional>
+#include <span>
+#include <string>
 
 namespace parrot_to_klv {
 namespace {
