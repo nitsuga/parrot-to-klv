@@ -2,7 +2,7 @@
 type: Decision
 title: ADR 0003 — Protobuf dependency for the proto-format parser
 description: Hand-roll a minimal proto3 wire reader scoped to the mapped subset of vmeta.proto, rather than taking a protobuf toolchain and runtime dependency
-status: proposed
+status: accepted
 fork: 2
 tags: [decision, parsing, protobuf, parrot, phase-1]
 timestamp: 2026-07-26T00:37:34Z
@@ -80,13 +80,22 @@ Concretely:
   compilation.
 
 **Validation strategy, which is what makes this defensible without footage:**
-`test/make_fixture.py` generates the proto fixtures using Python's protobuf
-library against that transcribed schema, and the C++ reader must decode them.
-That is a genuine cross-implementation check — an independent, reference
-protobuf encoder on one side, our reader on the other — and it costs a
-*developer-time* Python dependency, not a build or runtime one. It does not
-catch a schema transcription error (both sides share the transcription), so the
-transcription is checked by eye against `references/` and cited there.
+`test/make_fixture.py` generates the proto fixtures and the C++ reader must
+decode them. The intended form is a genuine cross-implementation check — the
+reference Python protobuf library encoding against the transcribed schema on one
+side, our reader on the other — costing a *developer-time* Python dependency,
+not a build or runtime one.
+
+**That check is not in force yet.** The development machine has neither `protoc`
+nor Python's `protobuf` package, and no `pip` to install one, so the fixtures
+are encoded by a hand-written proto3 encoder in `make_fixture.py`. Encoder and
+decoder are then both ours, which still catches asymmetric mistakes — a field
+number or wire type wrong on one side only — but is materially weaker than an
+independent encoder, and does not catch a shared misreading of the wire format.
+Wiring the real library in, where one is available, is tracked as an open
+question below. Neither form catches a schema *transcription* error, since both
+sides share the transcription; that is checked by eye against `references/` and
+cited in the transcribed file.
 
 # Alternatives considered
 
@@ -154,10 +163,12 @@ cannot validate.
 - The transcribed `.proto` is a second copy of a schema that lives in
   `references/`. It can drift from the reference if Parrot publishes 8.5. Its
   provenance must be cited in-file, and re-checked when a new reference lands.
-- Fixture generation gains a developer-time dependency on Python's protobuf
-  package. `make_fixture.py` already exists and is developer-time only; the
-  generated fixtures stay committed, so building and testing the project never
-  needs it.
+- Fixture generation would gain a developer-time dependency on Python's protobuf
+  package, if one becomes available. `make_fixture.py` already exists and is
+  developer-time only; the generated fixtures stay committed, so building and
+  testing the project never needs it. Until then the hand-written encoder in
+  that script is a second thing to maintain, and a second place a wire-format
+  misunderstanding can hide.
 - If an ANAFI Ai recording ever arrives, `parrot-conform` extends to it and the
   same real-encoder evidence becomes available for proto that v3 now has. The
   reader should be written expecting that scrutiny.
@@ -175,6 +186,9 @@ cannot validate.
   `LFICMetadata` decode is the reference implementation to check it against —
   which is an argument for decoding LFIC carefully even though v3 is the format
   we have footage for.
+- **Open:** re-establish the independent-encoder fixture check when a machine
+  with `protoc` or Python `protobuf` is available. Until then the cross-check is
+  between two implementations we wrote.
 - Unsettled, and deliberately not decided here: whether v3 and proto converge on
   a shared intermediate frame struct before the transform stage, or the
   transform stage takes two inputs. That is a Phase 2 shape question.

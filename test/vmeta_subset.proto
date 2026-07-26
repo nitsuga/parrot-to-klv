@@ -1,0 +1,178 @@
+// Subset of Parrot's vmeta.proto, transcribed for documentation and fixture
+// generation. NOT compiled by the build — see ADR 0003. The parser in
+// src/parrot_proto.{hpp,cpp} is a hand-written proto3 wire reader; this file
+// records the field numbers and wire types it implements, in a form a real
+// protobuf toolchain can also read.
+//
+// Provenance: transcribed by hand from the embedded schema in
+//   references/Embedded Video Metadata - 8.4.2.html
+// which presents itself as <SDK>/packages/libvideo-metadata/proto/vmeta.proto.
+// It has NOT been diffed against Parrot's SDK repository. Re-check this file
+// when a newer reference lands.
+//
+// Only the messages the ST 0601 mapping draws on are transcribed (13 of the
+// schema's 35). The rest decode into fields ADR 0002 drops.
+
+syntax = "proto3";
+
+package vmeta;
+
+// Numbering is identical to the binary formats' flying_state.
+enum FlyingState {
+    FS_LANDED = 0;
+    FS_TAKINGOFF = 1;
+    FS_HOVERING = 2;
+    FS_FLYING = 3;
+    FS_LANDING = 4;
+    FS_EMERGENCY = 5;
+    FS_USER_TAKEOFF = 6;
+    FS_MOTOR_RAMPING = 7;
+    FS_EMERGENCY_LANDING = 8;
+}
+
+// Numbering DIFFERS from the binary formats: a leading UNKNOWN shifts
+// everything by one, and MOVETO/MAGIC_CARPET are swapped relative to binary
+// MagicCarpet=4/MoveTo=5. Never share a mapping table with the binary enum.
+enum PilotingMode {
+    PM_UNKNOWN = 0;
+    PM_MANUAL = 1;
+    PM_RETURN_HOME = 2;
+    PM_FLIGHT_PLAN = 3;
+    PM_TRACKING = 4;
+    PM_MOVETO = 5;
+    PM_MAGIC_CARPET = 6;
+}
+
+enum LficType {
+    LFIC_TYPE_COT = 0;
+    LFIC_TYPE_USER = 1;
+}
+
+enum TrackingState {
+    TS_TRACKING = 0;
+    TS_SEARCHING = 1;
+    TS_PAUSE = 2;
+}
+
+message Quaternion {
+    float w = 1;
+    float x = 2;
+    float y = 3;
+    float z = 4;
+}
+
+message Vector2 {
+    float x = 1;
+    float y = 2;
+}
+
+message NED {
+    float north = 1;
+    float east = 2;
+    float down = 3;
+}
+
+// Note the field numbers: altitude_egm96amsl is 7, not 4 — 4 is sv_count.
+// Zero altitude means "unknown" (in-band, no presence wrapper).
+message Location {
+    double latitude = 1;
+    double longitude = 2;
+    double altitude_wgs84ellipsoid = 3;
+    uint32 sv_count = 4;
+    float horizontal_accuracy = 5;
+    float vertical_accuracy = 6;
+    double altitude_egm96amsl = 7;
+}
+
+message DroneMetadata {
+    reserved 6, 8;
+    Quaternion quat = 1;
+    Location location = 2;
+    double ground_distance = 3;
+    NED speed = 4;
+    sint32 battery_percentage = 5;  // sint32: ZIGZAG, not plain varint
+    FlyingState flying_state = 7;
+    NED position = 9;
+    bool animation_in_progress = 11;
+    PilotingMode piloting_mode = 12;
+    double altitude_ato = 13;
+    // 10 local_position (Vector3), 14 battery_voltage (FloatValue): dropped
+    // per ADR 0002, and the only wrapper type in the mapped subset's vicinity.
+}
+
+// hfov/vfov are RADIANS here; the binary formats carry degrees. Do not share a
+// code path. utc_timestamp_accuracy == 0 means utc_timestamp is invalid.
+message CameraMetadata {
+    uint64 timestamp = 1;
+    Quaternion base_quat = 2;
+    Quaternion quat = 3;
+    float exposure_time = 4;
+    uint32 iso_gain = 5;
+    float awb_r_gain = 6;
+    float awb_b_gain = 7;
+    float hfov = 8;
+    float vfov = 9;
+    uint64 utc_timestamp = 10;
+    uint32 utc_timestamp_accuracy = 11;
+    Location location = 13;
+    Vector2 principal_point = 14;
+    Quaternion local_quat = 15;
+    float zoom_level = 16;
+    // 12 local_position, 17 spectrum, 18 subtype, 19 serial_number: dropped.
+    // serial_number is device identity and must never reach a report.
+}
+
+message WifiLinkMetadata {
+    uint32 goodput = 1;
+    uint32 quality = 2;
+    sint32 rssi = 3;  // sint32: ZIGZAG
+}
+
+message StarfishLinkMetadata {
+    // Contents not transcribed; recognised so the oneof is not mistaken for
+    // wifi. Skipped by the reader.
+}
+
+message LinkMetadata {
+    oneof protocol {
+        WifiLinkMetadata wifi = 1;
+        StarfishLinkMetadata starfish = 2;
+    }
+}
+
+message LFICMetadata {
+    float x = 1;
+    float y = 2;
+    Location location = 3;
+    double grid_precision = 4;
+    LficType type = 5;
+    float horizontal_tangential_accuracy = 6;
+    float horizontal_radial_accuracy = 7;
+}
+
+message BoundingBox {
+    float x = 1;
+    float y = 2;
+    float width = 3;
+    float height = 4;
+    uint32 object_class = 5;  // TrackingClass; not transcribed
+    float confidence = 6;
+    uint32 uid = 7;
+}
+
+message TrackingMetadata {
+    BoundingBox target = 1;
+    uint64 timestamp = 2;
+    uint32 quality = 3;
+    TrackingState state = 4;
+    uint32 cookie = 5;
+}
+
+message TimedMetadata {
+    DroneMetadata drone = 1;
+    CameraMetadata camera = 2;
+    repeated LinkMetadata links = 3;
+    TrackingMetadata tracking = 4;
+    repeated LFICMetadata lfic = 8;
+    // 5 proposal, 6 automation, 7 thermal, 9 user, 10 photo: dropped.
+}

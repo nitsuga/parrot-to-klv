@@ -41,6 +41,16 @@ payload of any extension it cannot decode (which includes the undocumented
 `--zero-media`. See
 [MP4 metadata extraction](../context/mp4-extraction.md) § Scrubbing.
 
+**The proto parser is done** — a hand-written proto3 wire reader
+(`src/parrot_proto.{hpp,cpp}`) covering the ~13 messages the ST 0601 mapping
+draws on, per [ADR 0003](../context/decisions/0003-protobuf-dependency.md).
+Unknown fields are skipped and recorded, so a newer Parrot SDK decodes rather
+than failing. `./build/parrot-to-klv <file>.mp4` now summarises v3 *and* proto,
+withholding location in both unless given `--with-location`. It is validated
+against synthetic fixtures only: no proto recording has ever been seen, and the
+fixture encoder is ours rather than a reference implementation — see the ADR's
+validation strategy for what that does and does not catch.
+
 The field mapping is settled against the complete ST 0601.19 registry —
 [field mapping](../context/field-mapping-analysis.md) is the implementation spec
 for the transform stage, and libmisbklv needs no registry work for this project.
@@ -54,9 +64,7 @@ transform stage owes a conversion coverage report alongside the KLV output.
 
 ## Next
 
-1. Implement Parrot proto parser — resolve the protobuf-dependency fork in
-   [ROADMAP](./ROADMAP.md) first
-2. Begin transform stage: direct field mappings (Parrot → ST 0601 items)
+1. Begin transform stage: direct field mappings (Parrot → ST 0601 items)
 
 ## Known gaps
 

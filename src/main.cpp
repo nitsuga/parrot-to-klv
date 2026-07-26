@@ -2,10 +2,14 @@
 // Licensed under the Apache License, Version 2.0
 
 #include "mp4_metadata_extractor.hpp"
+#include "parrot_proto.hpp"
 #include "parrot_v3.hpp"
 
+#include <algorithm>
 #include <iomanip>
 #include <iostream>
+#include <optional>
+#include <span>
 #include <string>
 
 using namespace parrot_to_klv;
@@ -47,6 +51,86 @@ void print_frame(const ParrotV3Frame& f, bool with_location) {
     std::cout << std::defaultfloat;
 }
 
+/// Structural summary of a decoded proto frame.
+///
+/// Withholds location for the same reason as the v3 summary above. The units
+/// differ from v3 and the output says so: the proto format carries the FOVs in
+/// radians, and both altitude datums rather than one.
+void print_frame(const ParrotProtoFrame& f, bool with_location) {
+    std::cout << "    state=" << to_string(f.flying_state)
+              << " mode=" << to_string(f.piloting_mode)
+              << " battery=" << f.battery_percentage << "%";
+    if (!f.wifi_links.empty()) {
+        std::cout << " rssi=" << f.wifi_links[0].rssi_dbm << "dBm";
+    }
+    std::cout << " sv=" << f.drone_location.sv_count << "\n";
+    std::cout << std::fixed << std::setprecision(3);
+    std::cout << "    agl=" << f.ground_distance_m << "m"
+              << " speed_ned=(" << f.speed.north_mps << ", " << f.speed.east_mps << ", "
+              << f.speed.down_mps << ")m/s"
+              << " fov=" << f.picture_hfov_rad << "x" << f.picture_vfov_rad << "rad\n";
+    std::cout << "    |drone_quat|=" << f.drone_quat.norm()
+              << " |frame_quat|=" << f.frame_quat.norm()
+              << " t=" << f.camera_timestamp_us << "us";
+    // Zero accuracy means the UTC stamp is not usable, which matters more than
+    // the value itself.
+    if (f.utc_timestamp_accuracy == 0) {
+        std::cout << " utc=invalid";
+    }
+    std::cout << "\n";
+    if (f.zoom_level != 0.0) std::cout << "    zoom=" << f.zoom_level << "x\n";
+    if (with_location) {
+        std::cout << std::setprecision(7) << "    lat=" << f.drone_location.latitude_deg
+                  << " lon=" << f.drone_location.longitude_deg << std::setprecision(3)
+                  << " alt_amsl=" << f.drone_location.altitude_egm96_m << "m"
+                  << " alt_wgs84=" << f.drone_location.altitude_wgs84_m << "m\n";
+    }
+    if (!f.lfic.empty()) {
+        std::cout << "    + " << f.lfic.size() << " LFIC entry(ies)\n";
+    }
+    if (f.tracking) std::cout << "    + tracking\n";
+    for (uint32_t number : f.skipped_field_numbers) {
+        std::cout << "    + field " << number << " (skipped)\n";
+    }
+    std::cout << std::defaultfloat;
+}
+
+/// Decode every sample of one format, printing the first few.
+///
+/// Templated over the frame type so v3 and proto share the loop: the formats
+/// differ in what a frame *is*, not in how a track is walked.
+template <typename Parse>
+int decode_all(Mp4MetadataExtractor& extractor, bool with_location, Parse parse) {
+    uint32_t decoded = 0;
+    uint32_t failed = 0;
+    const uint32_t to_show = std::min(3u, extractor.sample_count());
+
+    for (uint32_t i = 0; i < extractor.sample_count(); ++i) {
+        auto sample = extractor.extract_sample(i);
+        if (!sample) {
+            ++failed;
+            continue;
+        }
+        std::string error;
+        auto frame = parse(sample->data, error);
+        if (!frame) {
+            if (failed == 0) std::cerr << "Sample " << i << ": " << error << "\n";
+            ++failed;
+            continue;
+        }
+        ++decoded;
+        if (i < to_show) {
+            std::cout << "  Sample " << i << " (" << sample->data.size() << " bytes):\n";
+            print_frame(*frame, with_location);
+        }
+    }
+
+    std::cout << "\nDecoded " << decoded << " of " << extractor.sample_count() << " samples";
+    if (failed > 0) std::cout << " (" << failed << " failed)";
+    std::cout << "\n";
+    return failed > 0 ? 1 : 0;
+}
+
 }  // namespace
 
 int main(int argc, char* argv[]) {
@@ -75,44 +159,30 @@ int main(int argc, char* argv[]) {
     }
 
     const auto& info = extractor->track_info();
-    if (info.format != ParrotFormat::V3) {
-        std::cerr << "\nOnly the v3 format is decoded so far; this file is "
-                  << to_string(info.format) << ".\n";
-        return 1;
+    if (info.format == ParrotFormat::V3) {
+        std::cout << "\n--- Decoding v3 samples ---\n";
+        return decode_all(*extractor, with_location,
+                          [](std::span<const uint8_t> data, std::string& error)
+                              -> std::optional<ParrotV3Frame> {
+                              ParrotV3Error err{};
+                              auto frame = parse_v3(data, &err);
+                              if (!frame) error = to_string(err);
+                              return frame;
+                          });
+    }
+    if (info.format == ParrotFormat::Proto) {
+        std::cout << "\n--- Decoding proto samples ---\n";
+        return decode_all(*extractor, with_location,
+                          [](std::span<const uint8_t> data, std::string& error)
+                              -> std::optional<ParrotProtoFrame> {
+                              ParrotProtoError err{};
+                              auto frame = parse_proto(data, &err);
+                              if (!frame) error = to_string(err);
+                              return frame;
+                          });
     }
 
-    std::cout << "\n--- Decoding v3 samples ---\n";
-
-    uint32_t decoded = 0;
-    uint32_t failed = 0;
-    const uint32_t to_show = std::min(3u, extractor->sample_count());
-
-    for (uint32_t i = 0; i < extractor->sample_count(); ++i) {
-        auto sample = extractor->extract_sample(i);
-        if (!sample) {
-            ++failed;
-            continue;
-        }
-        ParrotV3Error err{};
-        auto frame = parse_v3(sample->data, &err);
-        if (!frame) {
-            if (failed == 0) {
-                std::cerr << "Sample " << i << ": " << to_string(err) << "\n";
-            }
-            ++failed;
-            continue;
-        }
-        ++decoded;
-        if (i < to_show) {
-            std::cout << "  Sample " << i << " (" << sample->data.size() << " bytes):\n";
-            print_frame(*frame, with_location);
-        }
-    }
-
-    std::cout << "\nDecoded " << decoded << " of " << extractor->sample_count() << " samples";
-    if (failed > 0) {
-        std::cout << " (" << failed << " failed)";
-    }
-    std::cout << "\n";
-    return failed > 0 ? 1 : 0;
+    std::cerr << "\nOnly the v3 and proto formats are decoded so far; this file is "
+              << to_string(info.format) << ".\n";
+    return 1;
 }

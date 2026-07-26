@@ -35,6 +35,7 @@ add_library(parrot_extract STATIC
   src/mp4_box_scan.cpp
   src/mp4_metadata_extractor.cpp
   src/parrot_v3.cpp
+  src/parrot_proto.cpp
   src/parrot_scrub.cpp
   src/conformance.cpp
 )
@@ -60,6 +61,12 @@ target_link_libraries(parrot_v3_test PRIVATE parrot_extract)
 
 add_test(NAME parrot_v3
          COMMAND parrot_v3_test ${CMAKE_SOURCE_DIR}/test/fixtures)
+
+add_executable(parrot_proto_test test/parrot_proto_test.cpp)
+target_link_libraries(parrot_proto_test PRIVATE parrot_extract)
+
+add_test(NAME parrot_proto
+         COMMAND parrot_proto_test ${CMAKE_SOURCE_DIR}/test/fixtures)
 
 add_executable(parrot_scrub_test test/parrot_scrub_test.cpp)
 target_link_libraries(parrot_scrub_test PRIVATE parrot_extract)

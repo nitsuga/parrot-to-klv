@@ -22,11 +22,14 @@ parsing over GStreamer `qtdemux`) — see its follow-on note.
 | `src/mp4_box_scan.{hpp,cpp}` | Walks the box tree for what minimp4 discards |
 | `src/mp4_metadata_extractor.{hpp,cpp}` | Public API: `open()`, `extract_sample()`, `locate_sample()` |
 | `src/parrot_v3.{hpp,cpp}` | Decodes a v3 sample into `ParrotV3Frame` |
+| `src/parrot_proto.{hpp,cpp}` | Hand-written proto3 reader — decodes a proto sample into `ParrotProtoFrame` (ADR 0003) |
+| `test/vmeta_subset.proto` | The mapped subset of Parrot's schema, transcribed; documentation and fixture reference, **not** compiled |
 | `src/parrot_scrub.{hpp,cpp}`, `src/scrub_main.cpp` | `parrot-scrub` — see § Scrubbing |
 | `src/main.cpp` | `parrot-to-klv` — extract, decode, summarise |
 | `test/make_fixture.py` | Generates the synthetic MP4 fixtures |
 | `test/mp4_extraction_test.cpp` | `ctest` target `mp4_extraction` |
 | `test/parrot_v3_test.cpp` | `ctest` target `parrot_v3` |
+| `test/parrot_proto_test.cpp` | `ctest` target `parrot_proto` |
 | `test/parrot_scrub_test.cpp` | `ctest` target `parrot_scrub` |
 | `src/conformance.{hpp,cpp}`, `src/conform_main.cpp` | `parrot-conform` — see § Conformance reports |
 | `test/conformance_test.cpp` | `ctest` target `conformance` |
@@ -182,7 +185,7 @@ committed, so the suite runs on synthetic MP4s in `test/fixtures/`, built by
 | `parrot_v3_extensions.mp4` | every documented v3 extension, plus an unknown one to skip |
 | `parrot_v3_unknown_ext.mp4` | an undecoded extension holding coordinates — the scrub regression |
 | `parrot_v3_encoded.mp4` | writer that fills `content_encoding`, moving the MIME type to the second string |
-| `parrot_proto.mp4` | proto format — detection only; no proto parser yet |
+| `parrot_proto.mp4` | serialized `vmeta.TimedMetadata` — drone, camera, wifi link, LFIC, tracking, plus an unmapped field to skip |
 | `foreign_meta.mp4` | non-Parrot `meta` track that must be refused |
 
 The expected values live in `v3_base()` in the generator, and the tests assert

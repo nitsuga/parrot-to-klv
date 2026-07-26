@@ -38,12 +38,6 @@ A *fork* is a decision point — a branch in the plan/design that needs a choice
 Status legend: `OPEN` (undiscussed) · `PROPOSED` (Decision concept written,
 `status: proposed`) · `DECIDED` / `DEFERRED` (has an ADR — see the register).
 
-- **Fork 2 — Protobuf dependency for the proto parser** `PROPOSED`: vendor
-  `vmeta.proto` and generate with protoc, or hand-roll a minimal proto3 reader.
-  Weighs a build-time toolchain dependency and generated sources against writing
-  and maintaining a decoder. Deliberated in
-  [ADR 0003](../context/decisions/0003-protobuf-dependency.md), which proposes
-  the hand-rolled reader — awaiting acceptance.
 - **Tier 2 geometry fidelity** *(candidate)*: flat-earth intersection vs. a DTED
   terrain model for frame center, corner points, and slant/ground range. Weighs
   a data dependency against accuracy on sloped terrain. Opens when the transform

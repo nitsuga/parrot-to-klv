@@ -7,9 +7,42 @@
 
 ## 2026-07-25
 
-* **Fork 2 (protobuf dependency) deliberated** —
-  [[0003-protobuf-dependency]], `status: proposed`. Opened from the ROADMAP
-  candidate list as the proto parser approaches.
+* **Proto parser implemented** — `src/parrot_proto.{hpp,cpp}`, a hand-written
+  proto3 wire reader per [[0003-protobuf-dependency]]. `parrot-to-klv` now
+  summarises v3 and proto both, and `test/vmeta_subset.proto` records the
+  transcribed schema subset (documentation only — nothing compiles it).
+  - **Schema traps the transcription surfaced**, each of which would have been a
+    silent mis-decode: `Location.altitude_egm96amsl` is field **7**, not 4 (4 is
+    `sv_count`); `battery_percentage` and wifi `rssi` are `sint32`, so **ZigZag**
+    — reading them as plain varints turns −55 dBm into 109; the proto
+    `PilotingMode` is offset by one from the binary enum (`PM_MANUAL` = 1, binary
+    `Manual` = 0), so it gets its own C++ type rather than sharing `PilotingMode`;
+    and proto carries the FOVs in **radians** where v3 uses degrees, named
+    `picture_hfov_rad` so the difference cannot be missed at a call site.
+  - **Bug caught by its own test:** message fields originally called
+    `read_bytes()` without checking the wire type, so a group tag (wire 3) on
+    e.g. field 1 read the next byte as a length — and a zero there decoded as a
+    valid *empty* submessage. A mis-synced stream would have parsed "cleanly"
+    into a default-valued frame. Now routed through `read_msg()`, which insists
+    on wire type 2.
+  - No depth guard, deliberately: no parser calls itself, so nesting is bounded
+    by the schema (three deep) rather than by the input. An earlier draft
+    declared a `DepthExceeded` error it never enforced; removed rather than
+    shipped.
+  - Tests cover the fixture field-by-field plus the wire edges — truncation,
+    over-long varints, undefined wire types, field number 0, ZigZag at −1,
+    unknown fields of every wire type, and a Starfish `oneof` that must not
+    count as a Wi-Fi link. `parrot_proto.mp4` now holds real serialized
+    `TimedMetadata`; it previously held v3 bytes under a proto MIME type, which
+    only ever exercised format *detection*.
+  - **Validation is weaker than for v3, and stays that way for now**: no proto
+    recording exists to check against, and the fixture encoder in
+    `make_fixture.py` is hand-written because this machine has no protobuf
+    toolchain. Encoder and decoder are both ours, so a shared misreading of
+    proto3 would pass. Tracked as an open question in the ADR.
+* **Fork 2 (protobuf dependency) resolved** —
+  [[0003-protobuf-dependency]], `accepted`. Opened from the ROADMAP candidate
+  list and decided in the same session.
 * **Verified on the footage machine: the updated tool reproduces both committed
   reports byte-for-byte.** Regenerating over the real recordings left the working
   tree clean, which settles the two things that could only be predicted from a

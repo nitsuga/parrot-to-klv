@@ -213,6 +213,115 @@ def thermal_ext() -> bytes:
     return ext(0x4534, payload)                             # 9*2 + 2 = 20 bytes, aligned
 
 
+# --- proto3 encoder -------------------------------------------------------
+#
+# Hand-written because this machine has no protobuf toolchain (ADR 0003). The
+# intended check is the reference Python protobuf library encoding
+# test/vmeta_subset.proto, which would make encoder and decoder independent;
+# until then both sides are ours, so this catches an asymmetric mistake (a field
+# number or wire type wrong on one side) but not a shared misreading.
+
+
+def varint(n: int) -> bytes:
+    out = b""
+    while True:
+        byte = n & 0x7F
+        n >>= 7
+        out += bytes([byte | (0x80 if n else 0)])
+        if not n:
+            return out
+
+
+def tag(field: int, wire: int) -> bytes:
+    return varint((field << 3) | wire)
+
+
+def pb_varint(field: int, value: int) -> bytes:
+    return tag(field, 0) + varint(value)
+
+
+def pb_sint32(field: int, value: int) -> bytes:
+    """sint32 is ZigZag-encoded -- battery_percentage and wifi rssi are sint32."""
+    return tag(field, 0) + varint((value << 1) ^ (value >> 31))
+
+
+def pb_float(field: int, value: float) -> bytes:
+    return tag(field, 5) + struct.pack("<f", value)
+
+
+def pb_double(field: int, value: float) -> bytes:
+    return tag(field, 1) + struct.pack("<d", value)
+
+
+def pb_msg(field: int, payload: bytes) -> bytes:
+    return tag(field, 2) + varint(len(payload)) + payload
+
+
+def pb_quat(w: float, x: float, y: float, z: float) -> bytes:
+    return pb_float(1, w) + pb_float(2, x) + pb_float(3, y) + pb_float(4, z)
+
+
+def pb_location(lat: float, lon: float, wgs84: float, amsl: float, sv: int) -> bytes:
+    # altitude_egm96amsl is field 7, NOT 4 -- 4 is sv_count.
+    return (pb_double(1, lat) + pb_double(2, lon) + pb_double(3, wgs84)
+            + pb_varint(4, sv) + pb_float(5, 1.5) + pb_float(6, 2.5)
+            + pb_double(7, amsl))
+
+
+def pb_ned(north: float, east: float, down: float) -> bytes:
+    return pb_float(1, north) + pb_float(2, east) + pb_float(3, down)
+
+
+def proto_sample(index: int) -> bytes:
+    """One serialized vmeta.TimedMetadata.
+
+    Values are invented but structurally faithful: negative battery and RSSI
+    exercise ZigZag, and an unknown top-level field exercises skip-by-wire-type.
+    """
+    drone = (pb_msg(1, pb_quat(1.0, 0.0, 0.0, 0.0))
+             + pb_msg(2, pb_location(45.5, -73.5, 120.0, 100.0, 12))
+             + pb_double(3, 25.0)                 # ground_distance
+             + pb_msg(4, pb_ned(1.5, -2.5, 0.5))  # speed
+             + pb_sint32(5, 77)                   # battery_percentage
+             + pb_varint(7, 3)                    # FS_FLYING
+             + pb_msg(9, pb_ned(10.0, 20.0, -5.0))
+             + pb_varint(11, 1)                   # animation_in_progress
+             + pb_varint(12, 1)                   # PM_MANUAL (binary's Manual is 0)
+             + pb_double(13, 30.0))               # altitude_ato
+
+    camera = (pb_varint(1, 33333 * index)
+              + pb_msg(2, pb_quat(1.0, 0.0, 0.0, 0.0))
+              + pb_msg(3, pb_quat(0.7071, 0.0, 0.7071, 0.0))
+              + pb_float(4, 2.5)                  # exposure_time
+              + pb_varint(5, 100)                 # iso_gain
+              + pb_float(6, 1.75) + pb_float(7, 1.25)
+              + pb_float(8, 1.2043)               # hfov RADIANS (~69 deg)
+              + pb_float(9, 0.7376)               # vfov RADIANS (~42 deg)
+              + pb_varint(10, 1770000000000000 + 33333 * index)  # utc_timestamp
+              + pb_varint(11, 50)                 # utc_timestamp_accuracy (non-zero: valid)
+              + pb_msg(13, pb_location(45.5, -73.5, 120.0, 100.0, 12))
+              + pb_msg(14, pb_float(1, 0.5) + pb_float(2, 0.5))
+              + pb_msg(15, pb_quat(1.0, 0.0, 0.0, 0.0))
+              + pb_float(16, 2.0))                # zoom_level
+
+    wifi = pb_msg(1, pb_varint(1, 15000) + pb_varint(2, 4) + pb_sint32(3, -55))
+    lfic = (pb_float(1, 0.5) + pb_float(2, 0.5)
+            + pb_msg(3, pb_location(45.6, -73.6, 130.0, 110.0, 12))
+            + pb_double(4, 1.0)
+            + pb_varint(5, 0)                     # LFIC_TYPE_COT
+            + pb_float(6, 3.0) + pb_float(7, 4.0))
+    tracking = (pb_msg(1, pb_float(1, 0.25) + pb_float(2, 0.25) + pb_float(3, 0.5)
+                       + pb_float(4, 0.5) + pb_varint(5, 1) + pb_float(6, 0.9)
+                       + pb_varint(7, 42))
+                + pb_varint(2, 33333 * index) + pb_varint(3, 5) + pb_varint(4, 0))
+
+    return (pb_msg(1, drone) + pb_msg(2, camera) + pb_msg(3, wifi)
+            + pb_msg(4, tracking) + pb_msg(8, lfic)
+            # Field 7 is thermal, which the reader drops by design; it must be
+            # skipped and recorded, not treated as an error.
+            + pb_msg(7, pb_varint(1, 2)))
+
+
 def v3_sample(index: int, extensions: bytes = b"") -> bytes:
     """0x5033 + length (32-bit words after the pair, extensions included)."""
     body = v3_base(index) + extensions
@@ -232,7 +341,9 @@ def main() -> int:
 
     fixtures = {
         "parrot_v3.mp4": build(MIME_PREFIX + "com.parrot.videometadata3", samples, video),
-        "parrot_proto.mp4": build(MIME_PREFIX + "com.parrot.videometadataproto", samples, video),
+        # Real serialized TimedMetadata, not v3 bytes under a proto MIME type.
+        "parrot_proto.mp4": build(MIME_PREFIX + "com.parrot.videometadataproto",
+                                  [proto_sample(i) for i in range(8)], video),
         # Some writers fill in content_encoding; the MIME type is then the
         # *second* string in the sample entry.
         "parrot_v3_encoded.mp4": build(MIME_PREFIX + "com.parrot.videometadata3", samples,
