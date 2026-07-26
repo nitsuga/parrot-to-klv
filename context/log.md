@@ -7,6 +7,9 @@
 
 ## 2026-07-25
 
+* **Fork 2 (protobuf dependency) deliberated** —
+  [[0003-protobuf-dependency]], `status: proposed`. Opened from the ROADMAP
+  candidate list as the proto parser approaches.
 * **Verified on the footage machine: the updated tool reproduces both committed
   reports byte-for-byte.** Regenerating over the real recordings left the working
   tree clean, which settles the two things that could only be predicted from a
