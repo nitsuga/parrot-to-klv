@@ -138,7 +138,9 @@ that by committing the *evidence* rather than the recording. It decodes every
 sample of a real file and writes a JSON report of what the encoder actually
 produced: sample-size histogram, extension ids with their payload lengths, decode
 rate and error kinds, quaternion norm range, aircraft-state ranges, and a set of
-pass/fail structural assertions.
+pass/fail structural assertions. Reports are named by the first 16 characters of
+the file's xxHash (e.g., `a0ff2d3b1fdb07ab.json`), anonymizing sensitive source
+filenames.
 
 **The report carries no position, no absolute time, and no device identity** —
 not by filtering, but by construction: nothing that reads a coordinate ever

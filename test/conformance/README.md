@@ -3,13 +3,15 @@
 Evidence that real Parrot encoders match what this project assumes — committed
 here so it survives, while the recordings themselves never enter the repository.
 
-Each `<label>.json` is generated from one recording by `parrot-conform`. It holds
-sample sizes, extension ids and payload lengths, decode rates, quaternion norms,
-aircraft-state ranges, and pass/fail assertions. It holds **no** position, no
-absolute time, and no device identity: coordinates appear only as range checks
-("latitude was within ±90"), never as values. `test/conformance_test.cpp` asserts
-that — it renders a report from a fixture with known coordinates and fails if any
-of them appear in the output, at any precision or in fixed-point form.
+Each report is generated from one recording by `parrot-conform` and named by the
+first 16 characters of its xxHash (e.g., `a0ff2d3b1fdb07ab.json`), anonymizing
+sensitive source filenames. Reports hold sample sizes, extension ids and payload
+lengths, decode rates, quaternion norms, aircraft-state ranges, and pass/fail
+assertions. They hold **no** position, no absolute time, and no device identity:
+coordinates appear only as range checks ("latitude was within ±90"), never as
+values. `test/conformance_test.cpp` asserts that — it renders a report from a
+fixture with known coordinates and fails if any of them appear in the output, at
+any precision or in fixed-point form.
 
 ## Generating
 
@@ -35,5 +37,5 @@ that have never held a recording. Where footage is present, a changed report
 means the decoder now reads that recording differently than when the report was
 committed — which is either a fix or a regression, and worth knowing which.
 
-Files here are matched to recordings by `input_sha256`, so a report whose
-recording has been replaced is detectable rather than silently wrong.
+Files here are matched to recordings by `input_sha256` (xxHash XXH3_128), so a
+report whose recording has been replaced is detectable rather than silently wrong.

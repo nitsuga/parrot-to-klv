@@ -7,6 +7,19 @@
 
 ## 2026-07-25
 
+* **`parrot-conform` switched to xxHash and anonymizes report filenames.**
+  Performance and security improvements:
+  - Replaced SHA-256 with xxHash XXH3_128 for 20-100× faster file identification
+    (1.2GB scan: 2s total vs 6+s, hash step <100ms vs 4+s). Hash is for
+    identification only, not security, so collision resistance of 128 bits is
+    plenty.
+  - Report filenames now derived from hash prefix (`a0ff2d3b1fdb07ab.json`)
+    instead of source filename, anonymizing sensitive video names. Label field
+    defaults to same prefix. Console still shows original filename for context.
+  - Added file-size display and progress dots (every 100MB) during hashing.
+  - Schema version bumped to 2 (hash algorithm change). `input_sha256` field now
+    holds xxHash XXH3_128, not SHA-256.
+  - Vendored xxhash.h single-header library (BSD-2-Clause).
 * **Doc lint after `parrot-conform`.** Four items, two of them rule violations
   rather than ordinary staleness:
   - `PROGRESS` "Next" had grown a *fork* — the protobuf-dependency choice for the
@@ -36,8 +49,8 @@
     is caught. Skips (`SKIP_RETURN_CODE 77`) where `data/` is absent, empty, or
     holds nothing applicable — a no-op in CI, a real regression test where the
     footage lives. A non-Parrot video in `data/` is skipped, not failed.
-  - Reports are tied to recordings by SHA-256, so a report whose input was
-    replaced is detectable rather than silently stale.
+  - Reports are tied to recordings by hash (originally SHA-256, now xxHash), so a
+    report whose input was replaced is detectable rather than silently stale.
   - Side benefit: the report records `0x4536`'s payload length across every
     sample, which is most of what would identify that undocumented extension.
 * **Doc lint.** Six pieces of drift, all from the last two days' work outrunning
