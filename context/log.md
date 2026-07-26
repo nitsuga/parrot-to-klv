@@ -7,6 +7,27 @@
 
 ## 2026-07-26
 
+* **Build CI added** (`.github/workflows/build.yml`): configure, build and
+  `ctest` on Ubuntu, on push and PR.
+  - **Our tests now carry a `parrot` label and CI runs `ctest -L parrot`.**
+    libmisbklv is a subproject, so an unfiltered `ctest` runs its suite too —
+    fine locally as early warning when the pin moves, but several of its tests
+    need ~355 MB of git-lfs media. Labelling ours beat enumerating theirs to
+    exclude: the list of ours is a thing this repo already knows.
+  - `GIT_LFS_SKIP_SMUDGE=1` at configure time keeps that media as pointers
+    (355 MB → 28 KB), since nothing here opens it.
+  - **The runner needs its own credential**: `GITHUB_TOKEN` is scoped to this
+    repository and cannot clone a *different* private one. A read-only deploy
+    key on libmisbklv, held as `MISBKLV_DEPLOY_KEY`, is the narrowest thing that
+    works; the workflow fails with a pointed message if the secret is missing
+    rather than dying in a confusing clone error. Setup and the rejected
+    alternatives: `.github/workflows/README-ci.md`.
+  - Runtime plugin packages are part of the dependency list, not just the `-dev`
+    ones: the mux needs playback/parsebin + app (base), isomp4 (good), and
+    mpegtsmux/tsdemux/h264parse (bad). A build-only package set compiles and
+    then fails in `mux`.
+  - Verified locally by reproducing the recipe — clean clone at the pin with LFS
+    smudging off, then `ctest -L parrot`: 9 tests, green.
 * **libmisbklv pinned to an exact commit** (`f818fd9`) instead of tracking
   `main`. FetchContent does not re-fetch an already-populated dependency, so a
   branch tag lets two checkouts of identical source build against different

@@ -65,8 +65,11 @@ directory taxonomy in [`context/CONVENTIONS.md`](context/CONVENTIONS.md)
 § Layout. This workflow came from
 [okf-project-template](https://github.com/nitsuga/okf-project-template).
 
-**Doc-link CI:** [`.github/workflows/link-check.yml`](.github/workflows/link-check.yml)
-runs on push and pull request, and fails on broken internal doc links.
+**CI**, both on push and pull request:
+[`build.yml`](.github/workflows/build.yml) builds and runs the suite on Ubuntu,
+and [`link-check.yml`](.github/workflows/link-check.yml) fails on broken internal
+doc links. The build job needs one secret, since libmisbklv is a private
+dependency — setup in [`.github/workflows/README-ci.md`](.github/workflows/README-ci.md).
 
 ## Structure
 

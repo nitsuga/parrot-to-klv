@@ -130,3 +130,16 @@ add_test(NAME conformance_real_data
                                 --reports ${CMAKE_SOURCE_DIR}/test/conformance
                                 --check)
 set_tests_properties(conformance_real_data PROPERTIES SKIP_RETURN_CODE 77)
+
+# libmisbklv is a subproject, so `ctest` here runs its suite too — useful
+# locally as an early warning when the pin moves, but several of its tests need
+# hundreds of megabytes of git-lfs media that this project has no reason to
+# fetch. Labelling ours lets CI run `ctest -L parrot` and test this project.
+#
+# Every add_test above appears here. A new test that does not is simply absent
+# from CI, so keep the list in step — that is the one thing this arrangement
+# asks for in exchange for not enumerating someone else's tests to exclude.
+set_tests_properties(
+  mp4_extraction parrot_v3 parrot_proto session_metadata transform mux
+  parrot_scrub conformance conformance_real_data
+  PROPERTIES LABELS parrot)

@@ -1,0 +1,70 @@
+name: Build and test
+
+# The suite runs against committed fixtures only, so CI needs no drone footage
+# and no encoder: test/make_fixture.py regenerates the fixtures and needs ffmpeg,
+# but nothing here runs it.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A newer push to the same branch supersedes this run.
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      # -dev packages for the build (libmisbklv's gstreamer backend links
+      # gstreamer-1.0 + gstreamer-app-1.0); the plugin packages for the run.
+      # The mux stage needs, at runtime: playback/parsebin and app (base),
+      # isomp4/qtdemux (good), and mpegtsmux + tsdemux + h264parse (bad).
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake g++ \
+            libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+            gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
+            gstreamer1.0-plugins-bad
+
+      # libmisbklv is a private repo, so the runner needs its own credential:
+      # GITHUB_TOKEN is scoped to *this* repository and cannot clone it. A
+      # read-only deploy key on libmisbklv, held here as a secret, is the
+      # narrowest thing that works — see .github/workflows/README-ci.md.
+      - name: Authorise the private dependency
+        env:
+          MISBKLV_DEPLOY_KEY: ${{ secrets.MISBKLV_DEPLOY_KEY }}
+        run: |
+          if [ -z "$MISBKLV_DEPLOY_KEY" ]; then
+            echo "::error::secret MISBKLV_DEPLOY_KEY is not set — see .github/workflows/README-ci.md"
+            exit 1
+          fi
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$MISBKLV_DEPLOY_KEY" > ~/.ssh/misbklv
+          chmod 600 ~/.ssh/misbklv
+          ssh-keyscan -t rsa,ecdsa,ed25519 github.com >> ~/.ssh/known_hosts 2>/dev/null
+          printf 'Host github.com\n  IdentityFile ~/.ssh/misbklv\n  IdentitiesOnly yes\n' \
+            >> ~/.ssh/config
+
+      # GIT_LFS_SKIP_SMUDGE: libmisbklv keeps ~355 MB of sample media in git-lfs
+      # for its own tests. This project builds the library and runs its own
+      # suite, so the pointers are all it needs — fetching the media would burn
+      # LFS bandwidth on files nothing here opens.
+      - name: Configure
+        env:
+          GIT_LFS_SKIP_SMUDGE: 1
+        run: cmake -S . -B build
+
+      - name: Build
+        run: cmake --build build -j"$(nproc)"
+
+      # -L parrot: libmisbklv is a subproject, so an unfiltered ctest would also
+      # run its suite — including the tests needing the media skipped above.
+      # Upstream has its own CI; this job tests this project.
+      - name: Test
+        run: ctest --test-dir build -L parrot --output-on-failure
