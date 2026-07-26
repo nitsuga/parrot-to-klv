@@ -48,6 +48,20 @@ ImageSpectrum common_spectrum(CameraSpectrum spectrum) {
     return ImageSpectrum::Unknown;
 }
 
+/// Map the protobuf camera subtype by name.
+ImageSubtype common_subtype(CameraSubtype subtype) {
+    switch (subtype) {
+        case CameraSubtype::Unknown: return ImageSubtype::Unknown;
+        case CameraSubtype::Left: return ImageSubtype::Left;
+        case CameraSubtype::Right: return ImageSubtype::Right;
+        case CameraSubtype::Wide: return ImageSubtype::Wide;
+        case CameraSubtype::Tele: return ImageSubtype::Tele;
+        case CameraSubtype::Disparity: return ImageSubtype::Disparity;
+        case CameraSubtype::Depth: return ImageSubtype::Depth;
+    }
+    return ImageSubtype::Unknown;
+}
+
 /// Proto's in-band sentinel: zero altitude means "unknown", since proto3 gives
 /// scalars no presence bit. Treating it as a real 0 m would put the aircraft at
 /// sea level.
@@ -81,16 +95,41 @@ std::string to_string(ImageSpectrum spectrum) {
     return "invalid";
 }
 
-std::optional<std::string> image_source_sensor(ImageSpectrum spectrum) {
+std::string to_string(ImageSubtype subtype) {
+    switch (subtype) {
+        case ImageSubtype::Unknown: return "unknown";
+        case ImageSubtype::Left: return "left";
+        case ImageSubtype::Right: return "right";
+        case ImageSubtype::Wide: return "wide";
+        case ImageSubtype::Tele: return "tele";
+        case ImageSubtype::Disparity: return "disparity";
+        case ImageSubtype::Depth: return "depth";
+    }
+    return "invalid";
+}
+
+std::optional<std::string> image_source_sensor(ImageSpectrum spectrum, ImageSubtype subtype) {
+    std::string name;
     switch (spectrum) {
-        case ImageSpectrum::Visible: return "EO";
-        case ImageSpectrum::Thermal: return "IR";
+        case ImageSpectrum::Visible: name = "EO"; break;
+        case ImageSpectrum::Thermal: name = "IR"; break;
         // Item 11 is free-form utf8, so a fused image can be named for what it
         // is instead of being mislabelled as one of its halves.
-        case ImageSpectrum::Blended: return "EO/IR Blended";
-        case ImageSpectrum::Unknown: break;
+        case ImageSpectrum::Blended: name = "EO/IR Blended"; break;
+        // No stem, no name: a bare "Wide" would not tell a consumer whether the
+        // imagery is visible or thermal, which is the point of the item.
+        case ImageSpectrum::Unknown: return std::nullopt;
     }
-    return std::nullopt;
+    switch (subtype) {
+        case ImageSubtype::Left: name += " Left"; break;
+        case ImageSubtype::Right: name += " Right"; break;
+        case ImageSubtype::Wide: name += " Wide"; break;
+        case ImageSubtype::Tele: name += " Tele"; break;
+        case ImageSubtype::Disparity: name += " Disparity"; break;
+        case ImageSubtype::Depth: name += " Depth"; break;
+        case ImageSubtype::Unknown: break;  // stem stands alone
+    }
+    return name;
 }
 
 TelemetrySnapshot from_v3(const ParrotV3Frame& f) {
@@ -193,6 +232,7 @@ TelemetrySnapshot from_proto(const ParrotProtoFrame& f) {
     if (f.picture_vfov_rad != 0.0) s.vfov_deg = f.picture_vfov_rad * kRadToDeg;
     if (f.zoom_level != 0.0) s.zoom_level = f.zoom_level;
     s.spectrum = common_spectrum(f.spectrum);
+    s.subtype = common_subtype(f.subtype);
 
     s.flying_state = f.flying_state;
     s.piloting_mode = common_mode(f.piloting_mode);

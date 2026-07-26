@@ -52,6 +52,18 @@ enum CameraSpectrum {
     CS_THERMAL = 3;
 }
 
+// Which physical camera. Qualifies the spectrum in ST 0601 Item 11 — the
+// standard's own example configuration names sensors "EO Narrow" / "EO Wide".
+enum CameraSubtype {
+    CST_UNKNOWN = 0;
+    CST_LEFT = 1;
+    CST_RIGHT = 2;
+    CST_WIDE = 3;
+    CST_TELE = 4;
+    CST_DISPARITY = 5;
+    CST_DEPTH = 6;
+}
+
 enum LficType {
     LFIC_TYPE_COT = 0;
     LFIC_TYPE_USER = 1;
@@ -128,7 +140,8 @@ message CameraMetadata {
     Quaternion local_quat = 15;
     float zoom_level = 16;
     CameraSpectrum spectrum = 17;
-    // 12 local_position, 18 subtype, 19 serial_number: dropped.
+    CameraSubtype subtype = 18;
+    // 12 local_position, 19 serial_number: dropped.
     // serial_number is device identity and must never reach a report.
 }
 

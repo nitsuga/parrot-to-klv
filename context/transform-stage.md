@@ -127,15 +127,22 @@ when it does not. Item 11 (image source sensor) comes from proto's
 `camera.spectrum`; v3 carries nothing equivalent, so it is reported against the
 *format* there rather than against the frame.
 
-### Item 11 names the sensor, and a fused image says so
+### Item 11 names the sensor
 
-Item 11 is free-form utf8 — "name of currently active sensor", the standard's
-own example being `EO` — not a two-valued enum. So `CS_VISIBLE` becomes `EO`,
-`CS_THERMAL` becomes `IR`, and `CS_BLENDED` becomes `EO/IR Blended` rather than
-being forced into one of its halves or dropped. `CS_UNKNOWN` names nothing:
-identifying a sensor we cannot identify would be a guess, and thermal footage
-reported as `EO` is exactly the kind of confident wrong value this mapping
-avoids elsewhere.
+Item 11 is free-form utf8 — "name of currently active sensor" — not a
+two-valued enum, and ST 0601 §8.11.1's own example configuration names sensors
+`EO Narrow`, `EO Wide` and `IR Sensor`. So the name is composed from two proto
+fields:
+
+- **`camera.spectrum` gives the stem**: `EO`, `IR`, or `EO/IR Blended` for a
+  fused image, named for what it is rather than forced into one of its halves.
+- **`camera.subtype` qualifies it**: `EO Wide`, `IR Tele`, `EO Left`.
+
+An unknown **spectrum** names nothing, even when the subtype is known — a bare
+`Wide` does not say whether the imagery is visible or thermal, which is the one
+thing Item 11 exists to convey, and thermal footage reported as `EO` is exactly
+the confident wrong value this mapping avoids elsewhere. An unknown **subtype**
+simply leaves the stem unqualified.
 
 **Why:** the mapping's hard parts are not the arithmetic but the places where
 0601 and Parrot disagree about sign, range, or what zero means — and the places

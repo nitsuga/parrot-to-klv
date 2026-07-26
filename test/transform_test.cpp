@@ -220,6 +220,7 @@ void check_proto_mapping() {
     frame.piloting_mode = ProtoPilotingMode::Manual;
     frame.zoom_level = 2.0;
     frame.spectrum = CameraSpectrum::Visible;
+    frame.subtype = CameraSubtype::Wide;
     ProtoLfic target;
     target.type = LficType::Cot;
     target.location.latitude_deg = 45.6;
@@ -254,27 +255,42 @@ void check_proto_mapping() {
           "Item 134 withheld — zoom multiplier has no defined percentage");
     check(klv.coverage.omitted.count(8) == 1, "Item 8 omitted: proto has no air speed");
     // Item 11 now has a source: the camera spectrum.
-    check(decoded.texts.at(11) == "EO", "Item 11 names the visible sensor as EO");
+    check(decoded.texts.at(11) == "EO Wide", "Item 11 names the wide visible sensor");
     check(klv.coverage.omitted.at(8) == OmissionReason::NoSourceInFormat,
           "Item 8 omission blames the format, not the frame");
 }
 
 void check_image_source_sensor() {
-    check(*image_source_sensor(ImageSpectrum::Visible) == "EO", "visible is EO");
-    check(*image_source_sensor(ImageSpectrum::Thermal) == "IR", "thermal is IR");
+    using Spectrum = ImageSpectrum;
+    using Sub = ImageSubtype;
+    // The spectrum is the stem; the subtype qualifies it, matching the
+    // standard's own "EO Narrow" / "EO Wide" example configuration.
+    check(*image_source_sensor(Spectrum::Visible, Sub::Unknown) == "EO", "visible alone is EO");
+    check(*image_source_sensor(Spectrum::Visible, Sub::Wide) == "EO Wide", "visible + wide");
+    check(*image_source_sensor(Spectrum::Visible, Sub::Tele) == "EO Tele", "visible + tele");
+    check(*image_source_sensor(Spectrum::Thermal, Sub::Unknown) == "IR", "thermal alone is IR");
+    check(*image_source_sensor(Spectrum::Thermal, Sub::Wide) == "IR Wide", "thermal + wide");
     // Item 11 is free-form utf8, so a fused image is named rather than being
     // mislabelled as one of its halves or dropped.
-    check(*image_source_sensor(ImageSpectrum::Blended) == "EO/IR Blended", "blended is named");
-    check(!image_source_sensor(ImageSpectrum::Unknown).has_value(),
+    check(*image_source_sensor(Spectrum::Blended, Sub::Unknown) == "EO/IR Blended",
+          "blended is named");
+    check(*image_source_sensor(Spectrum::Blended, Sub::Tele) == "EO/IR Blended Tele",
+          "blended is still qualified by the subtype");
+    check(!image_source_sensor(Spectrum::Unknown, Sub::Unknown).has_value(),
           "an unknown spectrum names no sensor");
+    // A subtype without a spectrum is not a usable sensor name: "Wide" does not
+    // say whether the imagery is visible or thermal.
+    check(!image_source_sensor(Spectrum::Unknown, Sub::Wide).has_value(),
+          "a subtype alone does not name a sensor");
 
     // Thermal footage must not be reported as EO.
     ParrotProtoFrame thermal;
     thermal.drone_quat = Quaternion{1.0, 0.0, 0.0, 0.0};
     thermal.frame_quat = thermal.drone_quat;
     thermal.spectrum = CameraSpectrum::Thermal;
+    thermal.subtype = CameraSubtype::Tele;
     const auto klv = to_0601(from_proto(thermal));
-    check(decode_packet(klv.packet).texts.at(11) == "IR", "thermal camera emits IR");
+    check(decode_packet(klv.packet).texts.at(11) == "IR Tele", "thermal tele camera emits IR Tele");
 
     // v3 carries no spectrum at all, and that is a property of the format.
     ParrotV3Frame v3;

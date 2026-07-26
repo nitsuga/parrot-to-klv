@@ -366,7 +366,7 @@ Klv0601Frame to_0601(const TelemetrySnapshot& s, const SessionMetadata* session)
     // Item 11 names the active sensor. Proto's `camera.spectrum` is the only
     // source; v3 carries nothing equivalent, and an unknown spectrum is left
     // unnamed rather than assumed to be EO.
-    if (auto sensor = image_source_sensor(s.spectrum)) {
+    if (auto sensor = image_source_sensor(s.spectrum, s.subtype)) {
         staging.put_text(11, *sensor);
     } else {
         coverage.omitted[11] = s.source_format == ParrotFormat::V3

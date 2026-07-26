@@ -124,6 +124,7 @@ void check_fixture_samples(const std::string& fixture_dir) {
     check_near(frame->picture_vfov_rad, 0.7376, 1e-5, "vfov in RADIANS, not degrees");
     check_near(frame->zoom_level, 2.0, 1e-6, "zoom level");
     check(frame->spectrum == CameraSpectrum::Visible, "camera spectrum is visible");
+    check(frame->subtype == CameraSubtype::Wide, "camera subtype is wide");
     check_near(frame->exposure_time_ms, 2.5, 1e-6, "exposure time");
     check_eq(frame->iso_gain, uint32_t{100}, "ISO gain");
     check_near(frame->frame_quat.norm(), 1.0, 1e-4, "frame quaternion is unit norm");

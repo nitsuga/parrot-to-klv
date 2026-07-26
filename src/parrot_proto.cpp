@@ -367,6 +367,9 @@ bool parse_camera(std::span<const uint8_t> b, ParrotProtoError* err, ParrotProto
             case 17:
                 if (read_uint(r, wire, u) && u <= 3) out.spectrum = static_cast<CameraSpectrum>(u);
                 break;
+            case 18:
+                if (read_uint(r, wire, u) && u <= 6) out.subtype = static_cast<CameraSubtype>(u);
+                break;
             // 19 serial_number is device identity: skipped like any other
             // unmapped field, so it never reaches a frame or a report.
             default: r.skip(wire); break;
@@ -512,6 +515,19 @@ std::string to_string(CameraSpectrum spectrum) {
         case CameraSpectrum::Visible: return "visible";
         case CameraSpectrum::Blended: return "blended";
         case CameraSpectrum::Thermal: return "thermal";
+    }
+    return "invalid";
+}
+
+std::string to_string(CameraSubtype subtype) {
+    switch (subtype) {
+        case CameraSubtype::Unknown: return "unknown";
+        case CameraSubtype::Left: return "left";
+        case CameraSubtype::Right: return "right";
+        case CameraSubtype::Wide: return "wide";
+        case CameraSubtype::Tele: return "tele";
+        case CameraSubtype::Disparity: return "disparity";
+        case CameraSubtype::Depth: return "depth";
     }
     return "invalid";
 }

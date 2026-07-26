@@ -42,17 +42,35 @@ enum class ImageSpectrum : uint8_t {
     Thermal,
 };
 
+/// Which physical camera, normalized across formats. Proto only.
+enum class ImageSubtype : uint8_t {
+    Unknown,
+    Left,
+    Right,
+    Wide,
+    Tele,
+    Disparity,
+    Depth,
+};
+
 std::string to_string(CommonPilotingMode mode);
 std::string to_string(ImageSpectrum spectrum);
+std::string to_string(ImageSubtype subtype);
 
-/// ST 0601 Item 11's value for a spectrum, or nothing when it cannot be named.
+/// ST 0601 Item 11's value: a name for the active sensor, or nothing when it
+/// cannot be named.
 ///
-/// Item 11 is free-form utf8 — "name of currently active sensor", the
-/// standard's own example being `EO` — so a fused image gets a descriptive
-/// name rather than being forced into one of the two conventional values or
-/// dropped. `Unknown` yields nothing: naming a sensor we cannot identify would
-/// be a guess.
-std::optional<std::string> image_source_sensor(ImageSpectrum spectrum);
+/// Item 11 is free-form utf8 — "name of currently active sensor" — and the
+/// standard's own example configuration names sensors `EO Narrow`, `EO Wide`
+/// and `IR Sensor`. So the spectrum gives the stem (`EO`, `IR`, or
+/// `EO/IR Blended` for a fused image, which is named for what it is rather than
+/// forced into one of its halves) and the subtype qualifies it: `EO Wide`,
+/// `IR Tele`.
+///
+/// An unknown **spectrum** yields nothing even when the subtype is known: a
+/// bare `Wide` does not tell a consumer the one thing Item 11 exists to
+/// convey. An unknown **subtype** simply leaves the stem unqualified.
+std::optional<std::string> image_source_sensor(ImageSpectrum spectrum, ImageSubtype subtype);
 
 /// A target the aircraft is pointing at, if it reports one.
 struct TargetLocation {
@@ -113,6 +131,9 @@ struct TelemetrySnapshot {
     /// Which spectrum the active camera imaged in. Proto only; the binary
     /// formats carry nothing equivalent.
     ImageSpectrum spectrum = ImageSpectrum::Unknown;
+    /// Which physical camera. Proto only; qualifies `spectrum` when naming the
+    /// sensor.
+    ImageSubtype subtype = ImageSubtype::Unknown;
 
     // --- state ---
     FlyingState flying_state = FlyingState::Landed;

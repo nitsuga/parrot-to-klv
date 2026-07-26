@@ -12,9 +12,14 @@
   `test/vmeta_subset.proto` alongside the `CameraSpectrum` enum, normalized to a
   format-neutral `ImageSpectrum` by name (as with the piloting modes).
   - **Item 11 is free-form utf8**, not a two-valued enum — the standard calls it
-    "name of currently active sensor" and gives `EO` as an example. So
-    `CS_BLENDED` emits `EO/IR Blended` rather than being forced into one of its
-    halves or dropped, and `CS_UNKNOWN` emits nothing.
+    "name of currently active sensor", and §8.11.1's example configuration names
+    sensors `EO Narrow`, `EO Wide`, `IR Sensor`. So `camera.subtype` (field 18)
+    was added alongside and the name is composed: the spectrum gives the stem
+    (`EO`, `IR`, or `EO/IR Blended` for a fused image rather than one of its
+    halves), the subtype qualifies it — `EO Wide`, `IR Tele`.
+  - An unknown **spectrum** emits nothing even with a known subtype: a bare
+    `Wide` does not say whether the imagery is visible or thermal. An unknown
+    **subtype** leaves the stem unqualified.
   - The omission reason now distinguishes the two cases it always should have:
     v3 reports Item 11 as `format does not carry it`, a proto frame that simply
     did not report a spectrum as `not present in this frame`.
