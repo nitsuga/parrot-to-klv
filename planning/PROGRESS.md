@@ -26,6 +26,14 @@ report of sample sizes, extension shapes, decode rates and structural assertions
 carrying no position, absolute time or device identity. `ctest` replays it against
 whatever sits in `data/` and skips where there is none.
 
+**Reports from two real ANAFI recordings are committed** in
+[`test/conformance/`](../test/conformance/) — a short flight and a long one,
+every sample decoded, all structural checks passing. They are the standing
+answer to "does a real encoder actually produce what the decoder assumes",
+and they hold across both recordings: a uniform 144-byte sample, the same three
+extensions in every frame, and 0x4536 — undocumented — always present at 24
+payload bytes.
+
 **`parrot-scrub` replaces a recording's location fields** so a real flight can be
 committed as a fixture. It refuses any format it cannot fully scrub, blanks the
 payload of any extension it cannot decode (which includes the undocumented
@@ -46,12 +54,9 @@ transform stage owes a conversion coverage report alongside the KLV output.
 
 ## Next
 
-1. On the machine with footage: `parrot-conform --scan data --reports
-   test/conformance`, then commit the reports — real-encoder evidence in CI
-   without the recording
-2. Implement Parrot proto parser — resolve the protobuf-dependency fork in
+1. Implement Parrot proto parser — resolve the protobuf-dependency fork in
    [ROADMAP](./ROADMAP.md) first
-3. Begin transform stage: direct field mappings (Parrot → ST 0601 items)
+2. Begin transform stage: direct field mappings (Parrot → ST 0601 items)
 
 ## Known gaps
 

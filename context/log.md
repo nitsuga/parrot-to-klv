@@ -7,6 +7,29 @@
 
 ## 2026-07-25
 
+* **Conformance reports committed for two real ANAFI recordings.** Ran
+  `parrot-conform --scan data --reports test/conformance` on the machine that
+  held the footage; the recordings have since been removed, the reports remain.
+  Snapshot at write time — 699 samples (92 MB) and 10,709 samples (1.2 GB),
+  **100% decoded, zero errors, every structural check passing on both**:
+  - **The sample shape does not vary.** 144 bytes in every sample of both
+    recordings — no histogram spread at all — and the same three extensions in
+    every frame at fixed payload lengths: `0x4531` (8 B), `0x4533` (28 B),
+    `0x4536` (24 B). The decoder's fixed-layout assumption holds against a real
+    encoder across two flights.
+  - **0x4536 is confirmed real and universal**, at 24 payload bytes in all
+    11,408 samples, despite reference docs stating it does not exist. Its
+    length across every sample is now committed evidence — most of what would
+    identify it if it is ever worth decoding.
+  - Quaternion norms 1.000 min and max in both; frame deltas 33,323–33,411 µs
+    (30 fps, monotonic and strictly increasing throughout).
+  - The long recording exercised more of the state machine —
+    `landed`/`taking-off`/`flying`/`hovering`/`emergency` — so the flying-state
+    decode is covered beyond the steady-state cases, `emergency` included.
+  - Both flights were `manual` piloting mode, so no automated-mode evidence yet;
+    that remains unexercised by real footage.
+  - `data/` on this machine is now empty, so `conformance_real_data` skips (77)
+    as designed — verified after the deletion.
 * **`parrot-conform` switched to xxHash and anonymizes report filenames.**
   Performance and security improvements:
   - Replaced SHA-256 with xxHash XXH3_128 for 20-100× faster file identification
