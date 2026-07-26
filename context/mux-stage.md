@@ -68,14 +68,14 @@ A conversion that fails has to leave nothing behind, because a zero-byte `.ts`
 next to an error message reads like a run that half-worked and will be picked up
 by whatever runs next.
 
-libmisbklv removes the output for a failure while *opening* the pipeline. A
-failure that surfaces later does not get that treatment, and there is a real
-case: a source whose video track is declared but does not actually parse (our
-own pre-mux fixtures, whose "video" is five bytes of `0xDEADBEEF`) opens fine and
-fails at EOS, leaving the empty file the sink created. So this stage removes the
-output itself on any error — but only a file it created, checking for existence
-before the sink is built, so a pre-existing file at that path is never deleted
-by a failed run.
+**libmisbklv guarantees this for the whole insert session** (its ADR 0022), so
+this stage does no cleanup of its own: a failure in the open, a push or the
+finish all leave no file, and never delete a file the run did not create. That
+guarantee originally covered only the open, which left a real gap — a source
+whose video track is declared but does not actually parse (our own pre-mux
+fixtures, whose "video" is five bytes of `0xDEADBEEF`) opens fine and fails at
+EOS. `mux_test` still asserts the property from this side, since it is this
+tool's promise to its user whoever implements it.
 
 ## A skipped sample costs a frame, not the file
 
@@ -94,20 +94,21 @@ a flight should cost that frame's telemetry, nothing more. A run that converts
    than assumed.
 2. every KLV packet read back is byte-identical to what `to_0601()` produced for
    that sample, in sample order.
-3. the packets sit where the metadata track put them: PES timestamp intervals
-   match the sample spacing to 90 kHz rounding.
+3. each packet comes back at its own sample's presentation time — the same
+   timeline, origin included, to 90 kHz rounding.
 
-The KLV is read back with libmisbklv's `KlvStream` (a consumer's view rather
-than our encoder's), but the PMT and the PES timestamps are parsed by the test
-itself — those are claims about the *container*, and checking them through the
-same library that wrote it would prove nothing.
+The KLV is read back with libmisbklv's `KlvStream`, a consumer's view rather
+than our encoder's. Only the PMT is parsed by the test itself: that is a claim
+about the *container*, and checking it through the same library that wrote it
+would prove nothing.
 
-**The presentation times cannot come from `KlvStream`**: libmisbklv's extract
-path reports every packet as `kNoPts` (its reassembly drains framed packets
-without carrying the buffer timestamp), whatever the PES headers actually say.
-That is why the test reads the timestamps off the container directly. It is an
-upstream gap, not a defect in what this stage writes — the timestamps are there
-in the output.
+Property 3 was originally asserted by parsing PES headers here, because
+libmisbklv's read path reported every packet as `kNoPts` whatever the container
+said. That gap is closed upstream (its ADR 0021: both extractors now report
+nanoseconds from the start of the source, the same timeline `push()` writes on),
+which is what lets the test check absolute placement rather than just spacing —
+a stronger assertion, and one that would catch an origin error the interval
+check could not see.
 
 ## The fixtures this needed
 

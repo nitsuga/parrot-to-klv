@@ -7,6 +7,23 @@
 
 ## 2026-07-26
 
+* **Both workarounds for libmisbklv gaps are gone — upstream fixed both**
+  (its ADRs 0021 and 0022, raised from here after Phase 3 landed).
+  - **Read-path timestamps exist now**, so `mux_test` reads presentation times
+    through `KlvStream` instead of parsing PES headers itself, and asserts each
+    packet comes back at its own sample's time — absolute placement, not just
+    spacing. That is the stronger claim: an origin error passes an interval
+    check. Measured on our own output, the round trip is exact to 90 kHz
+    rounding, origin included.
+  - **`mux.cpp` no longer removes the output on failure.** The "no file left
+    behind" guarantee now covers the whole insert session rather than just the
+    open, which is where our failing case sat (a declared-but-unparseable video
+    track fails at EOS). `mux_test` keeps asserting the property from this side:
+    it is this tool's promise to its user whoever implements it.
+  - One correction from upstream worth recording: `data/Day Flight.mpg`, which
+    was the evidence for "the timestamps are in the file and dropped on read",
+    genuinely has no PES timestamps — `kNoPts` was right for that one sample.
+    The gap was real on files that do carry them.
 * **Phase 3 landed: `parrot-to-klv in.mp4 -o out.ts` writes an MPEG-TS carrying
   the recording's own video plus a synchronous ST 0601 KLV stream.** The
   pipeline is end to end for both supported formats. Shape and traps:

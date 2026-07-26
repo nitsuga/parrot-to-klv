@@ -8,8 +8,8 @@
 //      (stream type 0x06 with a "KLVA" registration descriptor)
 //   2. every KLV packet read back is byte-identical to what the transform
 //      produced for that sample, in sample order
-//   3. the KLV lands on the video's timeline: packet PTS intervals match the
-//      metadata track's sample spacing, to 90 kHz rounding
+//   3. the KLV lands on the source's timeline: each packet comes back at its own
+//      metadata sample's presentation time, to 90 kHz rounding
 //
 // The output is read back with libmisbklv's own KlvStream (a consumer's view,
 // not our encoder's), while the PMT is parsed here — that check is about the
@@ -60,57 +60,32 @@ struct ElementaryStream {
     bool klva = false;  ///< carries the "KLVA" registration descriptor
 };
 
-struct TsSummary {
-    std::vector<ElementaryStream> streams;   ///< what the first PMT announces
-    std::vector<int64_t> klv_pts_90k;        ///< one per KLV PES, in order
-};
-
-/// The elementary streams and KLV presentation times in `path`.
+/// The elementary streams the first PMT in `path` announces.
 ///
-/// The PES timestamps are read here rather than through the library's extract
-/// path, which reports every packet as having no PTS — what is being checked is
-/// where the muxer *placed* each packet, so it is read off the container.
+/// Read here rather than through the library, because what is being checked is
+/// the *container* the muxer produced: asking the same library that wrote it
+/// what it wrote would prove nothing.
 ///
 /// Assumes the PMT fits in one 188-byte packet, which it does for a two-stream
-/// program, and that a KLV packet is one PES — this is a test's reader, not a
-/// demuxer.
-TsSummary read_ts(const std::string& path) {
+/// program — this is a test's reader, not a demuxer.
+std::vector<ElementaryStream> read_pmt(const std::string& path) {
     std::ifstream file(path, std::ios::binary);
     std::vector<char> raw((std::istreambuf_iterator<char>(file)),
                           std::istreambuf_iterator<char>());
     const auto* bytes = reinterpret_cast<const uint8_t*>(raw.data());
 
-    TsSummary summary;
-    unsigned klv_pid = 0;
     for (size_t base = 0; base + 188 <= raw.size(); base += 188) {
         const uint8_t* pkt = bytes + base;
         if (pkt[0] != 0x47) break;
         const bool unit_start = (pkt[1] & 0x40) != 0;
-        const unsigned pid = ((pkt[1] & 0x1F) << 8) | pkt[2];
         const unsigned adaptation = (pkt[3] >> 4) & 0x3;
         if ((adaptation & 0x1) == 0) continue;  // no payload
         size_t at = 4 + ((adaptation & 0x2) ? 1u + pkt[4] : 0u);
         if (!unit_start || at >= 188) continue;
-
-        // A PES packet, not a section: KLV presentation times live here.
-        if (klv_pid != 0 && pid == klv_pid && at + 14 <= 188 && pkt[at] == 0x00 &&
-            pkt[at + 1] == 0x00 && pkt[at + 2] == 0x01) {
-            const uint8_t* pes = pkt + at;
-            if ((pes[7] >> 6) & 0x2) {  // PTS present
-                const int64_t pts = (int64_t(pes[9] & 0x0E) << 29) |
-                                    (int64_t(pes[10]) << 22) |
-                                    (int64_t(pes[11] & 0xFE) << 14) |
-                                    (int64_t(pes[12]) << 7) |
-                                    (int64_t(pes[13]) >> 1);
-                summary.klv_pts_90k.push_back(pts);
-            }
-            continue;
-        }
-
         at += 1 + pkt[at];  // pointer_field
         if (at >= 188 || pkt[at] != 0x02) continue;  // table_id 0x02 = PMT
-        if (!summary.streams.empty()) continue;      // first PMT is enough
 
+        std::vector<ElementaryStream> streams;
         const unsigned section_length = ((pkt[at + 1] & 0x0F) << 8) | pkt[at + 2];
         const size_t section_end = at + 3 + section_length - 4;  // less the CRC
         const unsigned program_info_length = ((pkt[at + 10] & 0x0F) << 8) | pkt[at + 11];
@@ -127,12 +102,12 @@ TsSummary read_ts(const std::string& path) {
                 }
                 d += 2 + len;
             }
-            if (es.stream_type == 0x06) klv_pid = es.pid;
-            summary.streams.push_back(es);
+            streams.push_back(es);
             i += 5 + es_info_length;
         }
+        return streams;  // the first PMT is enough
     }
-    return summary;
+    return {};
 }
 
 // --- what the transform produces, computed independently of the mux ---------
@@ -190,21 +165,22 @@ void check_conversion(const std::string& name, const std::string& mp4,
 
     // 1. Both streams reached the PMT. A KLV-only output is the failure mode
     //    the video branch exists to prevent, so it is asserted, not assumed.
-    const auto muxed = read_ts(ts);
-    check(muxed.streams.size() == 2,
-          name + ": PMT lists " + std::to_string(muxed.streams.size()) +
-              " elementary stream(s), expected video + KLV");
+    const auto streams = read_pmt(ts);
+    check(streams.size() == 2, name + ": PMT lists " + std::to_string(streams.size()) +
+                                   " elementary stream(s), expected video + KLV");
     bool has_video = false, has_klv = false;
-    for (const auto& es : muxed.streams) {
+    for (const auto& es : streams) {
         if (es.stream_type == 0x1B) has_video = true;
         if (es.stream_type == 0x06 && es.klva) has_klv = true;
     }
     check(has_video, name + ": no H.264 elementary stream in the output");
     check(has_klv, name + ": no KLV (0x06 + KLVA) elementary stream in the output");
 
-    // 2. Read the KLV back as a consumer would.
+    // 2 and 3. Read the KLV back as a consumer would — bytes and timing both.
     std::vector<misbklv::Message> read_back;
+    std::vector<int64_t> pts;
     for (misbklv::Message& m : misbklv::KlvStream(ts)) {
+        pts.push_back(m.pts());
         read_back.push_back(std::move(m));
     }
     check(read_back.size() == expected.packets.size(),
@@ -223,20 +199,15 @@ void check_conversion(const std::string& name, const std::string& mp4,
         check(same, name + ": packet " + std::to_string(i) + " came back changed");
     }
 
-    // 3. The muxer picks the stream's origin, so what has to hold is the
-    //    *spacing*: frame n sits where the metadata track put it, relative to
-    //    the first packet, within one 90 kHz tick of rounding.
-    const auto& pts = muxed.klv_pts_90k;
-    check(pts.size() == expected.packets.size(),
-          name + ": " + std::to_string(pts.size()) + " KLV PES timestamps, expected " +
-              std::to_string(expected.packets.size()));
+    // Each packet must come back where its metadata sample sat — the same
+    // timeline, origin included, not merely the same spacing. The only slack is
+    // the 90 kHz grid the container rounds to.
+    constexpr int64_t kTickNs = 1000000000 / 90000 + 1;
     for (size_t i = 0; i < pts.size() && i < expected.timestamps_us.size(); ++i) {
-        const int64_t want = static_cast<int64_t>(
-            (expected.timestamps_us[i] - expected.timestamps_us[0]) * 90 / 1000);
-        const int64_t got = pts[i] - pts[0];
-        check(std::abs(got - want) <= 1,
-              name + ": packet " + std::to_string(i) + " sits " + std::to_string(got) +
-                  " ticks after the first, expected " + std::to_string(want));
+        const int64_t want = static_cast<int64_t>(expected.timestamps_us[i]) * 1000;
+        check(std::abs(pts[i] - want) <= kTickNs,
+              name + ": packet " + std::to_string(i) + " came back at " +
+                  std::to_string(pts[i]) + " ns, expected " + std::to_string(want));
     }
 }
 

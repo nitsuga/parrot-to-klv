@@ -4,7 +4,6 @@
 #include "mux.hpp"
 
 #include <cstdio>
-#include <filesystem>
 #include <optional>
 #include <span>
 #include <string>
@@ -107,12 +106,9 @@ MuxReport mux_to_ts(const std::string& input, const std::string& output) {
     // unchanged alongside the KLV we push. A failure to open the source surfaces
     // on the first emit(), which is where the error below comes from.
     //
-    // libmisbklv removes the output only for a failure while *opening*; one that
-    // surfaces later (a source whose video does not actually parse fails at EOS)
-    // leaves the empty file its sink created. A zero-byte .ts alongside an error
-    // message reads like a conversion that half-worked, so this run cleans up
-    // after itself — but only a file it created, never one that was there first.
-    const bool output_existed = std::filesystem::exists(output);
+    // Nothing here cleans up a half-written output: libmisbklv guarantees that a
+    // failed insert session leaves no file it created, whether the failure lands
+    // in the open, a push, or the finish (its ADR 0022).
     misbklv::KlvSink sink("file:" + output, /*realtime=*/false, input);
 
     auto emit = [&](const std::vector<uint8_t>& packet, uint64_t timestamp_us) {
@@ -166,10 +162,6 @@ MuxReport mux_to_ts(const std::string& input, const std::string& output) {
     }
     if (report.error.empty() && report.frames_emitted == 0) {
         report.error = "no metadata sample converted to a KLV packet";
-    }
-    if (!report.error.empty() && !output_existed) {
-        std::error_code ignored;
-        std::filesystem::remove(output, ignored);
     }
     return report;
 }
