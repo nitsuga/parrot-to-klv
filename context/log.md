@@ -7,6 +7,13 @@
 
 ## 2026-07-25
 
+* **Verified on the footage machine: the updated tool reproduces both committed
+  reports byte-for-byte.** Regenerating over the real recordings left the working
+  tree clean, which settles the two things that could only be predicted from a
+  machine without footage — the schema v3 reports edited in place match what the
+  renderer emits, and the quaternion-seeding fix does not move either report (so
+  those recordings' first samples carry uniform norms, consistent with the
+  1.000/1.000 they already showed).
 * **Consistency scan over the conformance work; two fixes in
   `run_conformance`.** Swept the sources and docs after the tooling landed
   across two sessions:
