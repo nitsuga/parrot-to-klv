@@ -51,6 +51,20 @@ against synthetic fixtures only: no proto recording has ever been seen, and the
 fixture encoder is ours rather than a reference implementation — see the ADR's
 validation strategy for what that does and does not catch.
 
+**Phase 2 (Transform) has started: Tier 1 is mapped end to end.** Either frame
+type normalizes into a format-neutral `TelemetrySnapshot`
+([ADR 0004](../context/decisions/0004-shared-telemetry-snapshot.md)) — units and
+enum numbering resolved there, so the mapping never sees a format quirk — and
+`to_0601()` emits a real ST 0601 packet through libmisbklv's registry codec,
+checksum and all. `./build/parrot-to-klv <file>.mp4 --klv` shows it per frame.
+
+Every conversion carries a **coverage report**, which is ADR 0002's obligation
+made concrete: what was emitted, what was omitted *and why*, and which Parrot
+fields have no 0601 item at all. Coordinates are withheld from it unless
+`--with-location`, like every other output. Tier 2 (frame centre, corner points,
+slant range) is reported as `needs terrain intersection` rather than
+approximated — its fidelity is still an open fork.
+
 The field mapping is settled against the complete ST 0601.19 registry —
 [field mapping](../context/field-mapping-analysis.md) is the implementation spec
 for the transform stage, and libmisbklv needs no registry work for this project.
@@ -64,7 +78,10 @@ transform stage owes a conversion coverage report alongside the KLV output.
 
 ## Next
 
-1. Begin transform stage: direct field mappings (Parrot → ST 0601 items)
+1. Resolve the Tier 2 geometry-fidelity fork (flat-earth vs DTED) in
+   [ROADMAP](./ROADMAP.md), then derive Items 21/22/23/24/25/57/78/82–89
+2. Parse MP4 session metadata to unblock Items 2 (v3 wall-clock anchor), 4, 10
+   and 11
 
 ## Known gaps
 

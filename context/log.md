@@ -7,6 +7,39 @@
 
 ## 2026-07-25
 
+* **Fork 3 (transform input shape) resolved** —
+  [[0004-shared-telemetry-snapshot]], `accepted`. Opened and decided as Phase 2
+  began; [[0003-protobuf-dependency]] had explicitly deferred it.
+* **Transform stage started: Tier 1 mapped end to end.** `src/telemetry.*`
+  normalizes either frame type into a `TelemetrySnapshot`; `src/transform.*`
+  maps that to a real ST 0601 packet through libmisbklv's registry codec. See
+  [[transform-stage]] for the shape and the traps.
+  - ~26 items from a typical frame, assembled with UL key, BER length and Item 1
+    checksum. `transform_test` parses every emitted packet back through
+    `misbklv::parse_packet` and decodes item by item, so values are checked as a
+    consumer sees them rather than as we staged them.
+  - **A privacy bug caught while testing the CLI**: the coverage report printed
+    every emitted item's value, including Items 13/14 — latitude and longitude —
+    regardless of `--with-location`. On real footage `--klv` would have leaked
+    the flight's position into exactly the output someone pastes into an issue.
+    `to_text()` now withholds Items 13/14/40/41 unless asked, and the test
+    asserts both directions.
+  - Sign and range traps handled and tested: Item 51 negated (0601 measures
+    toward zenith, Parrot NED is positive down); Items 6/7 signalled with
+    `0x8000` when out of their ±20°/±50° range rather than clamped, with 90/91
+    carrying the true value; Item 112 omitted below 0.5 m/s because course over
+    ground is undefined at rest; `asin` clamped so a barely-non-unit v3
+    quaternion cannot yield NaN pitch.
+  - **Item 2 is mandatory and still sometimes absent.** No v3 recording can
+    supply it, and proto may declare its UTC stamp invalid. The packet is then
+    assembled without mandatory enforcement and the omission is reported — a
+    fabricated timestamp is indistinguishable from a real one downstream, a
+    missing item is not.
+  - The coverage report is ADR 0002's obligation made concrete, and is wired
+    into `parrot-to-klv --klv`: emitted items with values, omitted items each
+    with a reason, and the Parrot fields with no 0601 item at all. Tier 2
+    geometry is reported as `needs terrain intersection` rather than
+    approximated — its fidelity fork is still open.
 * **Proto parser implemented** — `src/parrot_proto.{hpp,cpp}`, a hand-written
   proto3 wire reader per [[0003-protobuf-dependency]]. `parrot-to-klv` now
   summarises v3 and proto both, and `test/vmeta_subset.proto` records the

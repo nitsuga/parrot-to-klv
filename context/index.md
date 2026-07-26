@@ -47,6 +47,9 @@ _(`type: Component` — modules / subsystems of the project.)_
   the Parrot track; the minimp4 / box-scan split, minimp4's traps, and how a real
   recording becomes a shareable fixture — plus conformance reports, which commit
   real-encoder evidence without the recording
+* [Transform stage](./transform-stage.md) — Parrot telemetry to ST 0601: the
+  format-neutral snapshot, the Tier 1 mapping and its sign/range traps, and the
+  conversion coverage report
 
 ## Decisions
 
@@ -55,3 +58,5 @@ _(`type: Decision` — ADRs: the *why* of resolved forks.)_
 * [Decisions register](./decisions/index.md) — ADRs grouped under `decisions/`
 * [0001 — Direct MP4 Parsing for Metadata Extraction](./decisions/0001-mp4-extraction-approach.md) — Use lightweight box parsing, not GStreamer qtdemux
 * [0002 — Disposition of Parrot fields with no ST 0601 item](./decisions/0002-unmappable-parrot-fields.md) — Drop and report, don't repurpose items
+* [0003 — Protobuf dependency for the proto-format parser](./decisions/0003-protobuf-dependency.md) — Hand-roll a minimal proto3 reader, no toolchain dependency
+* [0004 — A shared telemetry snapshot](./decisions/0004-shared-telemetry-snapshot.md) — Normalize both formats into one struct before mapping

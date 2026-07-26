@@ -36,9 +36,14 @@ add_library(parrot_extract STATIC
   src/mp4_metadata_extractor.cpp
   src/parrot_v3.cpp
   src/parrot_proto.cpp
+  src/telemetry.cpp
+  src/transform.cpp
   src/parrot_scrub.cpp
   src/conformance.cpp
 )
+
+# The transform stage encodes ST 0601 through libmisbklv's registry codec.
+target_link_libraries(parrot_extract PUBLIC misbklv::misbklv)
 
 target_include_directories(parrot_extract PUBLIC
   ${CMAKE_SOURCE_DIR}/src
@@ -67,6 +72,11 @@ target_link_libraries(parrot_proto_test PRIVATE parrot_extract)
 
 add_test(NAME parrot_proto
          COMMAND parrot_proto_test ${CMAKE_SOURCE_DIR}/test/fixtures)
+
+add_executable(transform_test test/transform_test.cpp)
+target_link_libraries(transform_test PRIVATE parrot_extract)
+
+add_test(NAME transform COMMAND transform_test)
 
 add_executable(parrot_scrub_test test/parrot_scrub_test.cpp)
 target_link_libraries(parrot_scrub_test PRIVATE parrot_extract)

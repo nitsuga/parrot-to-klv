@@ -15,6 +15,7 @@ diverge; one fork can span several ADRs).
 | — | [0001 — Direct MP4 Parsing for Metadata Extraction](./0001-mp4-extraction-approach.md) | accepted |
 | 1 | [0002 — Disposition of Parrot fields with no ST 0601 item](./0002-unmappable-parrot-fields.md) | accepted |
 | 2 | [0003 — Protobuf dependency for the proto-format parser](./0003-protobuf-dependency.md) | accepted |
+| 3 | [0004 — A shared telemetry snapshot between the parsers and the transform](./0004-shared-telemetry-snapshot.md) | accepted |
 
 _ADR 0001 predates formal fork numbering (no fork #): chosen direct MP4 parsing
 over GStreamer qtdemux based on investigation._

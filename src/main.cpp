@@ -4,6 +4,8 @@
 #include "mp4_metadata_extractor.hpp"
 #include "parrot_proto.hpp"
 #include "parrot_v3.hpp"
+#include "telemetry.hpp"
+#include "transform.hpp"
 
 #include <algorithm>
 #include <iomanip>
@@ -99,8 +101,9 @@ void print_frame(const ParrotProtoFrame& f, bool with_location) {
 ///
 /// Templated over the frame type so v3 and proto share the loop: the formats
 /// differ in what a frame *is*, not in how a track is walked.
-template <typename Parse>
-int decode_all(Mp4MetadataExtractor& extractor, bool with_location, Parse parse) {
+template <typename Parse, typename Normalize>
+int decode_all(Mp4MetadataExtractor& extractor, bool with_location, bool show_klv, Parse parse,
+               Normalize normalize) {
     uint32_t decoded = 0;
     uint32_t failed = 0;
     const uint32_t to_show = std::min(3u, extractor.sample_count());
@@ -122,6 +125,11 @@ int decode_all(Mp4MetadataExtractor& extractor, bool with_location, Parse parse)
         if (i < to_show) {
             std::cout << "  Sample " << i << " (" << sample->data.size() << " bytes):\n";
             print_frame(*frame, with_location);
+            if (show_klv) {
+                const auto klv = to_0601(normalize(*frame));
+                std::cout << "    -> ST 0601 packet: " << klv.packet.size() << " bytes\n"
+                          << klv.coverage.to_text(with_location);
+            }
         }
     }
 
@@ -136,10 +144,13 @@ int decode_all(Mp4MetadataExtractor& extractor, bool with_location, Parse parse)
 int main(int argc, char* argv[]) {
     std::string input;
     bool with_location = false;
+    bool show_klv = false;
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
         if (arg == "--with-location") {
             with_location = true;
+        } else if (arg == "--klv") {
+            show_klv = true;
         } else if (input.empty()) {
             input = arg;
         }
@@ -148,7 +159,9 @@ int main(int argc, char* argv[]) {
     if (input.empty()) {
         std::cerr << "Usage: " << argv[0] << " <input.mp4> [--with-location]\n\n"
                   << "  Location is withheld by default so the output is safe to share;\n"
-                  << "  --with-location prints latitude/longitude from the flight.\n";
+                  << "  --with-location prints latitude/longitude from the flight.\n"
+                  << "  --klv maps each frame to ST 0601 and prints the conversion\n"
+                  << "  coverage report — what was carried, omitted, and dropped.\n";
         return 1;
     }
 
@@ -161,25 +174,28 @@ int main(int argc, char* argv[]) {
     const auto& info = extractor->track_info();
     if (info.format == ParrotFormat::V3) {
         std::cout << "\n--- Decoding v3 samples ---\n";
-        return decode_all(*extractor, with_location,
-                          [](std::span<const uint8_t> data, std::string& error)
-                              -> std::optional<ParrotV3Frame> {
-                              ParrotV3Error err{};
-                              auto frame = parse_v3(data, &err);
-                              if (!frame) error = to_string(err);
-                              return frame;
-                          });
+        return decode_all(
+            *extractor, with_location, show_klv,
+            [](std::span<const uint8_t> data, std::string& error) -> std::optional<ParrotV3Frame> {
+                ParrotV3Error err{};
+                auto frame = parse_v3(data, &err);
+                if (!frame) error = to_string(err);
+                return frame;
+            },
+            [](const ParrotV3Frame& f) { return from_v3(f); });
     }
     if (info.format == ParrotFormat::Proto) {
         std::cout << "\n--- Decoding proto samples ---\n";
-        return decode_all(*extractor, with_location,
-                          [](std::span<const uint8_t> data, std::string& error)
-                              -> std::optional<ParrotProtoFrame> {
-                              ParrotProtoError err{};
-                              auto frame = parse_proto(data, &err);
-                              if (!frame) error = to_string(err);
-                              return frame;
-                          });
+        return decode_all(
+            *extractor, with_location, show_klv,
+            [](std::span<const uint8_t> data,
+               std::string& error) -> std::optional<ParrotProtoFrame> {
+                ParrotProtoError err{};
+                auto frame = parse_proto(data, &err);
+                if (!frame) error = to_string(err);
+                return frame;
+            },
+            [](const ParrotProtoFrame& f) { return from_proto(f); });
     }
 
     std::cerr << "\nOnly the v3 and proto formats are decoded so far; this file is "
