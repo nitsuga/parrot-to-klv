@@ -7,6 +7,25 @@
 
 ## 2026-07-25
 
+* **Consistency scan over the conformance work; two fixes in
+  `run_conformance`.** Swept the sources and docs after the tooling landed
+  across two sessions:
+  - **Quaternion norm range was seeded once per quaternion instead of once per
+    sample.** `first` is only cleared after the per-sample loop, so all three
+    quaternions of the first decoded sample each re-seeded min/max and the two
+    before the last were discarded. Narrow effect — it could hide an outlier
+    occurring only in quats 1–2 of sample 0 — and it never weakened an
+    assertion, since `quaternions_are_unit_norm` tests every quaternion
+    unconditionally. Fixed with a per-sample `first_quat` flag.
+  - `XXH3_createState()`'s result was dereferenced unchecked; now reported as an
+    error like any other unreadable input.
+  - The fixture report is byte-identical across the fix (its quaternions are all
+    unit, so the discarded values equalled the kept one). That confirms the
+    committed reports stay valid under `--check`; it does not exercise the bug,
+    which needs a first sample with differing norms.
+  - Doc drift found and fixed: `CLAUDE.md` § Repo layout still described
+    `external/` as minimp4 alone after xxhash.h was vendored beside it. Nothing
+    else was stale — no `input_sha256` survives outside this log's history.
 * **Report schema v3: `input_sha256` renamed to `input_hash`.** The field had
   held an xxHash since v2 while still being named for SHA-256 — misleading in a
   committed artifact, and the "kept for compatibility" justification was empty

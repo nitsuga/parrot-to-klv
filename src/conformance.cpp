@@ -48,6 +48,10 @@ ConformanceReport run_conformance(const std::string& input, const std::string& l
             return r;
         }
         XXH3_state_t* state = XXH3_createState();
+        if (!state) {
+            r.error = "cannot allocate hash state";
+            return r;
+        }
         XXH3_128bits_reset(state);
         std::array<char, 65536> chunk{};
         constexpr size_t kProgressInterval = 100 * 1024 * 1024;  // 100 MB
@@ -131,9 +135,12 @@ ConformanceReport run_conformance(const std::string& input, const std::string& l
             r.checks["declared_length_matches_sample_size"] = false;
         }
 
+        // Seed once, on the first quaternion of the first decoded sample — not
+        // once per quaternion, which would discard the two before it.
+        bool first_quat = first;
         for (const auto& q : {f->drone_quat, f->frame_quat, f->frame_base_quat}) {
             const double n = q.norm();
-            if (first) { r.quat_norm_min = r.quat_norm_max = n; }
+            if (first_quat) { r.quat_norm_min = r.quat_norm_max = n; first_quat = false; }
             r.quat_norm_min = std::min(r.quat_norm_min, n);
             r.quat_norm_max = std::max(r.quat_norm_max, n);
             if (std::abs(n - 1.0) > 0.01) r.checks["quaternions_are_unit_norm"] = false;
