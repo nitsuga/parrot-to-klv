@@ -43,6 +43,15 @@ enum PilotingMode {
     PM_MAGIC_CARPET = 6;
 }
 
+// The camera's spectrum, which is the only thing in the recording that says
+// whether the imagery is visible-light or thermal — ST 0601 Item 11.
+enum CameraSpectrum {
+    CS_UNKNOWN = 0;
+    CS_VISIBLE = 1;
+    CS_BLENDED = 2;
+    CS_THERMAL = 3;
+}
+
 enum LficType {
     LFIC_TYPE_COT = 0;
     LFIC_TYPE_USER = 1;
@@ -118,7 +127,8 @@ message CameraMetadata {
     Vector2 principal_point = 14;
     Quaternion local_quat = 15;
     float zoom_level = 16;
-    // 12 local_position, 17 spectrum, 18 subtype, 19 serial_number: dropped.
+    CameraSpectrum spectrum = 17;
+    // 12 local_position, 18 subtype, 19 serial_number: dropped.
     // serial_number is device identity and must never reach a report.
 }
 

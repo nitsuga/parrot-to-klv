@@ -121,14 +121,21 @@ spells them `--with-location` and `--with-identity`.
   fabricated number in a standard field.
 - **Items 45/46 CE90/LE90.** Parrot's radial and tangential horizontal
   accuracies are not literally CE90/LE90. Withheld rather than relabelled.
-- **Item 11** (image source sensor, "EO"/"IR") needs the camera spectrum.
-  Nothing supplies it: the session tags do not carry it, and proto's
-  `camera.spectrum` is one of the fields the reader drops. Omitted rather than
-  assumed to be EO.
-
 Items 4 and 10 (tail number, platform designation) come from session metadata
 when the recording has it, and are reported as `needs MP4 session metadata`
-when it does not.
+when it does not. Item 11 (image source sensor) comes from proto's
+`camera.spectrum`; v3 carries nothing equivalent, so it is reported against the
+*format* there rather than against the frame.
+
+### Item 11 names the sensor, and a fused image says so
+
+Item 11 is free-form utf8 — "name of currently active sensor", the standard's
+own example being `EO` — not a two-valued enum. So `CS_VISIBLE` becomes `EO`,
+`CS_THERMAL` becomes `IR`, and `CS_BLENDED` becomes `EO/IR Blended` rather than
+being forced into one of its halves or dropped. `CS_UNKNOWN` names nothing:
+identifying a sensor we cannot identify would be a guess, and thermal footage
+reported as `EO` is exactly the kind of confident wrong value this mapping
+avoids elsewhere.
 
 **Why:** the mapping's hard parts are not the arithmetic but the places where
 0601 and Parrot disagree about sign, range, or what zero means — and the places

@@ -337,7 +337,8 @@ def proto_sample(index: int) -> bytes:
               + pb_msg(13, pb_location(45.5, -73.5, 120.0, 100.0, 12))
               + pb_msg(14, pb_float(1, 0.5) + pb_float(2, 0.5))
               + pb_msg(15, pb_quat(1.0, 0.0, 0.0, 0.0))
-              + pb_float(16, 2.0))                # zoom_level
+              + pb_float(16, 2.0)                 # zoom_level
+              + pb_varint(17, 1))                 # CS_VISIBLE -> Item 11 "EO"
 
     wifi = pb_msg(1, pb_varint(1, 15000) + pb_varint(2, 4) + pb_sint32(3, -55))
     lfic = (pb_float(1, 0.5) + pb_float(2, 0.5)

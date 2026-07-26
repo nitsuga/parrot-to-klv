@@ -219,6 +219,7 @@ void check_proto_mapping() {
     frame.flying_state = FlyingState::Flying;
     frame.piloting_mode = ProtoPilotingMode::Manual;
     frame.zoom_level = 2.0;
+    frame.spectrum = CameraSpectrum::Visible;
     ProtoLfic target;
     target.type = LficType::Cot;
     target.location.latitude_deg = 45.6;
@@ -252,8 +253,44 @@ void check_proto_mapping() {
     check(klv.coverage.omitted.at(134) == OmissionReason::Unresolved,
           "Item 134 withheld — zoom multiplier has no defined percentage");
     check(klv.coverage.omitted.count(8) == 1, "Item 8 omitted: proto has no air speed");
+    // Item 11 now has a source: the camera spectrum.
+    check(decoded.texts.at(11) == "EO", "Item 11 names the visible sensor as EO");
     check(klv.coverage.omitted.at(8) == OmissionReason::NoSourceInFormat,
           "Item 8 omission blames the format, not the frame");
+}
+
+void check_image_source_sensor() {
+    check(*image_source_sensor(ImageSpectrum::Visible) == "EO", "visible is EO");
+    check(*image_source_sensor(ImageSpectrum::Thermal) == "IR", "thermal is IR");
+    // Item 11 is free-form utf8, so a fused image is named rather than being
+    // mislabelled as one of its halves or dropped.
+    check(*image_source_sensor(ImageSpectrum::Blended) == "EO/IR Blended", "blended is named");
+    check(!image_source_sensor(ImageSpectrum::Unknown).has_value(),
+          "an unknown spectrum names no sensor");
+
+    // Thermal footage must not be reported as EO.
+    ParrotProtoFrame thermal;
+    thermal.drone_quat = Quaternion{1.0, 0.0, 0.0, 0.0};
+    thermal.frame_quat = thermal.drone_quat;
+    thermal.spectrum = CameraSpectrum::Thermal;
+    const auto klv = to_0601(from_proto(thermal));
+    check(decode_packet(klv.packet).texts.at(11) == "IR", "thermal camera emits IR");
+
+    // v3 carries no spectrum at all, and that is a property of the format.
+    ParrotV3Frame v3;
+    v3.drone_quat = Quaternion{1.0, 0.0, 0.0, 0.0};
+    v3.frame_quat = v3.drone_quat;
+    const auto from_binary = to_0601(from_v3(v3));
+    check(from_binary.coverage.omitted.at(11) == OmissionReason::NoSourceInFormat,
+          "v3 reports Item 11 as absent from the format, not from the frame");
+
+    // A proto frame that simply did not report one is a different case.
+    ParrotProtoFrame silent;
+    silent.drone_quat = Quaternion{1.0, 0.0, 0.0, 0.0};
+    silent.frame_quat = silent.drone_quat;
+    const auto unspecified = to_0601(from_proto(silent));
+    check(unspecified.coverage.omitted.at(11) == OmissionReason::SourceAbsent,
+          "proto without a spectrum reports the frame, not the format");
 }
 
 void check_unknown_utc_is_not_invented() {
@@ -338,6 +375,7 @@ int main() {
     check_euler();
     check_v3_mapping();
     check_proto_mapping();
+    check_image_source_sensor();
     check_unknown_utc_is_not_invented();
     check_narrow_angle_specials();
     check_status_enums();

@@ -7,6 +7,21 @@
 
 ## 2026-07-25
 
+* **`camera.spectrum` added to the proto reader; Item 11 emitted — Tier 1 is
+  now complete.** Field 17 of `CameraMetadata`, transcribed into
+  `test/vmeta_subset.proto` alongside the `CameraSpectrum` enum, normalized to a
+  format-neutral `ImageSpectrum` by name (as with the piloting modes).
+  - **Item 11 is free-form utf8**, not a two-valued enum — the standard calls it
+    "name of currently active sensor" and gives `EO` as an example. So
+    `CS_BLENDED` emits `EO/IR Blended` rather than being forced into one of its
+    halves or dropped, and `CS_UNKNOWN` emits nothing.
+  - The omission reason now distinguishes the two cases it always should have:
+    v3 reports Item 11 as `format does not carry it`, a proto frame that simply
+    did not report a spectrum as `not present in this frame`.
+  - A proto frame with session metadata now yields 33 items, a v3 frame 29.
+    Everything still unemitted is unemittable: 45/46 and 134 are open mapping
+    questions, Tier 2 awaits the geometry fork, and v3 genuinely lacks an
+    ellipsoid height, air speed and spectrum.
 * **MP4 session metadata parsed; Items 2, 4 and 10 unblocked.**
   `src/session_metadata.{hpp,cpp}` reads Parrot's untimed tags from `moov/udta`.
   See [[mp4-extraction]] § Session metadata.

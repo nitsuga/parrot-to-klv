@@ -37,6 +37,17 @@ CommonPilotingMode common_mode(ProtoPilotingMode mode) {
     return CommonPilotingMode::Unknown;
 }
 
+/// Map the protobuf spectrum by name, as with the piloting modes.
+ImageSpectrum common_spectrum(CameraSpectrum spectrum) {
+    switch (spectrum) {
+        case CameraSpectrum::Unknown: return ImageSpectrum::Unknown;
+        case CameraSpectrum::Visible: return ImageSpectrum::Visible;
+        case CameraSpectrum::Blended: return ImageSpectrum::Blended;
+        case CameraSpectrum::Thermal: return ImageSpectrum::Thermal;
+    }
+    return ImageSpectrum::Unknown;
+}
+
 /// Proto's in-band sentinel: zero altitude means "unknown", since proto3 gives
 /// scalars no presence bit. Treating it as a real 0 m would put the aircraft at
 /// sea level.
@@ -58,6 +69,28 @@ std::string to_string(CommonPilotingMode mode) {
         case CommonPilotingMode::MoveTo: return "move-to";
     }
     return "invalid";
+}
+
+std::string to_string(ImageSpectrum spectrum) {
+    switch (spectrum) {
+        case ImageSpectrum::Unknown: return "unknown";
+        case ImageSpectrum::Visible: return "visible";
+        case ImageSpectrum::Blended: return "blended";
+        case ImageSpectrum::Thermal: return "thermal";
+    }
+    return "invalid";
+}
+
+std::optional<std::string> image_source_sensor(ImageSpectrum spectrum) {
+    switch (spectrum) {
+        case ImageSpectrum::Visible: return "EO";
+        case ImageSpectrum::Thermal: return "IR";
+        // Item 11 is free-form utf8, so a fused image can be named for what it
+        // is instead of being mislabelled as one of its halves.
+        case ImageSpectrum::Blended: return "EO/IR Blended";
+        case ImageSpectrum::Unknown: break;
+    }
+    return std::nullopt;
 }
 
 TelemetrySnapshot from_v3(const ParrotV3Frame& f) {
@@ -159,6 +192,7 @@ TelemetrySnapshot from_proto(const ParrotProtoFrame& f) {
     if (f.picture_hfov_rad != 0.0) s.hfov_deg = f.picture_hfov_rad * kRadToDeg;
     if (f.picture_vfov_rad != 0.0) s.vfov_deg = f.picture_vfov_rad * kRadToDeg;
     if (f.zoom_level != 0.0) s.zoom_level = f.zoom_level;
+    s.spectrum = common_spectrum(f.spectrum);
 
     s.flying_state = f.flying_state;
     s.piloting_mode = common_mode(f.piloting_mode);

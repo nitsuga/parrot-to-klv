@@ -363,11 +363,16 @@ Klv0601Frame to_0601(const TelemetrySnapshot& s, const SessionMetadata* session)
     } else {
         coverage.omitted[10] = OmissionReason::NeedsSessionData;
     }
-    // Item 11 wants "EO" or "IR". Neither the session tags nor anything this
-    // project parses says which spectrum the camera used — proto carries
-    // `camera.spectrum`, which the reader drops — so it is left out rather
-    // than assumed to be EO.
-    coverage.omitted[11] = OmissionReason::NeedsSessionData;
+    // Item 11 names the active sensor. Proto's `camera.spectrum` is the only
+    // source; v3 carries nothing equivalent, and an unknown spectrum is left
+    // unnamed rather than assumed to be EO.
+    if (auto sensor = image_source_sensor(s.spectrum)) {
+        staging.put_text(11, *sensor);
+    } else {
+        coverage.omitted[11] = s.source_format == ParrotFormat::V3
+                                   ? OmissionReason::NoSourceInFormat
+                                   : OmissionReason::SourceAbsent;
+    }
 
     // --- Tier 2, derived geometry (open fork: flat-earth vs DTED) ---
     for (uint16_t tag : {21, 22, 23, 24, 25, 57, 78, 82, 83, 84, 85, 86, 87, 88, 89}) {

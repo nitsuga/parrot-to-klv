@@ -364,6 +364,9 @@ bool parse_camera(std::span<const uint8_t> b, ParrotProtoError* err, ParrotProto
                     return false;
                 break;
             case 16: read_real(r, wire, out.zoom_level); break;
+            case 17:
+                if (read_uint(r, wire, u) && u <= 3) out.spectrum = static_cast<CameraSpectrum>(u);
+                break;
             // 19 serial_number is device identity: skipped like any other
             // unmapped field, so it never reaches a frame or a report.
             default: r.skip(wire); break;
@@ -499,6 +502,16 @@ std::string to_string(ProtoPilotingMode mode) {
         case ProtoPilotingMode::Tracking: return "tracking";
         case ProtoPilotingMode::MoveTo: return "move-to";
         case ProtoPilotingMode::MagicCarpet: return "magic-carpet";
+    }
+    return "invalid";
+}
+
+std::string to_string(CameraSpectrum spectrum) {
+    switch (spectrum) {
+        case CameraSpectrum::Unknown: return "unknown";
+        case CameraSpectrum::Visible: return "visible";
+        case CameraSpectrum::Blended: return "blended";
+        case CameraSpectrum::Thermal: return "thermal";
     }
     return "invalid";
 }

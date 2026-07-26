@@ -43,6 +43,15 @@ enum class LficType : uint8_t {
     User = 1,
 };
 
+/// Camera spectrum. The only signal in the recording of whether the imagery is
+/// visible-light or thermal, which is what ST 0601 Item 11 names.
+enum class CameraSpectrum : uint8_t {
+    Unknown = 0,
+    Visible = 1,
+    Blended = 2,  ///< visible and thermal fused into one image
+    Thermal = 3,
+};
+
 enum class TrackingState : uint8_t {
     Tracking = 0,
     Searching = 1,
@@ -50,6 +59,7 @@ enum class TrackingState : uint8_t {
 };
 
 std::string to_string(ProtoPilotingMode mode);
+std::string to_string(CameraSpectrum spectrum);
 std::string to_string(LficType type);
 std::string to_string(TrackingState state);
 
@@ -153,6 +163,7 @@ struct ParrotProtoFrame {
     double picture_hfov_rad = 0.0;  ///< RADIANS — v3 carries degrees
     double picture_vfov_rad = 0.0;  ///< RADIANS — v3 carries degrees
     double zoom_level = 0.0;        ///< multiplier, not a percentage
+    CameraSpectrum spectrum = CameraSpectrum::Unknown;
 
     // --- links, LFIC, tracking ---
     std::vector<ProtoWifiLink> wifi_links;

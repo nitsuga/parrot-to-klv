@@ -30,7 +30,29 @@ enum class CommonPilotingMode : uint8_t {
     MoveTo,
 };
 
+/// Imaging spectrum, normalized across formats.
+///
+/// Named separately from the protobuf `CameraSpectrum` for the same reason
+/// `CommonPilotingMode` is: the snapshot is where format-specific types stop.
+/// Only proto reports it; v3 leaves it `Unknown`.
+enum class ImageSpectrum : uint8_t {
+    Unknown,
+    Visible,
+    Blended,  ///< visible and thermal fused
+    Thermal,
+};
+
 std::string to_string(CommonPilotingMode mode);
+std::string to_string(ImageSpectrum spectrum);
+
+/// ST 0601 Item 11's value for a spectrum, or nothing when it cannot be named.
+///
+/// Item 11 is free-form utf8 — "name of currently active sensor", the
+/// standard's own example being `EO` — so a fused image gets a descriptive
+/// name rather than being forced into one of the two conventional values or
+/// dropped. `Unknown` yields nothing: naming a sensor we cannot identify would
+/// be a guess.
+std::optional<std::string> image_source_sensor(ImageSpectrum spectrum);
 
 /// A target the aircraft is pointing at, if it reports one.
 struct TargetLocation {
@@ -88,6 +110,9 @@ struct TelemetrySnapshot {
     std::optional<double> vfov_deg;
     /// Zoom as Parrot reports it: a multiplier, not a percentage. Proto only.
     std::optional<double> zoom_level;
+    /// Which spectrum the active camera imaged in. Proto only; the binary
+    /// formats carry nothing equivalent.
+    ImageSpectrum spectrum = ImageSpectrum::Unknown;
 
     // --- state ---
     FlyingState flying_state = FlyingState::Landed;

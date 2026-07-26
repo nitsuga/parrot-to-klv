@@ -58,6 +58,11 @@ enum numbering resolved there, so the mapping never sees a format quirk — and
 `to_0601()` emits a real ST 0601 packet through libmisbklv's registry codec,
 checksum and all. `./build/parrot-to-klv <file>.mp4 --klv` shows it per frame.
 
+**Tier 1 is complete.** Every direct mapping with a source now emits: a proto
+frame with session metadata yields 33 items, a v3 frame 29. What remains unemitted
+is unemittable — Items 45/46 and 134 are open mapping questions, Tier 2 needs the
+geometry fork, and v3 simply lacks an ellipsoid height, air speed and spectrum.
+
 **Session metadata is parsed** from `moov/udta`, which supplies Items 4 and 10
 and — via `anchor_to_session()` — turns a v3 recording's monotonic frame clock
 into a real Item 2 timestamp, to the media date's second granularity. The
@@ -86,8 +91,7 @@ transform stage owes a conversion coverage report alongside the KLV output.
 
 1. Resolve the Tier 2 geometry-fidelity fork (flat-earth vs DTED) in
    [ROADMAP](./ROADMAP.md), then derive Items 21/22/23/24/25/57/78/82–89
-2. Decode proto's `camera.spectrum` to unblock Item 11 (EO/IR), the last
-   Tier 1 item with no source
+2. Phase 3 (Mux): remux video + KLV into MPEG-TS through libmisbklv
 
 ## Known gaps
 
