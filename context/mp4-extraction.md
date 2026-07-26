@@ -24,12 +24,14 @@ parsing over GStreamer `qtdemux`) — see its follow-on note.
 | `src/parrot_v3.{hpp,cpp}` | Decodes a v3 sample into `ParrotV3Frame` |
 | `src/parrot_proto.{hpp,cpp}` | Hand-written proto3 reader — decodes a proto sample into `ParrotProtoFrame` (ADR 0003) |
 | `test/vmeta_subset.proto` | The mapped subset of Parrot's schema, transcribed; documentation and fixture reference, **not** compiled |
+| `src/session_metadata.{hpp,cpp}` | Reads Parrot's untimed session tags from `moov/udta` — see § Session metadata |
 | `src/parrot_scrub.{hpp,cpp}`, `src/scrub_main.cpp` | `parrot-scrub` — see § Scrubbing |
 | `src/main.cpp` | `parrot-to-klv` — extract, decode, summarise |
 | `test/make_fixture.py` | Generates the synthetic MP4 fixtures |
 | `test/mp4_extraction_test.cpp` | `ctest` target `mp4_extraction` |
 | `test/parrot_v3_test.cpp` | `ctest` target `parrot_v3` |
 | `test/parrot_proto_test.cpp` | `ctest` target `parrot_proto` |
+| `test/session_metadata_test.cpp` | `ctest` target `session_metadata` |
 | `test/parrot_scrub_test.cpp` | `ctest` target `parrot_scrub` |
 | `src/conformance.{hpp,cpp}`, `src/conform_main.cpp` | `parrot-conform` — see § Conformance reports |
 | `test/conformance_test.cpp` | `ctest` target `conformance` |
@@ -86,6 +88,52 @@ in others. Verified against the source:
 Because `MP4D_frame_offset()` returns size and timestamp alongside the offset,
 per-sample timestamps cost nothing — deriving them by summing durations from
 zero is quadratic and unnecessary.
+
+## Session metadata
+
+Parrot's *untimed* metadata — what device recorded the file and when — sits in
+MP4 tags rather than the sample track. It supplies three things the telemetry
+cannot: ST 0601 Item 4 (tail number, from the airframe serial), Item 10
+(platform designation, from the model), and the wall-clock anchor that turns a
+v3 recording's monotonic frame clock into Item 2.
+
+Parrot writes it **two ways**, and `parse_session_metadata` reads the first:
+
+1. `moov/udta/meta/ilst` with iTunes-style four-character keys — `©mod` model,
+   `©too` serial, `©day` media date, `©ART` friendly name, `©mak` maker,
+   `©swr` software version, `©nam` title. Each key box contains a `data` box
+   whose payload is 4 bytes of type indicator, 4 of locale, then the string.
+2. `moov/meta/ilst` with full reverse-DNS keys (`com.parrot.serial`,
+   `com.parrot.model.id`, run/boot/flight IDs), which needs the `keys` box to
+   map indices to names. **Not implemented** — everything 0601 needs is in the
+   four-character keys, and the extra fields it would add have no 0601 item.
+
+**The geotag is not in the `ilst`.** Parrot puts `©xyz` directly in `moov/udta`
+for Android compatibility, so a parser that only descends into the `ilst` misses
+the recording's position entirely — which is also why the scrubber looks for it
+there.
+
+### The media date is second-granularity, and that bounds Item 2
+
+`©day` is an ISO 8601 string — `"2018-10-06T18:12:52+02:00"` — with no
+sub-second part. `anchor_to_session()` treats it as the time of the *first*
+sample and adds each frame's elapsed monotonic microseconds, so frame-to-frame
+spacing stays exact while the absolute anchor is accurate to within a second.
+That is the best the file supports.
+
+The timezone offset is the trap: dropping it puts every frame's Item 2 two hours
+out, consistently and invisibly. `parse_iso8601_to_epoch` uses `timegm` (never
+`mktime` — the converter's local timezone has nothing to do with when the flight
+happened) and subtracts the trailing offset. It returns nothing rather than
+guessing on a string it does not recognise.
+
+### Serial and geotag are sensitive, and separately so
+
+The serial identifies the airframe; the geotag says where it flew. Both are
+withheld from printed output by default, under **separate** opt-ins
+(`--with-identity` and `--with-location`) because they expose different things
+about different people. The same split governs the coverage report's
+`Disclosure` policy.
 
 ## Scrubbing a real recording
 

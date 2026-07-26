@@ -115,9 +115,43 @@ def geotag(iso6709: str) -> bytes:
     return box(b"udta", box(b"\xa9xyz", payload))
 
 
+def ilst_entry(key: bytes, text: str) -> bytes:
+    """One moov/udta/meta/ilst tag: <key> containing a 'data' box.
+
+    'data' payload is 4 bytes of type indicator (1 = UTF-8) then 4 of locale,
+    then the string.
+    """
+    data = box(b"data", struct.pack(">II", 1, 0) + text.encode())
+    return box(key, data)
+
+
+def session_udta(iso6709: str) -> bytes:
+    """moov/udta carrying the geotag plus Parrot's four-character session tags.
+
+    Parrot writes the session metadata two ways -- these iTunes-style keys under
+    udta/meta/ilst, and full reverse-DNS keys under moov/meta/ilst. Only the
+    first is generated here, matching what the parser reads.
+
+    Note the geotag sits in 'udta' directly, NOT in the ilst -- Parrot does that
+    for Android compatibility, and a parser looking only inside ilst misses it.
+    """
+    geo = box(b"\xa9xyz", struct.pack(">HH", len(iso6709), 0x15C7) + iso6709.encode())
+    ilst = box(b"ilst",
+               ilst_entry(b"\xa9ART", "ANAFI-G059745")      # friendly name
+               + ilst_entry(b"\xa9mak", "Parrot")            # maker
+               + ilst_entry(b"\xa9mod", "Anafi")             # model -> Item 10
+               + ilst_entry(b"\xa9too", "PI040416BA8G059745")  # serial -> Item 4
+               + ilst_entry(b"\xa9swr", "1.3.0")             # software version
+               + ilst_entry(b"\xa9nam", "Sat, 06 Oct 2018 18:12:52 +0200")
+               + ilst_entry(b"\xa9day", "2018-10-06T18:12:52+02:00"))  # media date
+    # 'meta' is a FullBox: version/flags precede its children.
+    meta = box(b"meta", struct.pack(">I", 0) + ilst)
+    return box(b"udta", geo + meta)
+
+
 def build(mime: str, samples: list[bytes], video_samples: list[bytes],
           timescale: int = 30000, delta: int = 1000,
-          content_encoding: str = "") -> bytes:
+          content_encoding: str = "", session: bool = True) -> bytes:
     """Assemble ftyp + mdat + moov. mdat first so chunk offsets are known up front."""
     ftyp = box(b"ftyp", b"isom" + struct.pack(">I", 512) + b"isomiso2avc1mp41")
 
@@ -130,7 +164,8 @@ def build(mime: str, samples: list[bytes], video_samples: list[bytes],
 
     duration = delta * max(len(samples), len(video_samples))
     moov = box(b"moov", mvhd(timescale, duration, 3)
-               + geotag("+48.85837+002.29448+135.250/")
+               + (session_udta("+48.85837+002.29448+135.250/") if session
+                  else geotag("+48.85837+002.29448+135.250/"))
                + video_trak(1, timescale, [len(s) for s in video_samples], delta,
                             video_chunk_offset)
                + meta_trak(2, 1, timescale, [len(s) for s in samples], delta,

@@ -179,17 +179,22 @@ Euler relative_euler(const Quaternion& drone, const Quaternion& frame) {
     return to_euler(multiply(conjugate(drone), frame));
 }
 
-std::string CoverageReport::to_text(bool with_location) const {
+std::string CoverageReport::to_text(const Disclosure& disclosure) const {
     // Sensor and target coordinates. Withheld by default: a coverage report is
     // exactly the kind of output someone pastes into an issue, and telemetry
     // from a real flight carries the operator's position.
     const auto is_location = [](uint16_t tag) {
         return tag == 13 || tag == 14 || tag == 40 || tag == 41;
     };
+    // Item 4 carries the airframe serial — device identity, which the
+    // conformance reports exclude by construction for the same reason.
+    const auto is_identity = [](uint16_t tag) { return tag == 4; };
     std::ostringstream out;
     out << "  emitted " << emitted.size() << " item(s):";
     for (const auto& [tag, value] : emitted) {
-        out << " " << tag << "=" << (is_location(tag) && !with_location ? "withheld" : value);
+        const bool hide = (is_location(tag) && !disclosure.location) ||
+                          (is_identity(tag) && !disclosure.identity);
+        out << " " << tag << "=" << (hide ? "withheld" : value);
     }
     out << "\n";
     if (!omitted.empty()) {
@@ -207,7 +212,19 @@ std::string CoverageReport::to_text(bool with_location) const {
     return out.str();
 }
 
-Klv0601Frame to_0601(const TelemetrySnapshot& s) {
+void anchor_to_session(TelemetrySnapshot& snapshot, const SessionMetadata& session,
+                       uint64_t first_monotonic_us) {
+    if (snapshot.utc_timestamp_us) return;  // already has a real one
+    if (!session.media_date_epoch_s) return;
+    // The monotonic clock can run backwards relative to the first sample only
+    // if the caller passed a later frame as the origin; guard rather than wrap.
+    const uint64_t elapsed_us =
+        snapshot.monotonic_us > first_monotonic_us ? snapshot.monotonic_us - first_monotonic_us : 0;
+    snapshot.utc_timestamp_us =
+        static_cast<uint64_t>(*session.media_date_epoch_s) * 1000000ULL + elapsed_us;
+}
+
+Klv0601Frame to_0601(const TelemetrySnapshot& s, const SessionMetadata* session) {
     Klv0601Frame result;
     CoverageReport& coverage = result.coverage;
     misbklv::LocalSetBuilder builder(misbklv::gen::uas_0601);
@@ -334,9 +351,23 @@ Klv0601Frame to_0601(const TelemetrySnapshot& s) {
     }
 
     // --- Items 4/10/11, session-level identity ---
-    for (uint16_t tag : {4, 10, 11}) {
-        coverage.omitted[tag] = OmissionReason::NeedsSessionData;
+    // Item 4 is the tail number; Parrot's nearest equivalent is the airframe
+    // serial. Item 10 is the platform designation, i.e. the model.
+    if (session && session->serial_number) {
+        staging.put_text(4, *session->serial_number);
+    } else {
+        coverage.omitted[4] = OmissionReason::NeedsSessionData;
     }
+    if (session && session->model) {
+        staging.put_text(10, *session->model);
+    } else {
+        coverage.omitted[10] = OmissionReason::NeedsSessionData;
+    }
+    // Item 11 wants "EO" or "IR". Neither the session tags nor anything this
+    // project parses says which spectrum the camera used — proto carries
+    // `camera.spectrum`, which the reader drops — so it is left out rather
+    // than assumed to be EO.
+    coverage.omitted[11] = OmissionReason::NeedsSessionData;
 
     // --- Tier 2, derived geometry (open fork: flat-earth vs DTED) ---
     for (uint16_t tag : {21, 22, 23, 24, 25, 57, 78, 82, 83, 84, 85, 86, 87, 88, 89}) {

@@ -197,7 +197,7 @@ void check_v3_mapping() {
     check(safe.find("45.5") == std::string::npos, "latitude is withheld by default");
     check(safe.find("-73.5") == std::string::npos, "longitude is withheld by default");
     check(safe.find("13=withheld") != std::string::npos, "…and marked as withheld");
-    const std::string revealed = frame.coverage.to_text(true);
+    const std::string revealed = frame.coverage.to_text(Disclosure{.location = true});
     check(revealed.find("45.5") != std::string::npos, "--with-location reveals latitude");
 }
 

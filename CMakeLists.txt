@@ -36,6 +36,7 @@ add_library(parrot_extract STATIC
   src/mp4_metadata_extractor.cpp
   src/parrot_v3.cpp
   src/parrot_proto.cpp
+  src/session_metadata.cpp
   src/telemetry.cpp
   src/transform.cpp
   src/parrot_scrub.cpp
@@ -72,6 +73,12 @@ target_link_libraries(parrot_proto_test PRIVATE parrot_extract)
 
 add_test(NAME parrot_proto
          COMMAND parrot_proto_test ${CMAKE_SOURCE_DIR}/test/fixtures)
+
+add_executable(session_metadata_test test/session_metadata_test.cpp)
+target_link_libraries(session_metadata_test PRIVATE parrot_extract)
+
+add_test(NAME session_metadata
+         COMMAND session_metadata_test ${CMAKE_SOURCE_DIR}/test/fixtures)
 
 add_executable(transform_test test/transform_test.cpp)
 target_link_libraries(transform_test PRIVATE parrot_extract)

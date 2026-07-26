@@ -7,6 +7,38 @@
 
 ## 2026-07-25
 
+* **MP4 session metadata parsed; Items 2, 4 and 10 unblocked.**
+  `src/session_metadata.{hpp,cpp}` reads Parrot's untimed tags from `moov/udta`.
+  See [[mp4-extraction]] § Session metadata.
+  - Reads the **four-character key method** (`moov/udta/meta/ilst` — `©mod`
+    model, `©too` serial, `©day` media date, `©ART`, `©mak`, `©swr`, `©nam`).
+    The full reverse-DNS method under `moov/meta/ilst` is not implemented: it
+    needs the `keys` box for index-to-name mapping, and the fields it would add
+    beyond these have no 0601 item anyway.
+  - **The geotag is not in the ilst** — Parrot puts `©xyz` directly in
+    `moov/udta` for Android compatibility. A parser that only descends into the
+    ilst misses the recording's position, which is also why the scrubber looks
+    for it there.
+  - **Item 2 for v3 now works.** `anchor_to_session()` treats the media date as
+    the first sample's wall time and adds each frame's elapsed monotonic µs, so
+    frame spacing stays exact and absolute time is good to the media date's
+    *second* granularity — the limit the file imposes, recorded rather than
+    papered over. A frame with a real UTC stamp is never overwritten by the
+    anchor, and a session with no parsable date leaves the frame unanchored
+    rather than dating it to 1970.
+  - The timezone offset is the trap the tests target hardest: dropping it would
+    put every frame two hours out, consistently and invisibly. `timegm`, never
+    `mktime` — the converter's local timezone has nothing to do with when the
+    flight happened — and the conversion was cross-checked against Python.
+  - **Device identity got its own opt-in.** The serial reaches Item 4, so the
+    coverage report could print it; that is identity, which the conformance
+    reports exclude by construction. Rather than folding it into
+    `--with-location`, `Disclosure` now has separate `location` and `identity`
+    flags (CLI: `--with-location`, `--with-identity`) — they expose different
+    things about different people.
+  - Item 11 (EO/IR) remains the one Tier 1 item with no source: session tags do
+    not carry the spectrum and the proto reader drops `camera.spectrum`.
+    Omitted rather than assumed to be EO.
 * **Fork 3 (transform input shape) resolved** —
   [[0004-shared-telemetry-snapshot]], `accepted`. Opened and decided as Phase 2
   began; [[0003-protobuf-dependency]] had explicitly deferred it.

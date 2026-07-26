@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 
+#include "session_metadata.hpp"
 #include "telemetry.hpp"
 
 namespace parrot_to_klv {
@@ -26,6 +27,16 @@ Euler to_euler(const Quaternion& q);
 /// Gimbal orientation relative to the airframe: the frame quaternion composed
 /// with the conjugate of the drone quaternion (Items 18/19/20).
 Euler relative_euler(const Quaternion& drone, const Quaternion& frame);
+
+/// What a rendered report is allowed to reveal.
+///
+/// Both default to false. They are separate flags rather than one "sensitive"
+/// switch because they protect different people: the coordinates say where the
+/// operator was standing, the serial says whose aircraft it is.
+struct Disclosure {
+    bool location = false;  ///< Items 13/14 and 40/41
+    bool identity = false;  ///< Item 4, the airframe serial
+};
 
 /// Why an ST 0601 item the mapping knows about was not emitted for a frame.
 ///
@@ -58,13 +69,13 @@ struct CoverageReport {
 
     /// Human-readable summary, one line per section.
     ///
-    /// **Location is withheld by default.** Items 13/14 (sensor latitude and
-    /// longitude) and 40/41 (target latitude and longitude) are rendered as
-    /// `withheld` unless `with_location` is set, so a coverage report from a
-    /// real flight is safe to paste into a bug report — the same rule the
-    /// frame summaries follow. Pass true only when the caller has asked to see
-    /// the coordinates.
-    std::string to_text(bool with_location = false) const;
+    /// **Sensitive values are withheld by default**, so a coverage report from
+    /// a real flight is safe to paste into a bug report — the same rule the
+    /// frame summaries follow. Two distinct things are withheld, because they
+    /// are distinct risks: *where the flight was* (Items 13/14 sensor position,
+    /// 40/41 target position) and *which airframe flew it* (Item 4, the
+    /// serial). Pass a policy that opts in only to what the caller asked for.
+    std::string to_text(const Disclosure& disclosure = {}) const;
 };
 
 /// One frame mapped to ST 0601.
@@ -89,6 +100,22 @@ struct Klv0601Frame {
 ///
 /// Returns an empty packet if encoding fails; `coverage` still describes what
 /// was attempted.
-Klv0601Frame to_0601(const TelemetrySnapshot& snapshot);
+Klv0601Frame to_0601(const TelemetrySnapshot& snapshot,
+                     const SessionMetadata* session = nullptr);
+
+/// Fill in `snapshot.utc_timestamp_us` for a recording whose frames carry only
+/// a monotonic clock, by anchoring that clock to the session's media date.
+///
+/// `first_monotonic_us` is the first frame's clock reading, which becomes the
+/// zero point: the media date is when the recording started, so frame *n* is
+/// `media_date + (clock_n - clock_0)`.
+///
+/// **The anchor is only as good as its second-granularity source** — the media
+/// date is an ISO 8601 string with no sub-second part — so the result is
+/// accurate to within a second in absolute terms, while frame-to-frame spacing
+/// stays exact. Does nothing if the snapshot already has a trustworthy absolute
+/// time, or if the session has no parsable media date.
+void anchor_to_session(TelemetrySnapshot& snapshot, const SessionMetadata& session,
+                       uint64_t first_monotonic_us);
 
 }  // namespace parrot_to_klv

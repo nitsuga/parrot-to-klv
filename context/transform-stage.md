@@ -20,8 +20,10 @@ its traps, and what it refuses to do.
 | File | Role |
 |------|------|
 | `src/telemetry.{hpp,cpp}` | `TelemetrySnapshot` + `from_v3()` / `from_proto()` — the normalization boundary |
+| `src/session_metadata.{hpp,cpp}` | Session tags — Items 4/10 and the v3 wall-clock anchor (see [[mp4-extraction]]) |
 | `src/transform.{hpp,cpp}` | `to_0601()`, the Euler conversions, and `CoverageReport` |
 | `test/transform_test.cpp` | `ctest` target `transform` |
+| `test/session_metadata_test.cpp` | `ctest` target `session_metadata` |
 
 ## Three layers, one job each
 
@@ -43,7 +45,7 @@ parser adds one normalizer and touches nothing else.
 
 ## What it emits
 
-Tier 1 of the mapping — roughly 26 items from a typical frame — encoded through
+Tier 1 of the mapping — roughly 29 items from a v3 frame with session metadata — encoded through
 libmisbklv's registry codec, assembled with the UL key, BER length and Item 1
 checksum. The packet is a real 0601 packet: `transform_test` parses every one it
 produces back through `misbklv::parse_packet` and decodes item by item, so
@@ -70,15 +72,20 @@ values are checked as a consumer sees them rather than as we staged them.
 
 ## Item 2 is mandatory, and sometimes absent anyway
 
-ST 0601 requires the Precision Time Stamp. No v3 recording can supply one — v3
-carries a monotonic clock that needs the session `media_date` to anchor, and
-nothing parses session metadata yet — and a proto frame may declare its UTC
-stamp invalid.
+ST 0601 requires the Precision Time Stamp. A v3 recording carries only a
+monotonic frame clock, and a proto frame may declare its UTC stamp invalid.
 
-When that happens the packet is assembled **without** mandatory-item
-enforcement, Item 2 is absent, and the coverage report says why. Emitting a
-fabricated timestamp would be worse: a consumer cannot tell a wrong time from a
-right one, but it can tell a missing item from a present one.
+Where the file has session metadata, `anchor_to_session()` closes the v3 gap:
+the `©day` media date is the first sample's wall time, and each frame adds its
+elapsed monotonic microseconds. The anchor inherits the media date's *second*
+granularity — see [[mp4-extraction]] § Session metadata — so absolute time is
+good to a second while frame spacing stays exact.
+
+Where it does not (no session tags, no parsable date, or a proto frame whose
+`utc_timestamp_accuracy` is zero), the packet is assembled **without**
+mandatory-item enforcement, Item 2 is absent, and the coverage report says why.
+Emitting a fabricated timestamp would be worse: a consumer cannot tell a wrong
+time from a right one, but it can tell a missing item from a present one.
 
 ## The coverage report
 
@@ -96,10 +103,12 @@ per frame:
   exposure, thermal), listed only when the frame actually carried them, so the
   report describes the recording rather than reciting the schema
 
-**Coordinates are withheld from the report by default**, exactly as they are
-from the frame summaries — Items 13/14 and 40/41 render as `withheld` unless
-`--with-location`. A coverage report is precisely the kind of output someone
-pastes into an issue.
+**Sensitive values are withheld from the report by default**, exactly as they
+are from the frame summaries. A coverage report is precisely the kind of output
+someone pastes into an issue. Two separate opt-ins, because they are separate
+risks: `Disclosure::location` covers Items 13/14 and 40/41 (where the flight
+was), `Disclosure::identity` covers Item 4 (which airframe flew it). The CLI
+spells them `--with-location` and `--with-identity`.
 
 ## What it deliberately does not do
 
@@ -112,8 +121,14 @@ pastes into an issue.
   fabricated number in a standard field.
 - **Items 45/46 CE90/LE90.** Parrot's radial and tangential horizontal
   accuracies are not literally CE90/LE90. Withheld rather than relabelled.
-- **Items 4/10/11** (tail number, platform designation, image source sensor)
-  need MP4 session metadata, which nothing parses yet.
+- **Item 11** (image source sensor, "EO"/"IR") needs the camera spectrum.
+  Nothing supplies it: the session tags do not carry it, and proto's
+  `camera.spectrum` is one of the fields the reader drops. Omitted rather than
+  assumed to be EO.
+
+Items 4 and 10 (tail number, platform designation) come from session metadata
+when the recording has it, and are reported as `needs MP4 session metadata`
+when it does not.
 
 **Why:** the mapping's hard parts are not the arithmetic but the places where
 0601 and Parrot disagree about sign, range, or what zero means — and the places

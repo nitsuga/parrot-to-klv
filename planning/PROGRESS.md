@@ -58,6 +58,12 @@ enum numbering resolved there, so the mapping never sees a format quirk — and
 `to_0601()` emits a real ST 0601 packet through libmisbklv's registry codec,
 checksum and all. `./build/parrot-to-klv <file>.mp4 --klv` shows it per frame.
 
+**Session metadata is parsed** from `moov/udta`, which supplies Items 4 and 10
+and — via `anchor_to_session()` — turns a v3 recording's monotonic frame clock
+into a real Item 2 timestamp, to the media date's second granularity. The
+airframe serial and the geotag are withheld from printed output under their own
+`--with-identity` opt-in, separate from `--with-location`.
+
 Every conversion carries a **coverage report**, which is ADR 0002's obligation
 made concrete: what was emitted, what was omitted *and why*, and which Parrot
 fields have no 0601 item at all. Coordinates are withheld from it unless
@@ -80,8 +86,8 @@ transform stage owes a conversion coverage report alongside the KLV output.
 
 1. Resolve the Tier 2 geometry-fidelity fork (flat-earth vs DTED) in
    [ROADMAP](./ROADMAP.md), then derive Items 21/22/23/24/25/57/78/82–89
-2. Parse MP4 session metadata to unblock Items 2 (v3 wall-clock anchor), 4, 10
-   and 11
+2. Decode proto's `camera.spectrum` to unblock Item 11 (EO/IR), the last
+   Tier 1 item with no source
 
 ## Known gaps
 
