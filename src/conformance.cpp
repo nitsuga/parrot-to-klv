@@ -9,13 +9,16 @@
 #define XXH_INLINE_ALL
 #include "../external/xxhash.h"
 
+#include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdint>
 #include <cstdio>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
+#include <string>
 
 namespace parrot_to_klv {
 namespace {

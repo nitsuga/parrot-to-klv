@@ -8,6 +8,7 @@
 #include "conformance.hpp"
 
 #include <cmath>
+#include <cstdint>
 #include <cstdio>
 #include <iostream>
 #include <string>

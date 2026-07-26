@@ -3,6 +3,7 @@
 
 #include "mux.hpp"
 
+#include <cstdint>
 #include <cstdio>
 #include <optional>
 #include <span>

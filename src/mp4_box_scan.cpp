@@ -4,7 +4,11 @@
 #include "mp4_box_scan.hpp"
 
 #include <array>
+#include <cstdint>
+#include <cstdio>
 #include <cstring>
+#include <string>
+#include <vector>
 
 namespace parrot_to_klv {
 namespace {

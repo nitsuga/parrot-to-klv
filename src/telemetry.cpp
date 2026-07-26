@@ -4,6 +4,9 @@
 #include "telemetry.hpp"
 
 #include <cmath>
+#include <cstdint>
+#include <optional>
+#include <string>
 
 namespace parrot_to_klv {
 namespace {

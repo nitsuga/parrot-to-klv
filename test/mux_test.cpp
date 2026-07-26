@@ -17,6 +17,7 @@
 //
 // argv: <fixtures-dir> <temp-dir>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -26,6 +27,7 @@
 #include <optional>
 #include <span>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "misbklv/message.hpp"
