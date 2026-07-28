@@ -63,3 +63,4 @@ _(`type: Decision` — ADRs: the *why* of resolved forks.)_
 * [0002 — Disposition of Parrot fields with no ST 0601 item](./decisions/0002-unmappable-parrot-fields.md) — Drop and report, don't repurpose items
 * [0003 — Protobuf dependency for the proto-format parser](./decisions/0003-protobuf-dependency.md) — Hand-roll a minimal proto3 reader, no toolchain dependency
 * [0004 — A shared telemetry snapshot](./decisions/0004-shared-telemetry-snapshot.md) — Normalize both formats into one struct before mapping
+* [0005 — Out-of-range policy for Items 6/7](./decisions/0005-attitude-range-policy.md) — Keep the `0x8000` sentinel as the default; clamping and out-of-spec emission are opt-in flags

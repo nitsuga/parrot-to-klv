@@ -58,9 +58,14 @@ values are checked as a consumer sees them rather than as we staged them.
 - **Item 51 is negated.** 0601 §8.51 measures vertical speed toward zenith;
   Parrot NED is positive down. The sign flip lives in exactly one place.
 - **Items 6/7 are ±20° and ±50°**, which a quadcopter exceeds in ordinary
-  flight. Out of range is signalled with the `0x8000` special value, never
-  clamped — a clamped attitude is a confident lie — and Items 90/91 (±90°)
-  carry the trustworthy value alongside.
+  flight. Out of range is signalled with the `0x8000` special value by default,
+  not clamped — a clamped attitude is a confident lie — and Items 90/91 (±90°)
+  carry the trustworthy value alongside. Two opt-in flags override the default
+  for consumers that cannot parse the sentinel (`--clamp-attitude`) or that want
+  fidelity over conformance (`--force-emit-attitude`, non-compliant); the
+  coverage report labels both, and 90/91 stay accurate under either. Why the
+  default survived contact with a decoder that chokes on `0x8000`:
+  [[0005-attitude-range-policy]].
 - **Item 112 is undefined at rest.** Course over ground is `atan2` of two
   numbers that are pure noise when the aircraft is stationary, so it is omitted
   below 0.5 m/s rather than reporting a direction of travel that does not exist.

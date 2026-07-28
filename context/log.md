@@ -7,31 +7,28 @@
 
 ## 2026-07-27
 
-* **Add attitude handling options for consumer compatibility**
-  (`src/transform.{hpp,cpp}`, `src/mux.{hpp,cpp}`, `src/main.cpp`): Items 6/7
-  (Platform Pitch/Roll) have narrow spec ranges (±20°, ±50°) which quadcopters
-  routinely exceed. The spec requires emitting `0x8000` when out of range, but
-  the downstream consumer's KLV decoder treats this as a parse failure, leaving
-  the key absent, which causes `.at()` to throw `std::out_of_range`.
-  - **Added `--clamp-attitude` flag**: clamps Items 6/7 to their spec limits
-    instead of emitting `0x8000`, ensuring numeric values are always present.
-    Recommended for consumers that can't handle missing values gracefully. Items
-    90/91 (full-range pitch/roll) still carry accurate unclamped values.
-  - **Added `--force-emit-attitude` flag**: emits actual values even when
-    out-of-spec by extrapolating the ST 0601 encoding beyond its defined range.
-    **Non-compliant**; use only when the consumer requires it and you accept the
-    consequences. Manually encodes via `put_special()` to bypass libmisbklv's
-    range validation.
-  - Flags are mutually exclusive (validation added to main).
-  - Default behavior unchanged: spec-compliant `0x8000` when out of range.
+* **Fork 5 decided — out-of-range policy for Items 6/7**: the `0x8000` sentinel
+  stays the default; `--clamp-attitude` and `--force-emit-attitude` are opt-in
+  overrides for consumers that cannot parse it.
+  [ADR 0005](./decisions/0005-attitude-range-policy.md) — implemented the same
+  day in `src/transform.{hpp,cpp}`, `src/mux.{hpp,cpp}`, `src/main.cpp`. **No
+  test covers either flag**; the suite still exercises only the default path.
 * **Add progress indicator to conversions** (`src/mux.cpp`): prints "Converting...
   N%" every 10% during `-o` conversions. Uses carriage return to update the same
   line, cleared before final output. Helps visibility for long files.
-* **libmisbklv pinned to e3c7f4a** (timing fix): sets `h264parse
-  config-interval=-1` to insert SPS/PPS with every IDR frame, improving
-  parameter set availability for ST 0604 Picture Timing SEI messages from Parrot
-  sources. Known limitation documented: some strict readers may still warn due to
-  VUI/SPS association complexities in the remux path. Full suite green (9/9).
+* **libmisbklv pin moved to `b454415`** — the hash in `CMakeLists.txt`, commented
+  "KLV pipeline fixes". Bumped as a drive-by inside the attitude commit rather
+  than on its own, contrary to the rule in `CLAUDE.md`.
+  - ⚠️ **What this pin contains is unverified.** The original entry here recorded
+    a *different* hash (`e3c7f4a`, which appears nowhere in the repo) and
+    described a timing fix — `h264parse config-interval=-1` to insert SPS/PPS
+    with every IDR frame for ST 0604 Picture Timing SEI, with a noted limitation
+    around VUI/SPS association in the remux path. That description cannot be
+    reconciled with the pinned hash or its comment from inside this repo, and
+    there is no local clone of libmisbklv to check against. Treat both the
+    timing-fix narrative and the "KLV pipeline fixes" comment as unconfirmed
+    until someone with upstream access reads `b454415`.
+  - The suite was reported green (9/9) at the time of the bump.
 
 ## 2026-07-26
 

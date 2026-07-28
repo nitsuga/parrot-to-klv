@@ -38,10 +38,11 @@ timeline rule and the failure behaviour: [mux stage](../context/mux-stage.md).
 **Three tools build.** `parrot-to-klv` converts with `-o` (shows progress every
 10%) and summarises without it (`--klv` for the 0601 mapping and its coverage;
 location and device identity are withheld unless `--with-location` /
-`--with-identity`). Attitude handling for consumer compatibility:
-`--clamp-attitude` clamps Items 6/7 to spec ranges; `--force-emit-attitude` emits
-out-of-spec values (non-compliant). `parrot-scrub` replaces a recording's location
-fields so a real flight can become a fixture. `parrot-conform` commits
+`--with-identity`; `--clamp-attitude` / `--force-emit-attitude` override the
+Items 6/7 out-of-range default per
+[ADR 0005](../context/decisions/0005-attitude-range-policy.md)). `parrot-scrub`
+replaces a recording's location fields so a real flight can become a fixture.
+`parrot-conform` commits
 real-encoder evidence without the recording, and reports from two real ANAFI
 flights are in [`test/conformance/`](../test/conformance/) — the standing answer
 to whether a real encoder produces what the decoder assumes.
@@ -55,7 +56,11 @@ uses `data/` skips cleanly without it.
 
 ## Next
 
-1. Resolve fork 4, Tier 2 geometry fidelity, in [ROADMAP](./ROADMAP.md), then
+1. Cover the two attitude override flags in `transform_test` — both branches,
+   the saturation boundary, and the mutually-exclusive rejection
+2. Confirm what libmisbklv `b454415` actually changed, then correct the
+   2026-07-27 log entry
+3. Resolve fork 4, Tier 2 geometry fidelity, in [ROADMAP](./ROADMAP.md), then
    derive Items 21/22/23/24/25/57/78/82–89
 
 ## Known gaps
@@ -64,11 +69,14 @@ uses `data/` skips cleanly without it.
   intersection — the substantive remaining work in the transform stage, and the
   one part of the mapping with no direct Parrot source. Its fidelity is fork 4,
   now open in [ROADMAP](./ROADMAP.md).
-- **Items 6/7 narrow-range behavior**: by default, emits spec-compliant `0x8000`
-  when pitch/roll exceed ±20°/±50°. Some consumers treat this
-  as missing data and fail. Use `--clamp-attitude` for consumer compatibility or
-  `--force-emit-attitude` for full fidelity (non-compliant). Items 90/91 always
-  carry accurate full-range values.
+- **Neither attitude override flag is tested.** `transform_test` still asserts
+  only the default `0x8000` path, so the clamping, the out-of-spec
+  extrapolation and its saturation ceiling, and the mutual-exclusion check are
+  all unverified ([ADR 0005](../context/decisions/0005-attitude-range-policy.md)
+  § Assumptions).
+- **What libmisbklv pin `b454415` contains is unconfirmed** — the log entry that
+  recorded it named a different hash and a different change. See
+  [log](../context/log.md) § 2026-07-27.
 - Item 2 for v3 recordings is anchored to session `media_date`, so it inherits
   that field's **second** granularity. Frame-to-frame spacing stays exact.
 - The mux has run on real footage on an authorized machine — that is what found
