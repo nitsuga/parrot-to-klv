@@ -7,6 +7,17 @@
 
 ## 2026-07-28
 
+* **`release.yml` exercised by `workflow_dispatch` before the v0.1.1 tag.** It
+  gained a fourth job (`smoke-image`) with ADR 0010 and had only ever run in its
+  three-job form, so the first tag using it would have been the first test of it.
+  All three build/smoke jobs green, `publish` skipped as designed — which is what
+  makes a manual run safe to use this way.
+  - `smoke-image`'s `--user` check passed on its first real run: the converted
+    output in the container deliverable comes back owned by the caller, not root.
+  - Also the first CI to build against the new pin. `Build and test` green on
+    24.04 / gstreamer 1.24 — the stack where the hang and the surviving-SEI fault
+    both lived, and the only one that could judge the fix.
+
 * **Doc lint after the re-pin — three descriptions of upstream's pipeline had
   gone stale.** All from the mechanism moving underneath them, not from age.
   - **[[mux-stage]] still said `filesrc ! parsebin`**, two pins after it stopped
