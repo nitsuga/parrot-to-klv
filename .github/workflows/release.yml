@@ -28,8 +28,15 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
+          # The 22.04 runner image ships LLVM's libunwind-*-dev, which conflicts
+          # with the plain libunwind-dev that libgstreamer1.0-dev depends on —
+          # apt then reports "held broken packages" and names only the
+          # dependency, not the conflict. Nothing here needs LLVM's copy. This
+          # does not arise on the 24.04 image the test workflow uses, so it is
+          # specific to pinning the build to the oldest target.
+          sudo apt-get remove -y 'libunwind-*-dev' || true
           sudo apt-get install -y --no-install-recommends \
-            cmake g++ \
+            cmake g++ libunwind-dev \
             libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
             libgstreamer-plugins-bad1.0-dev \
             gstreamer1.0-plugins-base gstreamer1.0-plugins-good \

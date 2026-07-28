@@ -7,6 +7,16 @@
 
 ## 2026-07-28
 
+* **First `v0.1.0` tag failed to build; the 22.04 runner needed a package
+  untangled.** `libgstreamer1.0-dev` depends on `libunwind-dev`, and the
+  `ubuntu-22.04` image ships LLVM's `libunwind-*-dev`, which conflicts with it —
+  apt reports "held broken packages" and names only the dependency, never the
+  conflict. Removed the LLVM copy and named `libunwind-dev` explicitly. Specific
+  to pinning the build to the oldest target: the 24.04 image the test workflow
+  uses does not have it, so `Build and test` was green throughout.
+  - The tag was moved rather than bumped. `publish` is gated behind `smoke` and
+    both were skipped, so nothing had been distributed and `v0.1.0` still means
+    what it will mean.
 * **Fork 9 decided — ship a relocatable bundle.**
   [ADR 0009](./decisions/0009-release-bundle.md), accepted and implemented.
   `packaging/make-bundle.sh` + `.github/workflows/release.yml`.
