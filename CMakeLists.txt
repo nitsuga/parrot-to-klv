@@ -21,7 +21,7 @@ include(FetchContent)
 FetchContent_Declare(
   misbklv
   GIT_REPOSITORY git@github.com:nitsuga/libmisbklv.git
-  GIT_TAG f8cc8c5cd94d6cda8a6648fcf73e9edc79d1df53  # ST 0604 SEI opt-in + derived Time Status (its ADR 0024)
+  GIT_TAG 8766e56c78648b6245ecb4d346ac0622550ecc26  # explicit demuxer, no decoder needed to not decode (its ADR 0025)
 )
 FetchContent_MakeAvailable(misbklv)
 

@@ -7,6 +7,26 @@
 
 ## 2026-07-28
 
+* **Re-pinned to libmisbklv `8766e56` — video passthrough no longer needs a
+  decoder installed.** Their fork 23 / ADR 0025, written and landed from here
+  while packaging the release bundle (fork 9, in progress).
+  - **What it fixes for us.** `parsebin` decided a stream was fully parsed by
+    asking whether any *decoder* in the registry accepted its caps — never
+    instantiated, merely present. Ordinary systems always have one, so nothing
+    showed. A bundle carrying only the plugins we use has none, and conversion
+    failed with "missing parser" for a stream `h264parse` had already parsed.
+  - The decoders that satisfied it were exactly the ones we cannot ship:
+    `openh264` (H.264 patents), `libde265` and `faad2` (GPL), in an Apache-2.0
+    distribution, to sit in a registry and never run. So the fix went upstream:
+    the chain is now `filesrc ! demuxer` with the container sniffed up front.
+  - **Verified here**: all three video fixtures convert against **eight LGPL
+    plugins with no decoder present**, from a scrubbed environment. Suites green,
+    9/9 `-L parrot` and 34/34 bare.
+  - Noted in passing: `mpegtsmux` output is **not byte-reproducible** — the same
+    binary run twice produces files of identical length differing mid-stream. Our
+    conformance reports cover metadata decode, not muxed bytes, so nothing rests
+    on it; worth knowing before anyone writes a test that diffs a `.ts`.
+
 * **CI had been red since the drive-by pin bump; fixed.** `Build and test` failed
   at *configure* on every push from `0ca3990` (2026-07-28 01:04) onward — the
   merge that carried `25199e4` and its unannounced pin to `b454415`. That pin
