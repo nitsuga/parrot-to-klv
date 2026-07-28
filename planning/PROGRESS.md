@@ -33,9 +33,12 @@ recording lacks. Shape and traps: [transform stage](../context/transform-stage.m
 untouched.** libmisbklv's `KlvSink` re-muxes the source's elementary stream
 (parsed, never decoded, so H.264 and H.265 both work) beside the KLV, and each
 packet is timestamped from its own metadata sample, so both branches share the
-file's timeline. The video's timing NALs are rewritten on the way: Picture
-Timing SEI out, ST 0604 in, unconditionally and with no opt-out
+file's timeline. The video's timing NALs are rewritten on the way — Picture
+Timing SEI out, ST 0604 in — because we ask for it: upstream's default now
+leaves the stream byte-identical, and `mux_to_ts()` passes
+`Sei0604::Generate` so our downstream client can read time from the video
 ([ADR 0006](../context/decisions/0006-inherited-st0604-sei-injection.md)).
+`mux_test` asserts the SEI is there and carries our item 2 values.
 Design, the timeline rule and the failure behaviour:
 [mux stage](../context/mux-stage.md).
 

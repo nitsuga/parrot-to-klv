@@ -10,6 +10,11 @@
 //      produced for that sample, in sample order
 //   3. the KLV lands on the source's timeline: each packet comes back at its own
 //      metadata sample's presentation time, to 90 kHz rounding
+//   4. the video elementary stream carries ST 0604 Precision Time Stamps, and
+//      each is an ST 0601 item 2 value we emitted — libmisbklv generates these
+//      only when asked (its ADR 0024), so without this the output would look
+//      correct in every other respect and still be useless to a client reading
+//      time from the video
 //
 // The output is read back with libmisbklv's own KlvStream (a consumer's view,
 // not our encoder's), while the PMT is parsed here — that check is about the
@@ -21,6 +26,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
@@ -112,6 +118,58 @@ std::vector<ElementaryStream> read_pmt(const std::string& path) {
     return {};
 }
 
+/// Concatenated PES payload for one PID — the elementary stream as muxed.
+std::vector<uint8_t> read_es(const std::string& path, unsigned want_pid) {
+    std::ifstream file(path, std::ios::binary);
+    std::vector<char> raw((std::istreambuf_iterator<char>(file)),
+                          std::istreambuf_iterator<char>());
+    const auto* bytes = reinterpret_cast<const uint8_t*>(raw.data());
+
+    std::vector<uint8_t> es, pes;
+    auto flush = [&] {
+        if (pes.size() >= 9) {
+            const size_t header = 9 + pes[8];
+            if (header <= pes.size()) es.insert(es.end(), pes.begin() + header, pes.end());
+        }
+        pes.clear();
+    };
+    for (size_t base = 0; base + 188 <= raw.size(); base += 188) {
+        const uint8_t* pkt = bytes + base;
+        if (pkt[0] != 0x47) break;
+        if ((((pkt[1] & 0x1F) << 8) | pkt[2]) != want_pid) continue;
+        const unsigned adaptation = (pkt[3] >> 4) & 0x3;
+        if ((adaptation & 0x1) == 0) continue;
+        size_t at = 4 + ((adaptation & 0x2) ? 1u + pkt[4] : 0u);
+        if (at >= 188) continue;
+        if (pkt[1] & 0x40) flush();  // payload_unit_start: the previous PES ended
+        pes.insert(pes.end(), pkt + at, pkt + 188);
+    }
+    flush();
+    return es;
+}
+
+/// Every ST 0604 Precision Time Stamp in an H.264 byte stream, in microseconds.
+///
+/// Finds the ASCII identifier "MISPmicrosectime" (ST 0604.6 §7.1) and reads the
+/// 11-byte Modified Precision Time Stamp after the Time Status byte — 2-byte
+/// groups split by 0xFF fillers, most significant first (§7.4 Table 2).
+std::vector<uint64_t> read_0604_timestamps(const std::vector<uint8_t>& es) {
+    static constexpr char kId[] = "MISPmicrosectime";
+    constexpr size_t kIdLen = 16;
+    std::vector<uint64_t> out;
+    for (size_t i = 0; i + kIdLen + 12 <= es.size(); ++i) {
+        if (std::memcmp(es.data() + i, kId, kIdLen) != 0) continue;
+        const size_t ts = i + kIdLen + 1;  // past the Time Status byte
+        if (es[ts + 2] != 0xFF || es[ts + 5] != 0xFF || es[ts + 8] != 0xFF) continue;
+        static constexpr size_t kAt[8] = {0, 1, 3, 4, 6, 7, 9, 10};
+        uint64_t v = 0;
+        for (size_t b = 0; b < 8; ++b) v = (v << 8) | es[ts + kAt[b]];
+        out.push_back(v);
+        i += kIdLen + 12 - 1;
+    }
+    return out;
+}
+
 // --- what the transform produces, computed independently of the mux ---------
 
 struct Expected {
@@ -199,6 +257,38 @@ void check_conversion(const std::string& name, const std::string& mp4,
             same = static_cast<uint8_t>((*encoded)[b]) == want[b];
         }
         check(same, name + ": packet " + std::to_string(i) + " came back changed");
+    }
+
+    // 4. The video carries ST 0604 Precision Time Stamps, and they are OUR
+    //    timestamps. This is the whole reason mux.cpp asks for
+    //    Sei0604::Generate — libmisbklv's default leaves the video untouched
+    //    (its ADR 0024), so without that argument this output would be silently
+    //    correct in every other respect and useless to a client reading time
+    //    from the video stream.
+    unsigned video_pid = 0;
+    for (const auto& es : streams)
+        if (es.stream_type == 0x1B) video_pid = es.pid;
+    if (video_pid) {
+        // ST 0604 carries ABSOLUTE time (ST 0601 item 2, µs since 1970), not the
+        // presentation timestamps above — so the expectation is the item 2 value
+        // inside each packet we expected to emit.
+        std::vector<uint64_t> want_absolute;
+        for (const auto& packet : expected.packets) {
+            auto message = misbklv::Message::parse(
+                std::as_bytes(std::span<const uint8_t>(packet)));
+            if (!message) continue;
+            if (auto item2 = message->get<uint64_t>(2)) want_absolute.push_back(*item2);
+        }
+
+        const auto stamps = read_0604_timestamps(read_es(ts, video_pid));
+        check(!stamps.empty(), name + ": video elementary stream carries no ST 0604 SEI");
+        size_t foreign = 0;
+        for (uint64_t got : stamps)
+            if (std::find(want_absolute.begin(), want_absolute.end(), got) ==
+                want_absolute.end())
+                ++foreign;
+        check(foreign == 0, name + ": " + std::to_string(foreign) +
+                                " ST 0604 timestamp(s) match no emitted KLV item 2");
     }
 
     // Each packet must come back where its metadata sample sat — the same

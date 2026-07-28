@@ -108,13 +108,24 @@ MuxReport mux_to_ts(const std::string& input, const std::string& output,
 
     // The sink owns both branches: it re-muxes `input`'s video elementary stream
     // alongside the KLV we push — never decoding it, but rewriting its timing
-    // NALs to carry ST 0604 (ADR 0006). A failure to open the source surfaces
-    // on the first emit(), which is where the error below comes from.
+    // NALs to carry ST 0604 (ADR 0006).
     //
-    // Nothing here cleans up a half-written output: libmisbklv guarantees that a
-    // failed insert session leaves no file it created, whether the failure lands
-    // in the open, a push, or the finish (its ADR 0022).
-    misbklv::KlvSink sink("file:" + output, /*realtime=*/false, input);
+    // Sei0604::Generate is required as of libmisbklv's ADR 0024: SEI generation
+    // used to be implied by passing a video source, and is now opt-in, so that
+    // consumers who only want their video carried across get it back untouched.
+    // Without this argument the output has no ST 0604 and the downstream client
+    // loses frame-accurate time. Under Generate our KLV is the stream's one
+    // timestamp authority — any ST 0604 the source carried is replaced, which
+    // for Parrot MP4s is moot (they carry none) but matters if an input ever
+    // arrives already stamped.
+    //
+    // A failure to open the source surfaces on the first emit(), which is where
+    // the error below comes from. Nothing here cleans up a half-written output:
+    // libmisbklv guarantees that a failed insert session leaves no file it
+    // created, whether the failure lands in the open, a push, or the finish
+    // (its ADR 0022).
+    misbklv::KlvSink sink("file:" + output, /*realtime=*/false, input,
+                          misbklv::Sei0604::Generate);
 
     const uint32_t total_samples = extractor->sample_count();
     uint32_t last_progress_pct = 0;

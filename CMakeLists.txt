@@ -21,7 +21,7 @@ include(FetchContent)
 FetchContent_Declare(
   misbklv
   GIT_REPOSITORY git@github.com:nitsuga/libmisbklv.git
-  GIT_TAG f8773d54fd7a7f5d02fdbccc118046cab0f9bbc0  # doc hygiene pass (history rewritten)
+  GIT_TAG e356b0c95ab46b019115c5ed2cbc2b1eb1c70154  # ST 0604 SEI generation is opt-in (its ADR 0024)
 )
 FetchContent_MakeAvailable(misbklv)
 

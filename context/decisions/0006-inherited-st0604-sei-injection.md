@@ -80,12 +80,10 @@ person actually running the tool. The string is the most-read claim we make.
 
 Add `--no-sei` or similar, defaulting to faithful remux.
 
-**Deferred, not rejected.** There is a real use case — an evidentiary or
-archival remux that must be bit-faithful — and today this tool cannot produce
-one. But the flag has to exist upstream first (the toggle is a libmisbklv
-internal), no such consumer has asked, and inventing the requirement to satisfy
-a symmetry argument would be speculative. Recorded here so the gap is findable
-if it ever bites. See open questions.
+**Deferred, not rejected** — and the upstream half has since happened. See the
+2026-07-28 revision below: libmisbklv made generation opt-in, so a bit-faithful
+remux is now producible. Exposing it as a CLI flag is still deferred, and still
+for the same reason: no consumer has asked.
 
 ## Refuse the pin and hold at f9070fb
 
@@ -95,12 +93,13 @@ while the consumer we do have needs the opposite.
 
 # Consequences
 
-- **The output is not a faithful remux, and cannot currently be made one.**
-  Anyone comparing output video bit-for-bit against the source will find
-  differences, and that is expected behaviour rather than a defect.
+- **The output is not a faithful remux** — anyone comparing output video
+  bit-for-bit against the source will find differences, and that is expected
+  behaviour rather than a defect. As of the revision below it *could* be made
+  one, by not asking for generation; we choose not to.
 - Our conformance story is unaffected — those reports cover metadata decode, not
-  the video branch — but nothing here tests the SEI injection either. It is
-  upstream's test surface, and we take it on trust.
+  the video branch. As of the revision below, `mux_test` does check the SEI:
+  that it exists, and that every timestamp in it is an item 2 value we emitted.
 - We now depend on upstream's PTS-matching heuristic: a backward-only fuzzy
   lookup with 200 ms tolerance. A frame whose PTS finds no metadata sample
   inside that window gets no 0604 SEI, silently. We neither detect nor report
@@ -109,17 +108,48 @@ while the consumer we do have needs the opposite.
   answers with different owners: ST 0601, which we implement, and ST 0604 SEI,
   which we inherit.
 
+# Revision — 2026-07-28: the opt-out arrived, and we opt in
+
+The alternative deferred above is no longer hypothetical. libmisbklv's ADR 0024
+(their fork 22) makes SEI generation opt-in — `Sei0604::Preserve` is now their
+default and leaves the elementary stream byte-identical; `Sei0604::Generate` is
+what this project's `mux_to_ts()` now passes explicitly.
+
+**The decision here is unchanged, and is now a decision rather than an
+inheritance.** We still want ST 0604 in the video, for exactly the reason above:
+Parrot MP4s carry no SEI timestamps, we are the only stage holding both the video
+and the decoded `sensorTimestamp`, and our downstream client reads time from the
+elementary stream. What changed is that it is now *ours to state*, in one
+argument at the call site, instead of something upstream did to every caller.
+
+Three consequences of the upstream change land here:
+
+- **A bit-faithful remux is now producible** — drop the argument and the video
+  comes out byte-identical. So the evidentiary/archival use case is unblocked
+  whenever a consumer asks; only the CLI flag is missing, which stays deferred.
+- **The silent no-match gap is now testable and tested.** `mux_test` property 4
+  reads the output's video elementary stream, decodes every `MISPmicrosectime`
+  SEI, and requires each timestamp to be an ST 0601 item 2 value we emitted.
+  Verified to fail without the `Sei0604::Generate` argument — which it did on
+  the first run, catching a real hole: before this, dropping the argument would
+  have produced an output correct in every other respect and useless to the
+  client.
+- **Upstream now replaces a source's ST 0604 rather than adding to it.** Moot
+  for Parrot MP4s, which carry none, but it means an input that arrived already
+  stamped would come out stamped by us, not by whoever made it.
+
 # Assumptions / open questions
 
-- Assumes no consumer needs a bit-faithful remux. If one appears, the fix is an
-  upstream opt-out, and this ADR should be revisited rather than worked around
-  here.
+- Assumes no consumer needs a bit-faithful remux. One is now available upstream
+  (see the revision); if a consumer asks, the work is a CLI flag here, not a
+  change upstream.
 - The 200 ms PTS tolerance and the silent no-match behaviour are upstream's
   choices, unexamined here. Whether real Parrot footage ever trips them is
   unknown — every fixture is synthetic and short.
 - Assumes stripping Picture Timing SEI is harmless for our consumers. Upstream
   did it to silence parser warnings when SPS lacks VUI timing; a consumer that
-  actually read Picture Timing would now find it gone.
+  actually read Picture Timing would now find it gone. As of their ADR 0024 this
+  only happens because we asked for generation — it is our stripping now.
 
 # Citations
 

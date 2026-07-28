@@ -5,6 +5,29 @@
      a fuller entry per significant implementation. Routine ingests/lint go here
      too. This is the ONLY home for history — PROGRESS.md is present-tense only. -->
 
+## 2026-07-28
+
+* **ST 0604 SEI is now something we ask for, not something we inherit; pinned to
+  libmisbklv `e356b0c`.** Upstream made SEI generation opt-in (their fork 22 /
+  ADR 0024) — the exact opt-out [[0006-inherited-st0604-sei-injection]] had
+  deferred as "the flag has to exist upstream first". `mux_to_ts()` now passes
+  `misbklv::Sei0604::Generate` explicitly; without it their default leaves the
+  video byte-identical and our output would carry no ST 0604 at all.
+  Revision recorded on ADR 0006 — the decision is unchanged, but it is ours to
+  state now rather than upstream's to impose.
+
+  **`mux_test` gained property 4** and it caught a real hole immediately: the
+  suite passed with SEI generation removed entirely. Nothing in this project
+  checked the video elementary stream, so the one requirement that motivated
+  ADR 0006 was untested — a dropped argument would have produced an output
+  correct in every other respect and useless to the downstream client. The test
+  now reads the output's video ES, decodes every `MISPmicrosectime` SEI, and
+  requires each timestamp to be an ST 0601 item 2 value we emitted. Verified to
+  fail without the argument. (It also caught the author's own first mistake:
+  ST 0604 carries absolute item 2 time, not the presentation timestamps.)
+
+  Full suite green on the new pin: 34/34 bare, 9/9 `-L parrot`.
+
 ## 2026-07-27
 
 * **libmisbklv rewrote its history; re-pinned to `f8773d5`.** Upstream scrubbed a

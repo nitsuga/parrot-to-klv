@@ -42,10 +42,17 @@ repeats SPS/PPS with every IDR frame. Parrot MP4s carry no SEI timestamps at all
 — timing lives in the `mett` track — so this is generated, not preserved, and it
 is what lets a consumer correlate frames without reading the KLV branch.
 
-None of that is ours: it is unconditional in the pinned libmisbklv, arrived in a
-drive-by pin bump, and has no opt-out. Why we keep it and what it costs:
+It is ours now: libmisbklv's default (`Sei0604::Preserve`) leaves the elementary
+stream byte-identical, and `mux_to_ts()` passes `Sei0604::Generate` to get this
+behaviour. It arrived as an unconditional upstream change with no opt-out, which
+is why the ADR reads as it does; the opt-out landed later, and we kept the
+behaviour deliberately. Why, and what it costs:
 [[0006-inherited-st0604-sei-injection]]. The claim that survives is **never
 decoded, never re-encoded** — not "unchanged".
+
+Under `Generate` the KLV is the stream's single timestamp authority: any ST 0604
+the source already carried is *replaced* rather than added to. Moot for Parrot
+recordings, which carry none, but it matters for an input that arrives stamped.
 
 ## One timeline, taken from the metadata track
 
