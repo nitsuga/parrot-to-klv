@@ -7,6 +7,31 @@
 
 ## 2026-07-28
 
+* **Re-pinned to libmisbklv `8e866e1` — the CI hang is fixed, and 1.24 was
+  silently keeping the source's ST 0604.** Two faults upstream, both invisible on
+  the 1.20 stack this machine runs, which is why only CI ever saw the first and
+  nothing saw the second.
+  - **The hang**: a demuxer pushes every stream from one thread, and a sink
+    prerolling in PAUSED blocks that thread until PLAYING. The fakesink taking a
+    dropped stream therefore held the video behind it, the muxer never prerolled,
+    and the pipeline never reached PLAYING. Each dropped branch now gets its own
+    `queue` (leaky=downstream). Their ADR 0020 records the queue as load-bearing
+    rather than tidiness, so a later simplification does not reintroduce it.
+  - **The silent one**: gstreamer 1.22 added a parsed payload type for
+    `user_data_unregistered`. Before that it arrived unhandled, which is all
+    their replacement check knew, so on 1.24 the source's SEIs survived beside
+    ours — the duplication their ADR 0024 exists to prevent, failing quietly.
+    Both forms are handled now, guarded by `GST_CHECK_VERSION`.
+  - **Behaviourally a no-op here**, as the last two pin moves were: on gstreamer
+    1.20 neither fault reproduces. Suites green, 9/9 `-L parrot` and 34/34 bare
+    (25 of those libmisbklv's own, matching what upstream reports under 1.24.2).
+    CI's 1.24 is the stack that judges this one — the transitive-include lesson
+    again.
+  - Upstream also gained `tools/gst-container`, which runs its suite against
+    another gstreamer; building the CI environment in docker is what finally
+    reproduced the hang locally. Nothing to adopt here, but it is where a
+    version-specific failure gets diagnosed next time.
+
 * **The `--klv` coverage report names items instead of numbering them.** It read
   `2=1538842372000000 … item 11 — format does not carry it`; it now reads
   `Item   2  Precision Time Stamp  = 1538842372000000 microseconds` and

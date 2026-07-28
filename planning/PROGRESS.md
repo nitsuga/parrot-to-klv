@@ -73,20 +73,19 @@ uses `data/` skips cleanly without it.
 
 ## In progress
 
-- **A v0.1.1 release, not yet tagged.** Two changes are on `main` and unreleased:
-  the `--klv` report now names items instead of numbering them, and there is a
-  second release deliverable — an exported container image
-  ([ADR 0010](../context/decisions/0010-container-deliverable.md)). `v0.1.0`
-  carries neither.
+- **A v0.1.1 release, not yet tagged.** Unreleased on `main`: the `--klv` report
+  now names items instead of numbering them; there is a second release
+  deliverable, an exported container image
+  ([ADR 0010](../context/decisions/0010-container-deliverable.md)); and the
+  libmisbklv pin carries its CI fix, without which a gstreamer 1.22+ host emits
+  the source's ST 0604 alongside ours. `v0.1.0` carries none of them.
 
 ## Next
 
-1. Re-pin libmisbklv to the commit carrying its CI fix — its own commit, ahead
-   of the tag
-2. Tag `v0.1.1`. `release.yml` gained a fourth job (`smoke-image`) and has only
+1. Tag `v0.1.1`. `release.yml` gained a fourth job (`smoke-image`) and has only
    ever run in its three-job form, so a `workflow_dispatch` run first would
    exercise it without publishing
-3. Resolve fork 4, Tier 2 geometry fidelity, in [ROADMAP](./ROADMAP.md), then
+2. Resolve fork 4, Tier 2 geometry fidelity, in [ROADMAP](./ROADMAP.md), then
    derive Items 21/22/23/24/25/57/78/82–89
 
 ## Known gaps

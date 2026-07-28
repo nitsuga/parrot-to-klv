@@ -21,7 +21,7 @@ include(FetchContent)
 FetchContent_Declare(
   misbklv
   GIT_REPOSITORY git@github.com:nitsuga/libmisbklv.git
-  GIT_TAG 8766e56c78648b6245ecb4d346ac0622550ecc26  # explicit demuxer, no decoder needed to not decode (its ADR 0025)
+  GIT_TAG 8e866e107088ee36abbe81a6492b505be7e62b62  # CI hang fixed: dropped streams decoupled, 1.24 SEI payload type matched
 )
 FetchContent_MakeAvailable(misbklv)
 
