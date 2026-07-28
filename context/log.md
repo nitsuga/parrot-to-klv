@@ -7,6 +7,16 @@
 
 ## 2026-07-28
 
+* **Re-pinned to libmisbklv `f8cc8c5`** — their fork-22 follow-ons, both of which
+  we get for free. `Sei0604::Generate` now *refuses* a non-H.264 source rather
+  than silently producing timestamp-free video: irrelevant to us in practice
+  (Parrot records H.264) but it turns a class of silent breakage into a startup
+  error. And the ST 0603 Time Status we emit is now derived rather than asserted
+  — bits 6/5 report a discontinuity when absolute time stops tracking the media
+  timeline, which for us means a recording whose telemetry clock jumps will say
+  so in the video stream instead of claiming linear time. Suite green on the new
+  pin: 34/34 bare, 9/9 `-L parrot`.
+
 * **ST 0604 SEI is now something we ask for, not something we inherit; pinned to
   libmisbklv `e356b0c`.** Upstream made SEI generation opt-in (their fork 22 /
   ADR 0024) — the exact opt-out [[0006-inherited-st0604-sei-injection]] had
