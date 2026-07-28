@@ -67,3 +67,4 @@ _(`type: Decision` — ADRs: the *why* of resolved forks.)_
 * [0005 — Out-of-range policy for Items 6/7](./decisions/0005-attitude-range-policy.md) — Keep the `0x8000` sentinel as the default; clamping and out-of-spec emission are opt-in flags
 * [0006 — Accept libmisbklv's ST 0604 SEI injection](./decisions/0006-inherited-st0604-sei-injection.md) — The video is never decoded but is no longer bit-identical; stop calling it a passthrough
 * [0007 — H.265 versus ST 0604 generation](./decisions/0007-h265-vs-st0604-generation.md) — Ask for ST 0604 only on H.264; carry any other codec through unstamped rather than refusing it
+* [0008 — `--force-emit-attitude` cannot do what it promises](./decisions/0008-force-emit-attitude-cannot-work.md) — **proposed**: the encoding has no headroom, so the flag emits the clamped value under an out-of-spec label; remove it

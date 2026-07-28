@@ -7,6 +7,31 @@
 
 ## 2026-07-28
 
+* **The attitude flags are tested — and the tests found that one of them cannot
+  work.** Closes fork 5's standing gap ("no test covers either flag") and opens
+  **fork 8**, [ADR 0008](./decisions/0008-force-emit-attitude-cannot-work.md)
+  (`proposed`): remove `--force-emit-attitude`.
+  - New in `transform_test`: `check_attitude_clamped` (both signs, both items,
+    and Items 90/91 still true), `check_attitude_in_range_is_untouched` (neither
+    flag may alter a value that was always emittable), and
+    `check_attitude_force_emitted`. Mutual exclusion is argument parsing rather
+    than transform, so it is a CTest — `attitude_flags_exclusive`, running the
+    CLI on a fixture it would otherwise summarise cleanly, with `WILL_FAIL`.
+  - **What the first run said:** `Item 6 carries the true pitch when
+    force-emitted — expected 45 ±0.01, got 20`. Force-emit produces exactly the
+    clamped value, byte for byte, and always: ST 0601 spends the entire int16
+    range on ±limit, `encode_out_of_spec_angle` uses that same scale, and it only
+    ever runs when the angle is already past the limit. There is no input it
+    extrapolates.
+  - Two claims in [[0005-attitude-range-policy]] corrected rather than quietly
+    edited: saturation was said to begin "beyond roughly twice the spec limit",
+    which is wrong in the flattering direction, and the assumption noting that
+    ceiling was "derived from the encoding, not measured" — which is exactly how
+    it went wrong. Deriving from a read of the code invented a working range that
+    does not exist.
+  - The failing expectation is now pinned to the real behaviour with a pointer to
+    fork 8, so the defect is asserted rather than merely known.
+
 * **Fork 7 decided — ask for ST 0604 only on H.264, carry anything else through
   unstamped.** [ADR 0007](./decisions/0007-h265-vs-st0604-generation.md),
   accepted and implemented the same day.

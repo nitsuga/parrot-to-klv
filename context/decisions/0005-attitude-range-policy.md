@@ -99,27 +99,35 @@ the pragmatic bridge; it is not an endorsement of the decoder's behaviour.
   output against ST 0601 must know which flags produced it.
 - The forced encoding **saturates**, and this is a real limit rather than a
   theoretical one: `encode_out_of_spec_angle` extrapolates linearly but pins the
-  result to `±0x7FFF`, so beyond roughly twice the spec limit (±40° for Item 6,
-  ±100° for Item 7) distinct angles encode identically. Fidelity is recovered
-  only over part of the excess range, and Items 90/91 remain the only fully
-  trustworthy source.
+  result to `±0x7FFF`.
+  > **Corrected 2026-07-28.** This bullet originally said saturation began
+  > "beyond roughly twice the spec limit (±40° for Item 6, ±100° for Item 7)",
+  > so fidelity was "recovered over part of the excess range". Both are wrong,
+  > and wrong in the flattering direction. The scale is the spec's own
+  > (`0x7FFF/limit`) and the function only runs when `|degrees| > limit`, so it
+  > saturates **always** — force-emit emits exactly the clamped value. Measured,
+  > not re-derived: [[0008-force-emit-attitude-cannot-work]]. Items 90/91 remain
+  > the only trustworthy source, which this bullet did get right.
 - `to_0601()` and `mux_to_ts()` both grew two boolean parameters. Two adjacent
   bools at a call site is a mistake waiting to happen; if a third mode ever
   appears this should become an enum.
 
 # Assumptions / open questions
 
-- **No test covers either flag.** `test/transform_test.cpp` still asserts only
-  the default `0x8000` path, so the clamping arithmetic, the extrapolation, the
-  saturation boundary and the mutual-exclusion check are all unverified by the
-  suite. This is the first thing to close on this ADR.
+- ~~**No test covers either flag.**~~ **Closed 2026-07-28.** Both branches,
+  the in-range no-op, and the mutual-exclusion rejection are now covered
+  (`check_attitude_clamped`, `check_attitude_in_range_is_untouched`,
+  `check_attitude_force_emitted`, and the `attitude_flags_exclusive` CTest).
+  Writing them is what found that force-emit never extrapolates — see the
+  correction above and [[0008-force-emit-attitude-cannot-work]].
 - Assumes that decoder's behaviour is representative of the consumers that
   matter. It is one reader, and the flag was designed from one failure report;
   if others turn out to mishandle `0x8000` differently, clamping may not be the
   shape of the fix they need either.
-- The saturation ceiling above was derived from the encoding, not measured
-  against a real flight. Whether ordinary ANAFI footage actually reaches ±40°
-  pitch often enough for it to matter is unknown.
+- ~~The saturation ceiling above was derived from the encoding, not measured.~~
+  **That was the tell.** Deriving it from a reading of the code rather than
+  running it produced a threshold off by the whole working range. It is now
+  measured, and there is no ceiling to speak of — saturation is immediate.
 
 # Citations
 

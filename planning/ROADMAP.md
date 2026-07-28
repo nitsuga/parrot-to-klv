@@ -61,6 +61,11 @@ A *fork* is a decision point — a branch in the plan/design that needs a choice
 Status legend: `OPEN` (undiscussed) · `PROPOSED` (Decision concept written,
 `status: proposed`) · `DECIDED` / `DEFERRED` (has an ADR — see the register).
 
+- **Fork 8 — what to do about `--force-emit-attitude`** `PROPOSED`: the flag
+  cannot keep its promise — ST 0601 spends the whole int16 range on ±limit, so
+  the encoding saturates immediately and force-emit emits exactly the clamped
+  value under an "out-of-spec" label. Proposal is to remove it:
+  [ADR 0008](../context/decisions/0008-force-emit-attitude-cannot-work.md).
 - **Fork 4 — Tier 2 geometry fidelity** `OPEN`: flat-earth intersection vs. a
   DTED terrain model for frame centre, corner points, and slant/ground range.
   Weighs a data dependency against accuracy on sloped terrain. **Now open** —

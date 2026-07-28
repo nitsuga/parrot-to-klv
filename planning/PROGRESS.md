@@ -64,8 +64,8 @@ uses `data/` skips cleanly without it.
 
 ## Next
 
-1. Cover the two attitude override flags in `transform_test` — both branches,
-   the saturation boundary, and the mutually-exclusive rejection
+1. Resolve fork 8 — remove `--force-emit-attitude`, or say what it should be
+   instead ([ADR 0008](../context/decisions/0008-force-emit-attitude-cannot-work.md))
 2. Resolve fork 4, Tier 2 geometry fidelity, in [ROADMAP](./ROADMAP.md), then
    derive Items 21/22/23/24/25/57/78/82–89
 
@@ -81,11 +81,12 @@ uses `data/` skips cleanly without it.
   intersection — the substantive remaining work in the transform stage, and the
   one part of the mapping with no direct Parrot source. Its fidelity is fork 4,
   now open in [ROADMAP](./ROADMAP.md).
-- **Neither attitude override flag is tested.** `transform_test` still asserts
-  only the default `0x8000` path, so the clamping, the out-of-spec
-  extrapolation and its saturation ceiling, and the mutual-exclusion check are
-  all unverified ([ADR 0005](../context/decisions/0005-attitude-range-policy.md)
-  § Assumptions).
+- **`--force-emit-attitude` does not do what it says.** It emits exactly the
+  clamped value — the ST 0601 encoding has no room past ±limit — while labelling
+  it out-of-spec. Found by the tests that now cover both flags. Fork 8, proposed
+  in [ADR 0008](../context/decisions/0008-force-emit-attitude-cannot-work.md):
+  remove the flag. Until then `transform_test` asserts the defect so it cannot
+  drift further.
 - Item 2 for v3 recordings is anchored to session `media_date`, so it inherits
   that field's **second** granularity. Frame-to-frame spacing stays exact.
 - The mux has run on real footage on an authorized machine — that is what found
