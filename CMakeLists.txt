@@ -21,7 +21,7 @@ include(FetchContent)
 FetchContent_Declare(
   misbklv
   GIT_REPOSITORY git@github.com:nitsuga/libmisbklv.git
-  GIT_TAG 8e866e107088ee36abbe81a6492b505be7e62b62  # CI hang fixed: dropped streams decoupled, 1.24 SEI payload type matched
+  GIT_TAG 4ced331f0d00dfb407adaf5ad114308b52694b11  # PMT stream order fixed: video is 0:0, KLV is 0:1
 )
 FetchContent_MakeAvailable(misbklv)
 

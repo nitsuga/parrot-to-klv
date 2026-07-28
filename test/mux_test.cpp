@@ -244,6 +244,17 @@ void check_conversion(const std::string& name, const std::string& mp4,
     check(has_video, name + ": no video elementary stream in the output");
     check(has_klv, name + ": no KLV (0x06 + KLVA) elementary stream in the output");
 
+    // …and video is listed first. Not cosmetic: consumers that address streams
+    // positionally take 0:0 as the video, and this output announced the KLV
+    // there until the pin moved to libmisbklv 4ced331. `read_pmt` preserves PMT
+    // order, so the first entry is what a consumer sees as stream 0.
+    if (streams.size() == 2) {
+        const bool video_first =
+            streams[0].stream_type == 0x1B || streams[0].stream_type == 0x24;
+        check(video_first, name + ": PMT lists the KLV before the video — a consumer "
+                                  "addressing 0:0 as video gets the metadata stream");
+    }
+
     // 2 and 3. Read the KLV back as a consumer would — bytes and timing both.
     std::vector<misbklv::Message> read_back;
     std::vector<int64_t> pts;

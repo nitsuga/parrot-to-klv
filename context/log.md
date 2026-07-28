@@ -7,6 +7,25 @@
 
 ## 2026-07-28
 
+* **libmisbklv re-pinned to `4ced331` — the output's PMT listed the KLV before
+  the video.** `mpegtsmux` assigns PMT order by sink-pad *request* order, not
+  bin-add order, and upstream linked the KLV appsrc before the video demuxer's
+  pad appeared, so the KLV always claimed `sink_0`. Upstream now defers the
+  appsrc link until after the video-pad wait.
+  - **This was our output, not a theoretical upstream bug.** Every `-o`
+    conversion this project has ever produced announced the metadata stream at
+    0:0. A consumer addressing streams positionally — `-map 0:0`, "stream 0 is
+    the video" — got the KLV.
+  - Confirmed by converting all four video fixtures before and after: v3, proto,
+    the audio-bearing one and the H.265 one all flip from `0=klv, 1=video` to
+    `0=video, 1=klv`.
+  - **`mux_test` now asserts the order**, not just the membership — the property
+    was load-bearing and held only by upstream's behaviour. The old pin's output
+    is on record as failing it (ffprobe read `stream 0 = klv` from the before
+    files), though the assertion was written after the bump rather than run
+    against the old build.
+  - Suites green: 9/9 `-L parrot`, 34/34 bare.
+
 * **Item 11 can now be inferred for v3, behind `--infer-image-source`** —
   [ADR 0011](./decisions/0011-inferred-image-source-sensor.md), fork 11. v3
   states no imaging spectrum, so every ANAFI-range conversion reported Item 11 as
