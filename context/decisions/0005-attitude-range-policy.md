@@ -110,16 +110,29 @@ the pragmatic bridge; it is not an endorsement of the decoder's behaviour.
   > the only trustworthy source, which this bullet did get right.
 - `to_0601()` and `mux_to_ts()` both grew two boolean parameters. Two adjacent
   bools at a call site is a mistake waiting to happen; if a third mode ever
-  appears this should become an enum.
+  appears this should become an enum. *(Back to one, per the revision below.)*
+
+# Revision — 2026-07-28: one of the two escape hatches is gone
+
+`--force-emit-attitude` was removed. It never did what this ADR said it did:
+ST 0601 maps ±limit onto the whole int16 range, so there is no encoding for a
+larger angle, and the flag emitted exactly the clamped value while labelling it
+out-of-spec. Found by the tests this ADR asked for.
+[[0008-force-emit-attitude-cannot-work]] carries the reasoning and the removal.
+
+**The decision above otherwise stands unchanged**: the `0x8000` sentinel is
+still the default, `--clamp-attitude` is still the opt-in for consumers that
+cannot parse it, and Items 90/91 are still where the true attitude lives — which
+this ADR always said, and which is now the only answer for fidelity rather than
+one of two.
 
 # Assumptions / open questions
 
-- ~~**No test covers either flag.**~~ **Closed 2026-07-28.** Both branches,
-  the in-range no-op, and the mutual-exclusion rejection are now covered
-  (`check_attitude_clamped`, `check_attitude_in_range_is_untouched`,
-  `check_attitude_force_emitted`, and the `attitude_flags_exclusive` CTest).
-  Writing them is what found that force-emit never extrapolates — see the
-  correction above and [[0008-force-emit-attitude-cannot-work]].
+- ~~**No test covers either flag.**~~ **Closed 2026-07-28.** What survives the
+  removal is covered: `check_attitude_clamped` (both signs, both items, Items
+  90/91 still true) and `check_attitude_in_range_is_untouched`. Writing these is
+  what found that force-emit never extrapolated — see the correction above and
+  [[0008-force-emit-attitude-cannot-work]].
 - Assumes that decoder's behaviour is representative of the consumers that
   matter. It is one reader, and the flag was designed from one failure report;
   if others turn out to mishandle `0x8000` differently, clamping may not be the

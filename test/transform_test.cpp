@@ -374,7 +374,7 @@ void check_attitude_clamped() {
     // --clamp-attitude: emit the spec limit instead of the 0x8000 sentinel, for
     // consumers that treat a missing key as a parse failure (ADR 0005).
     auto snapshot = steep_snapshot(45.0, 0.0);
-    const auto klv = to_0601(snapshot, nullptr, /*clamp=*/true, /*force_emit=*/false);
+    const auto klv = to_0601(snapshot, nullptr, /*clamp=*/true);
     const auto decoded = decode_packet(klv.packet);
     check(decoded.parsed, "clamped packet parses");
 
@@ -389,63 +389,26 @@ void check_attitude_clamped() {
     // Negative side, and Item 7's wider limit.
     auto rolled = steep_snapshot(0.0, -70.0);
     const auto neg = decode_packet(
-        to_0601(rolled, nullptr, /*clamp=*/true, /*force_emit=*/false).packet);
+        to_0601(rolled, nullptr, /*clamp=*/true).packet);
     check_near(neg.reals.at(7), -50.0, 0.01, "Item 7 clamps to its -50 limit");
     check_near(neg.reals.at(91), -70.0, 0.01, "Item 91 keeps the true roll");
 }
 
 void check_attitude_in_range_is_untouched() {
-    // Neither flag may alter a value that was always emittable — a flag that
+    // The flag may not alter a value that was always emittable — a flag that
     // changes in-range behaviour is a flag that changes every conversion.
     auto snapshot = steep_snapshot(10.0, 0.0);
     const auto plain = decode_packet(to_0601(snapshot).packet);
     const auto clamped = decode_packet(
-        to_0601(snapshot, nullptr, /*clamp=*/true, /*force_emit=*/false).packet);
-    const auto forced = decode_packet(
-        to_0601(snapshot, nullptr, /*clamp=*/false, /*force_emit=*/true).packet);
+        to_0601(snapshot, nullptr, /*clamp=*/true).packet);
 
     check_near(plain.reals.at(6), 10.0, 0.01, "in-range pitch is emitted as measured");
     check_near(clamped.reals.at(6), plain.reals.at(6), 1e-9,
                "--clamp-attitude leaves an in-range Item 6 alone");
-    check_near(forced.reals.at(6), plain.reals.at(6), 1e-9,
-               "--force-emit-attitude leaves an in-range Item 6 alone");
 
-    const auto klv = to_0601(snapshot, nullptr, /*clamp=*/true, /*force_emit=*/false);
+    const auto klv = to_0601(snapshot, nullptr, /*clamp=*/true);
     check(klv.coverage.emitted.at(6).find("clamped") == std::string::npos,
           "an in-range item is not labelled clamped");
-}
-
-void check_attitude_force_emitted() {
-    // --force-emit-attitude: deliberately non-compliant, encoding an angle the
-    // item's range cannot express (ADR 0005).
-    auto snapshot = steep_snapshot(45.0, 0.0);
-    const auto klv = to_0601(snapshot, nullptr, /*clamp=*/false, /*force_emit=*/true);
-    const auto decoded = decode_packet(klv.packet);
-    check(decoded.parsed, "force-emitted packet parses");
-
-    check(klv.coverage.emitted.at(6).find("out-of-spec") != std::string::npos,
-          "coverage labels Item 6 as out-of-spec");
-    check(decoded.raw_len.at(6) == 2, "Item 6 is still a 2-byte item");
-    check_near(decoded.reals.at(90), 45.0, 0.01, "Item 90 is unaffected by force-emit");
-
-    // What the encoding actually carries — and it is not the true pitch.
-    //
-    // **This asserts a known defect** (fork 8,
-    // `0008-force-emit-attitude-cannot-work.md`). ST 0601 already spends the
-    // whole int16 range on ±limit, so `encode_out_of_spec_angle`'s scale of
-    // 0x7FFF/limit leaves no headroom: it is only ever called when
-    // |degrees| > limit, so the result always saturates to 0x7FFF. Force-emit
-    // therefore produces *exactly the clamped value*, byte for byte, while
-    // labelling it "out-of-spec".
-    //
-    // If you are here because this failed, you have probably fixed the flag —
-    // update this expectation and close fork 8.
-    const auto clamped = decode_packet(
-        to_0601(snapshot, nullptr, /*clamp=*/true, /*force_emit=*/false).packet);
-    check_near(decoded.reals.at(6), 20.0, 0.01,
-               "force-emit saturates at the spec limit rather than carrying 45");
-    check_near(decoded.reals.at(6), clamped.reals.at(6), 1e-9,
-               "force-emit and clamp emit the same value — only the label differs");
 }
 
 void check_status_enums() {
@@ -496,7 +459,6 @@ int main() {
     check_narrow_angle_specials();
     check_attitude_clamped();
     check_attitude_in_range_is_untouched();
-    check_attitude_force_emitted();
     check_status_enums();
     check_course_angle_omitted_when_stationary();
 

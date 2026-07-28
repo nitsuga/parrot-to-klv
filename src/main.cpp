@@ -109,7 +109,7 @@ void print_frame(const ParrotProtoFrame& f, bool with_location) {
 template <typename Parse, typename Normalize>
 int decode_all(Mp4MetadataExtractor& extractor, const SessionMetadata& session,
                Disclosure disclosure, bool show_klv, bool clamp_attitude,
-               bool force_emit_attitude, Parse parse, Normalize normalize) {
+               Parse parse, Normalize normalize) {
     uint32_t decoded = 0;
     uint32_t failed = 0;
     const uint32_t to_show = std::min(3u, extractor.sample_count());
@@ -145,7 +145,7 @@ int decode_all(Mp4MetadataExtractor& extractor, const SessionMetadata& session,
                 // v3 frames carry only a monotonic clock; the session's media
                 // date is what turns it into wall time.
                 anchor_to_session(snapshot, session, first_monotonic_us);
-                const auto klv = to_0601(snapshot, &session, clamp_attitude, force_emit_attitude);
+                const auto klv = to_0601(snapshot, &session, clamp_attitude);
                 std::cout << "    -> ST 0601 packet: " << klv.packet.size() << " bytes\n"
                           << klv.coverage.to_text(disclosure);
             }
@@ -167,7 +167,6 @@ int main(int argc, char* argv[]) {
     bool show_klv = false;
     bool with_identity = false;
     bool clamp_attitude = false;
-    bool force_emit_attitude = false;
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
         if (arg == "--with-location") {
@@ -179,18 +178,21 @@ int main(int argc, char* argv[]) {
         } else if (arg == "--clamp-attitude") {
             clamp_attitude = true;
         } else if (arg == "--force-emit-attitude") {
-            force_emit_attitude = true;
+            // Removed (ADR 0008). Rejected rather than ignored: an unknown
+            // argument here is silently dropped, and this one used to change
+            // output, so a script still passing it deserves to be told rather
+            // than to get the default and assume otherwise.
+            std::cerr << "Error: --force-emit-attitude has been removed. It never emitted\n"
+                         "out-of-spec values — ST 0601 has no encoding for an angle past\n"
+                         "Items 6/7's range, so it produced exactly what --clamp-attitude\n"
+                         "produces. Use --clamp-attitude, or read Items 90/91, which always\n"
+                         "carry the true full-range attitude.\n";
+            return 1;
         } else if ((arg == "-o" || arg == "--output") && i + 1 < argc) {
             output = argv[++i];
         } else if (input.empty()) {
             input = arg;
         }
-    }
-
-    // Validate flag combination
-    if (clamp_attitude && force_emit_attitude) {
-        std::cerr << "Error: --clamp-attitude and --force-emit-attitude are mutually exclusive\n";
-        return 1;
     }
 
     if (input.empty()) {
@@ -209,17 +211,14 @@ int main(int argc, char* argv[]) {
                   << "Attitude handling (Items 6/7):\n"
                   << "  --clamp-attitude clamps pitch/roll to spec ranges (±20°, ±50°)\n"
                   << "  instead of emitting 0x8000 when out of range. Use for consumers\n"
-                  << "  that can't handle missing values gracefully.\n"
-                  << "  --force-emit-attitude emits actual values even when out-of-spec.\n"
-                  << "  WARNING: produces non-compliant ST 0601. Use only when the consumer\n"
-                  << "  requires it and you accept the consequences. Mutually exclusive\n"
-                  << "  with --clamp-attitude.\n";
+                  << "  that can't handle missing values gracefully. Items 90/91 always\n"
+                  << "  carry the true full-range attitude either way.\n";
         return 1;
     }
 
     // Converting is the tool's job; the summary below is the inspection mode.
     if (!output.empty()) {
-        const auto report = mux_to_ts(input, output, clamp_attitude, force_emit_attitude);
+        const auto report = mux_to_ts(input, output, clamp_attitude);
         if (!report.error.empty()) {
             std::cerr << "Conversion failed: " << report.error << "\n";
             return 1;
@@ -281,7 +280,7 @@ int main(int argc, char* argv[]) {
     if (info.format == ParrotFormat::V3) {
         std::cout << "\n--- Decoding v3 samples ---\n";
         return decode_all(
-            *extractor, session, disclosure, show_klv, clamp_attitude, force_emit_attitude,
+            *extractor, session, disclosure, show_klv, clamp_attitude,
             [](std::span<const uint8_t> data, std::string& error) -> std::optional<ParrotV3Frame> {
                 ParrotV3Error err{};
                 auto frame = parse_v3(data, &err);
@@ -293,7 +292,7 @@ int main(int argc, char* argv[]) {
     if (info.format == ParrotFormat::Proto) {
         std::cout << "\n--- Decoding proto samples ---\n";
         return decode_all(
-            *extractor, session, disclosure, show_klv, clamp_attitude, force_emit_attitude,
+            *extractor, session, disclosure, show_klv, clamp_attitude,
             [](std::span<const uint8_t> data,
                std::string& error) -> std::optional<ParrotProtoFrame> {
                 ParrotProtoError err{};

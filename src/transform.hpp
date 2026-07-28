@@ -101,18 +101,19 @@ struct Klv0601Frame {
 /// **Attitude handling (Items 6/7)**: By default, when platform pitch exceeds
 /// ±20° or roll exceeds ±50°, the spec-mandated 0x8000 "out-of-range" sentinel
 /// is emitted. Some consumers treat this as a missing value and fail.
-/// - `clamp_attitude`: clamps to spec limits, ensuring numeric values always present
-/// - `force_emit_attitude`: emits actual values even when out-of-spec (extrapolates
-///   the Item 6/7 encoding beyond its defined range). **Non-compliant**: use only
-///   when the consumer requires it and you accept the consequences.
-/// Items 90/91 always carry accurate full-range values regardless of these flags.
+/// - `clamp_attitude`: clamps to spec limits, ensuring numeric values are always
+///   present. The clamped item is labelled as such in the coverage report.
+///
+/// There is no option to emit the true angle here, and there cannot be: ST 0601
+/// maps ±limit onto the whole int16 range, so a larger value has no encoding in
+/// these items (ADR 0008). Items 90/91 always carry accurate full-range values,
+/// which is where a consumer wanting the real attitude should read.
 ///
 /// Returns an empty packet if encoding fails; `coverage` still describes what
 /// was attempted.
 Klv0601Frame to_0601(const TelemetrySnapshot& snapshot,
                      const SessionMetadata* session = nullptr,
-                     bool clamp_attitude = false,
-                     bool force_emit_attitude = false);
+                     bool clamp_attitude = false);
 
 /// Fill in `snapshot.utc_timestamp_us` for a recording whose frames carry only
 /// a monotonic clock, by anchoring that clock to the session's media date.

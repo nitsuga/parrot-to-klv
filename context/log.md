@@ -7,6 +7,20 @@
 
 ## 2026-07-28
 
+* **Fork 8 decided — `--force-emit-attitude` removed.**
+  [ADR 0008](./decisions/0008-force-emit-attitude-cannot-work.md), accepted and
+  implemented the same day. `encode_out_of_spec_angle`, the `force_emit`
+  parameter through `to_0601()` and `mux_to_ts()`, the mutual-exclusion check and
+  its CTest all go with it; `to_0601()` is back to one boolean.
+  - **The flag errors rather than being ignored.** An unrecognised argument is
+    silently dropped by this CLI, and this one used to change output, so passing
+    it now explains what it actually did and points at Items 90/91. A script
+    still carrying it gets told instead of quietly getting the default.
+  - `put_narrow_angle` keeps a comment saying why there is no third branch, so
+    the next person to think "we should just emit the real angle" finds the
+    reason rather than the idea.
+  - [[0005-attitude-range-policy]] revised, not rewritten: the reasoning that led
+    to the flag was sound and the error was believing the encoding had room.
 * **The attitude flags are tested — and the tests found that one of them cannot
   work.** Closes fork 5's standing gap ("no test covers either flag") and opens
   **fork 8**, [ADR 0008](./decisions/0008-force-emit-attitude-cannot-work.md)

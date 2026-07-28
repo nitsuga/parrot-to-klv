@@ -66,7 +66,7 @@ uint32_t video_sample_entry(FILE* file) {
 template <typename Parse, typename Normalize, typename Emit>
 void convert_all(Mp4MetadataExtractor& extractor, const SessionMetadata& session,
                  Parse parse, Normalize normalize, Emit emit, MuxReport& report,
-                 bool clamp_attitude, bool force_emit_attitude) {
+                 bool clamp_attitude) {
     // The first sample's clock is the origin the session media date anchors to,
     // so it has to be read before the loop rather than discovered inside it.
     uint64_t first_monotonic_us = 0;
@@ -91,7 +91,7 @@ void convert_all(Mp4MetadataExtractor& extractor, const SessionMetadata& session
         }
         auto snapshot = normalize(*frame);
         anchor_to_session(snapshot, session, first_monotonic_us);
-        auto klv = to_0601(snapshot, &session, clamp_attitude, force_emit_attitude);
+        auto klv = to_0601(snapshot, &session, clamp_attitude);
         if (klv.packet.empty()) {
             ++report.frames_skipped;
             continue;
@@ -104,7 +104,7 @@ void convert_all(Mp4MetadataExtractor& extractor, const SessionMetadata& session
 }  // namespace
 
 MuxReport mux_to_ts(const std::string& input, const std::string& output,
-                    bool clamp_attitude, bool force_emit_attitude) {
+                    bool clamp_attitude) {
     MuxReport report;
 
     auto extractor = Mp4MetadataExtractor::open(input);
@@ -205,7 +205,7 @@ MuxReport mux_to_ts(const std::string& input, const std::string& output,
                 return frame;
             },
             [](const ParrotV3Frame& f) { return from_v3(f); }, emit, report,
-            clamp_attitude, force_emit_attitude);
+            clamp_attitude);
     } else {
         convert_all(
             *extractor, session,
@@ -217,7 +217,7 @@ MuxReport mux_to_ts(const std::string& input, const std::string& output,
                 return frame;
             },
             [](const ParrotProtoFrame& f) { return from_proto(f); }, emit, report,
-            clamp_attitude, force_emit_attitude);
+            clamp_attitude);
     }
 
     // Clear the progress line

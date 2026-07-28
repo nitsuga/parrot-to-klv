@@ -52,12 +52,14 @@ identity are withheld from that report unless `--with-location` /
 `--with-identity` ask for them.
 
 **Attitude handling:** Items 6/7 (Platform Pitch/Roll) have narrow spec ranges
-(±20°, ±50°) which quadcopters routinely exceed. By default, the spec-mandated
-`0x8000` "out-of-range" sentinel is emitted. Some consumers can't handle this:
-- `--clamp-attitude` clamps to spec limits (consumer-friendly)
-- `--force-emit-attitude` emits actual values (non-compliant, use with caution)
+(±20°, ±50°) which quadcopters routinely exceed. By default the spec-mandated
+`0x8000` "out-of-range" sentinel is emitted; `--clamp-attitude` emits the spec
+limit instead, for consumers that treat a missing value as a parse failure.
 
-Items 90/91 always carry accurate full-range values regardless.
+**Items 90/91 always carry accurate full-range values**, and are where to read
+the real attitude. There is no option to put the true angle into Items 6/7:
+ST 0601 maps ±limit onto the whole 16-bit range, so a larger value has no
+encoding there at all.
 
 The tests run against synthetic fixtures in `test/fixtures/`, so `ctest` needs no
 drone footage. Real test inputs live in `data/`, which is **gitignored** — it

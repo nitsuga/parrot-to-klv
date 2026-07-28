@@ -54,11 +54,9 @@ struct MuxReport {
 ///
 /// `clamp_attitude`: when true, clamps Items 6/7 to their spec ranges (±20°,
 /// ±50°) instead of emitting the 0x8000 "out-of-range" sentinel. Use for
-/// consumers that can't handle missing values gracefully.
-///
-/// `force_emit_attitude`: when true, emits actual values for Items 6/7 even when
-/// out-of-spec (extrapolates encoding beyond defined range). **Non-compliant**.
+/// consumers that can't handle missing values gracefully; Items 90/91 carry the
+/// true attitude either way (ADR 0005, ADR 0008).
 MuxReport mux_to_ts(const std::string& input, const std::string& output,
-                    bool clamp_attitude = false, bool force_emit_attitude = false);
+                    bool clamp_attitude = false);
 
 }  // namespace parrot_to_klv

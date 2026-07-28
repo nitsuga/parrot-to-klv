@@ -101,16 +101,6 @@ target_link_libraries(transform_test PRIVATE parrot_extract)
 
 add_test(NAME transform COMMAND transform_test)
 
-# The attitude flags are mutually exclusive, and that guard lives in argument
-# parsing rather than the transform — so it is reachable only through the CLI.
-# The fixture is a valid input the tool would otherwise summarise successfully,
-# which is what makes a non-zero exit mean "the flags were rejected" rather than
-# "something else went wrong".
-add_test(NAME attitude_flags_exclusive
-         COMMAND parrot-to-klv ${CMAKE_SOURCE_DIR}/test/fixtures/parrot_v3.mp4
-                               --clamp-attitude --force-emit-attitude)
-set_tests_properties(attitude_flags_exclusive PROPERTIES WILL_FAIL TRUE)
-
 # The mux stage needs a media backend, so this test needs one too — it converts
 # a fixture and reads the result back as a consumer would.
 add_executable(mux_test test/mux_test.cpp)
@@ -151,5 +141,5 @@ set_tests_properties(conformance_real_data PROPERTIES SKIP_RETURN_CODE 77)
 # asks for in exchange for not enumerating someone else's tests to exclude.
 set_tests_properties(
   mp4_extraction parrot_v3 parrot_proto session_metadata transform mux
-  parrot_scrub conformance conformance_real_data attitude_flags_exclusive
+  parrot_scrub conformance conformance_real_data
   PROPERTIES LABELS parrot)

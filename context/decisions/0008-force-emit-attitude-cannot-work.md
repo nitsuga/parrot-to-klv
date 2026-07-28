@@ -2,7 +2,7 @@
 type: Decision
 title: ADR 0008 — `--force-emit-attitude` cannot do what it promises
 description: ST 0601 spends the whole int16 range on ±limit, so there is no headroom to encode a value beyond it — the flag emits exactly the clamped value while labelling it out-of-spec
-status: proposed
+status: accepted
 fork: 8
 tags: [decision, transform, mapping, misb, 0601, cli]
 timestamp: 2026-07-28T01:00:00Z
@@ -58,7 +58,7 @@ implied a working range that does not exist. Corrected there.
 
 # Decision
 
-**Proposed: remove `--force-emit-attitude`.**
+**Remove `--force-emit-attitude`.**
 
 The flag cannot keep its promise, and the two behaviours it could honestly
 provide are already covered — spec-compliant `0x8000` by default,
@@ -104,14 +104,18 @@ of a conversion.
 - A CLI flag disappears. It is only days old and its behaviour was never
   distinguishable from `--clamp-attitude`, so no output changes and no consumer
   can be relying on it for what it claimed.
-- `encode_out_of_spec_angle` and the `force_emit` parameter come out of
-  `to_0601()` and `mux_to_ts()`, which returns those signatures to one boolean
-  and removes the mutually-exclusive check along with it.
-- The tests asserting the defect (`check_attitude_force_emitted`) go with the
-  flag; the clamp and in-range coverage stays.
-- ADR 0005 needs a revision recording that one of its two escape hatches was
-  unimplementable, rather than being quietly rewritten — the reasoning that led
-  to it was sound, and the error was in believing the encoding had room.
+- `encode_out_of_spec_angle` and the `force_emit` parameter came out of
+  `to_0601()` and `mux_to_ts()`, returning those signatures to one boolean and
+  removing the mutually-exclusive check — and its CTest — along with them.
+- The test asserting the defect went with the flag; the clamp and in-range
+  coverage stayed.
+- **The flag is rejected, not ignored.** An unrecognised argument is silently
+  dropped by the CLI, and this one used to change output, so passing it now
+  errors with what it actually did and where to read the true attitude. A script
+  still carrying it gets told rather than quietly getting the default.
+- ADR 0005 records the correction in place rather than being quietly rewritten:
+  the reasoning that led to the flag was sound, and the error was in believing
+  the encoding had room.
 
 # Assumptions / open questions
 
@@ -131,5 +135,5 @@ of a conversion.
   § Consequences mis-stated the saturation threshold
 - `src/transform.cpp`, `encode_out_of_spec_angle` — the scale that leaves no
   headroom
-- `test/transform_test.cpp`, `check_attitude_force_emitted` — the failing
-  expectation that surfaced this, now pinned to the real behaviour
+- `test/transform_test.cpp`, `check_attitude_clamped` and
+  `check_attitude_in_range_is_untouched` — what survives the removal

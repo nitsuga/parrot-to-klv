@@ -46,8 +46,8 @@ behaviour: [mux stage](../context/mux-stage.md).
 **Three tools build.** `parrot-to-klv` converts with `-o` (shows progress every
 10%) and summarises without it (`--klv` for the 0601 mapping and its coverage;
 location and device identity are withheld unless `--with-location` /
-`--with-identity`; `--clamp-attitude` / `--force-emit-attitude` override the
-Items 6/7 out-of-range default per
+`--with-identity`; `--clamp-attitude` overrides the Items 6/7
+out-of-range default per
 [ADR 0005](../context/decisions/0005-attitude-range-policy.md)). `parrot-scrub`
 replaces a recording's location fields so a real flight can become a fixture.
 `parrot-conform` commits
@@ -64,9 +64,7 @@ uses `data/` skips cleanly without it.
 
 ## Next
 
-1. Resolve fork 8 — remove `--force-emit-attitude`, or say what it should be
-   instead ([ADR 0008](../context/decisions/0008-force-emit-attitude-cannot-work.md))
-2. Resolve fork 4, Tier 2 geometry fidelity, in [ROADMAP](./ROADMAP.md), then
+1. Resolve fork 4, Tier 2 geometry fidelity, in [ROADMAP](./ROADMAP.md), then
    derive Items 21/22/23/24/25/57/78/82–89
 
 ## Known gaps
@@ -81,12 +79,6 @@ uses `data/` skips cleanly without it.
   intersection — the substantive remaining work in the transform stage, and the
   one part of the mapping with no direct Parrot source. Its fidelity is fork 4,
   now open in [ROADMAP](./ROADMAP.md).
-- **`--force-emit-attitude` does not do what it says.** It emits exactly the
-  clamped value — the ST 0601 encoding has no room past ±limit — while labelling
-  it out-of-spec. Found by the tests that now cover both flags. Fork 8, proposed
-  in [ADR 0008](../context/decisions/0008-force-emit-attitude-cannot-work.md):
-  remove the flag. Until then `transform_test` asserts the defect so it cannot
-  drift further.
 - Item 2 for v3 recordings is anchored to session `media_date`, so it inherits
   that field's **second** granularity. Frame-to-frame spacing stays exact.
 - The mux has run on real footage on an authorized machine — that is what found
