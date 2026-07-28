@@ -7,6 +7,15 @@
 
 ## 2026-07-28
 
+* **CONVENTIONS § Linking now documents what the bundle actually does.** It had
+  recommended root-absolute `[Title](/concept.md)` first — a form that resolves
+  against the site root, so it works nowhere — and the only instance of it in the
+  whole bundle was that recommendation. It also never mentioned `[[slug]]`
+  wikilinks, which are the dominant form here (86 uses against 40 markdown
+  links). Rewritten by audience: wikilinks for concept→concept inside the
+  bundle, sibling-relative markdown where a person will click it on GitHub or
+  the target is outside `context/`, root-absolute never.
+
 * **Lint (drift sweep).** Two stale present-tense claims after the opt-in
   change: README described ST 0604 as something "libmisbklv generates" (it now
   generates it because we ask — its default leaves the video alone), in both the

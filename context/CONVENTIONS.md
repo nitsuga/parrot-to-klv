@@ -103,10 +103,22 @@ immediately).
 
 # Linking
 
-Prefer bundle-relative links resolved from `context/`: `[Title](/concept.md)` or
-`[Title](./concept.md)`. Relationship semantics — references, nests-in,
-depends-on — live in the surrounding prose; the link itself is untyped. Broken
-links are not errors; they may be not-yet-written knowledge.
+Two forms, by audience:
+
+- **`[[slug]]`** for one concept referring to another inside the bundle — the
+  bundle's usual form, resolved by name rather than path, so moving a file does
+  not break it. GitHub does not render it as a link.
+- **`[Title](./concept.md)`**, sibling-relative, when the link must be clickable
+  on GitHub — anything a person is likely to read there — or when the target is
+  outside `context/` (`../planning/ROADMAP.md`, `../references/…`).
+
+Never root-absolute (`](/concept.md)`): it resolves against the *site* root, not
+the bundle, so it works nowhere — not on GitHub, not in an editor, not for an
+agent following paths.
+
+Relationship semantics — references, nests-in, depends-on — live in the
+surrounding prose; the link itself is untyped. Broken links are not errors; they
+may be not-yet-written knowledge.
 
 # Reserved files
 
