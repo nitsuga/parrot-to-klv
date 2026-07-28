@@ -7,6 +7,28 @@
 
 ## 2026-07-27
 
+* **libmisbklv rewrote its history; re-pinned to `f8773d5`.** Upstream scrubbed a
+  third-party product name from source comments and docs, which rewrote every
+  commit from their fork-21 work onward. Our pin `8c296da` was a descendant of
+  the scrubbed commit, so it stopped existing: a fresh clone would have failed at
+  `FetchContent` even though this machine still resolved it from cached objects.
+  Full suite green on the new pin: 9/9 `-L parrot`, 34/34 bare, and
+  `TurboVideo`-equivalent content is gone from their history, not just their tip
+  (`git log --all -S` finds nothing).
+  - **The entries below keep their original hashes** — they record what we
+    actually pinned at the time, and falsifying that would defeat the point of a
+    chronological log. Anything at or before `c0d4844` is untouched by the
+    rewrite and still resolvable. The orphaned ones map as:
+
+    | Cited below (orphaned) | Now | What it is |
+    |---|---|---|
+    | `f6d52e4` | `032db10` | ST 0604 SEI generation, their fork 21 / ADR 0023 |
+    | `b454415` | `5b71ce8` | the merge our drive-by bump landed on |
+    | `c093202` | `38400a7` | docs reconciled with their ADR 0023 |
+    | `8c296da` | `60d8e7e` | their doc-hygiene lint |
+
+  - ADR 0006's citations were updated in place instead, since a citation is meant
+    to be followed; `e3c7f4a` and `f9070fb` there survive the rewrite unchanged.
 * **Sanitized a third-party product name out of ADRs 0005 and 0006.** A
   downstream consumer was named outright in four places; it is now described by
   what it does ("a downstream KLV decoder", "the consumer's decoder"). No

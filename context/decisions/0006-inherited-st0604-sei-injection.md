@@ -18,7 +18,7 @@ codec branching — whatever the drone encoded is what comes out.
 That promise is no longer true, and it stopped being true without anyone here
 deciding it should.
 
-libmisbklv `f6d52e4` (their fork 21 / ADR 0023) sets `generate_sei = true`
+libmisbklv `032db10` (their fork 21 / ADR 0023) sets `generate_sei = true`
 unconditionally on the MP4-video-source path — the path `mux_to_ts()` takes.
 Together with `e3c7f4a` the muxer now, on every conversion:
 
@@ -126,5 +126,7 @@ while the consumer we do have needs the opposite.
 - [[mux-stage]] § Video is never decoded — the corrected description
 - [[0001-mp4-extraction-approach]] § the GStreamer video path — the original
   "re-muxed unchanged" claim, now annotated
-- libmisbklv ADR 0023 (fork 21), commits `e3c7f4a` and `f6d52e4`; pin history in
-  [[log]] § 2026-07-27
+- libmisbklv ADR 0023 (fork 21), commits `e3c7f4a` and `032db10`; pin history in
+  [[log]] § 2026-07-27. Upstream rewrote history on 2026-07-27, so this ADR's
+  original citation (`f6d52e4`) is orphaned — `032db10` is the same change under
+  its post-rewrite hash.

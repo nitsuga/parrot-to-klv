@@ -21,7 +21,7 @@ include(FetchContent)
 FetchContent_Declare(
   misbklv
   GIT_REPOSITORY git@github.com:nitsuga/libmisbklv.git
-  GIT_TAG 8c296da4918a09382335a2e7cbfda5f521ecf4c8  # doc hygiene pass
+  GIT_TAG f8773d54fd7a7f5d02fdbccc118046cab0f9bbc0  # doc hygiene pass (history rewritten)
 )
 FetchContent_MakeAvailable(misbklv)
 
