@@ -65,6 +65,49 @@
     rather than papered over. Restricting a dependency set is a good way to find
     out what you actually depend on.
 
+* **Fork 10 decided — a container image as a second deliverable.**
+  [ADR 0010](./decisions/0010-container-deliverable.md), accepted and
+  implemented. `packaging/{Dockerfile,Dockerfile.debug,make-image.sh,parrot-to-klv}`.
+  - Additive, not a replacement: the tarball stays the default.
+    [ADR 0009](./decisions/0009-release-bundle.md) rejected Docker as the *only*
+    deliverable and that still holds; the audience widened rather than the
+    decision reversing, and 0009 is annotated to say so.
+  - **Built FROM the bundle**, so the two deliverables cannot describe different
+    binaries. One build, two packagings.
+  - **distroless, measured rather than assumed**: `docker save | gzip -9` is
+    13.8 MB against `ubuntu:22.04`'s 34.2 MB. Base size matters more here than
+    usual — layer sharing normally amortises it, and `docker save` defeats that,
+    so every user downloads the full base every time. The cost is no shell in the
+    image; `Dockerfile.debug` is the same contents on a base that has one.
+  - **The launcher takes arguments first and prompts only as a fallback**, and
+    only when stdin *and* stdout are terminals — so one interface serves a person
+    and a cron job, and a missing argument produces usage and a non-zero exit
+    rather than a prompt nobody will answer.
+  - Three things easy to get wrong, all handled and all verified: `--user`
+    (without it every output file lands owned by root and the user cannot delete
+    their own conversion); mounting the file's *directory* read-only rather than
+    a tree, collapsing to one read-write mount when input and output share a
+    directory; and printing the **host** path on success, because the tool
+    reports the container's view (`/work/flight.ts`), which means nothing to
+    whoever typed a host path.
+  - Two UX flaws found by running it rather than reading it: the output prompt
+    offered a default in brackets *and* treated blank as "no output", which
+    contradicts what brackets mean everywhere else — now two questions; and
+    `set -e` would have swallowed the exit status before it could be reported.
+  - CI gains `smoke-image`, which asserts something the bundle's smoke test
+    cannot: **the output is owned by the invoking user**. That is the regression
+    test for `--user`; without it the flag could be dropped and nothing would
+    fail.
+* **The bundle is down to six plugins from eight.** `playback` was there only to
+  provide parsebin, and `audioparsers` only because parsebin insisted on parsing
+  an audio pad the muxer then dropped. Both fell out when libmisbklv stopped
+  using parsebin (its ADR 0025). Re-derived by removing each and re-converting
+  every video fixture, not by reading the pipeline — 15 MB, 5.8 MB compressed.
+  ADR 0009's counts and sizes corrected in place.
+* **Both deliverables now ship a `USAGE.md`**, assembled from a shared body plus
+  a per-deliverable invocation section, so the substantive half cannot drift
+  between the tarball and the image.
+
 * **Re-pinned to libmisbklv `8766e56` — video passthrough no longer needs a
   decoder installed.** Their fork 23 / ADR 0025, written and landed from here
   while packaging the release bundle (fork 9, in progress).

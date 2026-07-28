@@ -21,6 +21,7 @@ diverge; one fork can span several ADRs).
 | 7 | [0007 — H.265 sources versus ST 0604 generation, which now excludes them](./0007-h265-vs-st0604-generation.md) | accepted |
 | 8 | [0008 — `--force-emit-attitude` cannot do what it promises](./0008-force-emit-attitude-cannot-work.md) | accepted |
 | 9 | [0009 — Ship a relocatable bundle, not a container and not a static binary](./0009-release-bundle.md) | accepted |
+| 10 | [0010 — A container image as a second deliverable, built from the bundle](./0010-container-deliverable.md) | accepted |
 
 _ADR 0001 predates formal fork numbering (no fork #): chosen direct MP4 parsing
 over GStreamer qtdemux based on investigation._

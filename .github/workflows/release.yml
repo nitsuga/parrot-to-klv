@@ -89,12 +89,25 @@ jobs:
           tar -C staging -czf "$name.tar.gz" "$name"
           sha256sum "$name.tar.gz" | tee "$name.tar.gz.sha256"
 
+      # Built from the staged bundle, in this job, on purpose: one artifact feeds
+      # both deliverables, so they cannot describe different binaries (ADR 0010).
+      - name: Assemble the container deliverable
+        run: |
+          version="${BUNDLE_NAME#parrot-to-klv-}"; version="${version%-linux-x86_64}"
+          name="${BUNDLE_NAME}-docker"
+          echo "DOCKER_NAME=$name" >> "$GITHUB_ENV"
+          ./packaging/make-image.sh "staging/$BUNDLE_NAME" "$version" "staging/$name"
+          tar -C staging -czf "$name.tar.gz" "$name"
+          sha256sum "$name.tar.gz" | tee "$name.tar.gz.sha256"
+
       - uses: actions/upload-artifact@v4
         with:
           name: bundle
           path: |
             ${{ env.BUNDLE_NAME }}.tar.gz
             ${{ env.BUNDLE_NAME }}.tar.gz.sha256
+            ${{ env.DOCKER_NAME }}.tar.gz
+            ${{ env.DOCKER_NAME }}.tar.gz.sha256
           if-no-files-found: error
 
       # Carried separately so the smoke job needs no checkout: a bare container
@@ -131,8 +144,10 @@ jobs:
 
       - name: Extract and convert
         run: |
-          tar -xzf dl/*.tar.gz
-          cd parrot-to-klv-*/
+          # Specific, not dl/*.tar.gz: the container deliverable sits beside this
+          # one and would be swept up by a loose glob.
+          tar -xzf dl/parrot-to-klv-*-linux-x86_64.tar.gz
+          cd parrot-to-klv-*-linux-x86_64/
           ./parrot-to-klv ../fixtures/parrot_v3_video_audio.mp4 -o /tmp/out.ts
           test -s /tmp/out.ts || { echo "::error::no output written"; exit 1; }
 
@@ -147,10 +162,57 @@ jobs:
             || { echo "::error::no ST 0604 SEI in the video elementary stream"; exit 1; }
           echo "output carries KLV and ST 0604"
 
+  smoke-image:
+    # Runs on the host rather than in a container: it needs a working docker to
+    # load the image into. The claim under test is different from the bundle
+    # job's — not "runs without GStreamer" but "runs as the caller and leaves the
+    # output owned by them", which is the failure mode a containerised file tool
+    # gets wrong.
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: {name: bundle, path: dl}
+      - uses: actions/download-artifact@v4
+        with: {name: smoke-fixtures, path: fixtures}
+
+      - name: Load and convert through the launcher
+        run: |
+          tar -xzf dl/*-docker.tar.gz
+          cd parrot-to-klv-*-docker/
+          mkdir -p /tmp/in /tmp/out
+          cp "$GITHUB_WORKSPACE/fixtures/parrot_v3_video_audio.mp4" /tmp/in/
+          ./parrot-to-klv /tmp/in/parrot_v3_video_audio.mp4 -o /tmp/out/out.ts
+          test -s /tmp/out/out.ts || { echo "::error::no output written"; exit 1; }
+
+      - name: Check the output is a conversion, and is ours
+        run: |
+          grep -qa KLVA /tmp/out/out.ts \
+            || { echo "::error::no KLVA registration descriptor"; exit 1; }
+          grep -qa MISPmicrosectime /tmp/out/out.ts \
+            || { echo "::error::no ST 0604 SEI in the video"; exit 1; }
+          # The regression test for --user. Without it the container runs as root
+          # and the user cannot delete their own output.
+          owner=$(stat -c '%u:%g' /tmp/out/out.ts)
+          [ "$owner" = "$(id -u):$(id -g)" ] \
+            || { echo "::error::output owned by $owner, expected $(id -u):$(id -g)"; exit 1; }
+          echo "output carries KLV and ST 0604, owned by the invoking user"
+
+      - name: Non-interactive with no arguments must fail, not hang
+        run: |
+          cd parrot-to-klv-*-docker/
+          set +e
+          timeout 20 ./parrot-to-klv < /dev/null > /dev/null 2>&1
+          code=$?
+          set -e
+          [ "$code" -eq 124 ] && { echo "::error::launcher hung waiting for a prompt"; exit 1; }
+          [ "$code" -ne 0 ] || { echo "::error::launcher succeeded with no input"; exit 1; }
+          echo "exits $code without prompting"
+
   publish:
     # Only a tag publishes. A workflow_dispatch run stops after smoke, which is
     # what makes it safe to use for testing the pipeline itself.
-    needs: smoke
+    needs: [smoke, smoke-image]
     if: github.ref_type == 'tag'
     runs-on: ubuntu-latest
     permissions:

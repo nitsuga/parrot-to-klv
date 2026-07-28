@@ -55,10 +55,16 @@ real-encoder evidence without the recording, and reports from two real ANAFI
 flights are in [`test/conformance/`](../test/conformance/) — the standing answer
 to whether a real encoder produces what the decoder assumes.
 
+**Two release deliverables build.** A relocatable tarball, and — for hosts that
+already run containers — an exported distroless image with a launcher that
+mounts only the directories in play and runs as the caller
+([ADR 0010](../context/decisions/0010-container-deliverable.md)). The image is
+built *from* the bundle, so they cannot drift. The tarball is the default.
+
 **A release bundle builds.** `packaging/make-bundle.sh` assembles a relocatable
-tree — the tool plus private copies of GStreamer and the eight LGPL plugins it
+tree — the tool plus private copies of GStreamer and the six LGPL plugins it
 uses — that runs on 22.04/24.04 with nothing installed
-([ADR 0009](../context/decisions/0009-release-bundle.md)). 16 MB, ~7 MB
+([ADR 0009](../context/decisions/0009-release-bundle.md)). 15 MB, ~6 MB
 compressed. `release.yml` builds it on tag, then converts a fixture inside a bare
 `ubuntu:24.04` container to prove the claim before publishing.
 

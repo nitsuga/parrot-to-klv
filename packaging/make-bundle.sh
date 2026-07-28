@@ -26,17 +26,25 @@ OUT=${2:?usage: make-bundle.sh <build-dir> <staging-dir>}
 # problem to explain. Every entry here is LGPL.
 #
 #   coreelements      queue, filesrc/filesink, the plumbing
-#   typefindfunctions container sniffing, before parsebin can decide anything
-#   playback          parsebin itself
+#   typefindfunctions sniffing the container, before a demuxer is chosen
 #   app               appsrc — how the KLV branch is pushed in
 #   isomp4            qtdemux, the MP4 side
 #   mpegtsmux         the MPEG-TS the tool exists to write
 #   videoparsersbad   h264parse / h265parse
-#   audioparsers      aacparse — a real recording has audio, and parsebin must
-#                     parse the pad even though the muxer then drops it
+#
+# Derived by removing each and checking every video fixture still converts, not
+# by reading the pipeline. It was eight until libmisbklv stopped using parsebin
+# (its ADR 0025): `playback` was there only to provide parsebin, and
+# `audioparsers` only because parsebin insisted on parsing an audio pad the
+# muxer then dropped. A demuxer exposes that pad and we send it to a fakesink,
+# so nothing needs to understand AAC any more.
+#
+# Re-derive this list when the pipeline changes. A plugin that is no longer
+# needed is dead weight; one that is newly needed fails at runtime, and only the
+# release smoke test would catch it.
 PLUGINS=(
-  coreelements typefindfunctions playback app
-  isomp4 mpegtsmux videoparsersbad audioparsers
+  coreelements typefindfunctions app
+  isomp4 mpegtsmux videoparsersbad
 )
 
 # Never bundle these. They are the ABI floor of the host, and shipping our own
@@ -147,6 +155,13 @@ export GST_REGISTRY GST_REGISTRY_1_0
 exec "$HERE/bin/parrot-to-klv" "$@"
 WRAPPER
 chmod +x "$OUT/parrot-to-klv"
+
+# Usage, assembled from the shared body plus this deliverable's invocation
+# section — so the substance cannot drift between the tarball and the image.
+here=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+cat "$here/usage-head-bundle.md" > "$OUT/USAGE.md"
+printf '\n' >> "$OUT/USAGE.md"
+cat "$here/usage-common.md" >> "$OUT/USAGE.md"
 
 cat > "$OUT/THIRD-PARTY.md" <<'NOTICE'
 # Bundled third-party libraries

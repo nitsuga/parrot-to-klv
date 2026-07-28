@@ -1,0 +1,54 @@
+#!/bin/bash
+# Copyright 2026 Eric Schneider
+# Licensed under the Apache License, Version 2.0
+#
+# Build the container image from an already-assembled bundle, and package it as
+# the second release deliverable: the exported image, the launcher, and usage.
+#
+#   ./packaging/make-image.sh <bundle-dir> <version> <staging-dir>
+#
+# The bundle is the input on purpose — one build feeds both deliverables, so
+# they cannot describe different binaries. See ADR 0010.
+
+set -euo pipefail
+
+BUNDLE=${1:?usage: make-image.sh <bundle-dir> <version> <staging-dir>}
+VERSION=${2:?usage: make-image.sh <bundle-dir> <version> <staging-dir>}
+OUT=${3:?usage: make-image.sh <bundle-dir> <version> <staging-dir>}
+
+here=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+engine=$(command -v docker || command -v podman) || {
+  echo "neither docker nor podman on PATH" >&2; exit 1; }
+
+tag="parrot-to-klv:$VERSION"
+image_file="parrot-to-klv-$VERSION-image.tar.gz"
+
+# Build in a scratch context so the Dockerfile's COPY finds the bundle at a
+# fixed path regardless of where the caller staged it.
+ctx=$(mktemp -d)
+trap 'rm -rf "$ctx"' EXIT
+cp -r "$BUNDLE" "$ctx/bundle"
+cp "$here/Dockerfile" "$ctx/Dockerfile"
+"$engine" build -t "$tag" -f "$ctx/Dockerfile" "$ctx"
+
+rm -rf "$OUT"; mkdir -p "$OUT"
+
+# -9 because this is a file people download by hand, and the extra seconds here
+# are paid once against everyone's bandwidth.
+"$engine" save "$tag" | gzip -9 > "$OUT/$image_file"
+
+# The launcher, with the image's identity baked in so it cannot drift from the
+# tarball beside it.
+sed -e "s|@IMAGE_TAG@|$tag|g" -e "s|@IMAGE_FILE@|$image_file|g" \
+    "$here/parrot-to-klv" > "$OUT/parrot-to-klv"
+chmod +x "$OUT/parrot-to-klv"
+
+sed "s|@VERSION@|$VERSION|g" "$here/usage-head-docker.md" > "$OUT/USAGE.md"
+printf '\n' >> "$OUT/USAGE.md"
+cat "$here/usage-common.md" >> "$OUT/USAGE.md"
+cp "$BUNDLE/THIRD-PARTY.md" "$OUT/THIRD-PARTY.md"
+
+(cd "$OUT" && sha256sum "$image_file" > "$image_file.sha256")
+
+echo "image:  $tag"
+du -sh "$OUT" | sed 's/^/deliverable: /'

@@ -1,7 +1,7 @@
 ---
 type: Decision
 title: ADR 0009 — Ship a relocatable bundle, not a container and not a static binary
-description: Build on the oldest supported Ubuntu and ship the tool with private copies of GStreamer and the eight plugins it uses, so a user extracts a tarball and runs it with nothing installed
+description: Build on the oldest supported Ubuntu and ship the tool with private copies of GStreamer and the plugins it uses, so a user extracts a tarball and runs it with nothing installed
 status: accepted
 fork: 9
 tags: [decision, packaging, release, gstreamer, ci, phase-3]
@@ -39,12 +39,12 @@ parrot-to-klv-<version>-linux-x86_64/
   parrot-to-klv                       wrapper: sets the GStreamer variables
   bin/parrot-to-klv                   rpath $ORIGIN/../lib
   lib/*.so*                           28 libraries
-  lib/gstreamer-1.0/*.so              8 plugins, named individually
+  lib/gstreamer-1.0/*.so              6 plugins, named individually
   libexec/gstreamer-1.0/gst-plugin-scanner
   THIRD-PARTY.md
 ```
 
-16 MB, ~7 MB compressed. `packaging/make-bundle.sh` assembles it by walking the
+15 MB, ~6 MB compressed. `packaging/make-bundle.sh` assembles it by walking the
 `ldd` closure of the binary, the scanner *and* each plugin — plugins pull
 libraries the binary never references, so walking the binary alone silently
 misses them.
@@ -67,7 +67,7 @@ Four things make it relocatable, and each is load-bearing:
   mismatch surfaces as a crash somewhere unrelated.
 
 **The plugin list is explicit**, not "copy plugins-bad". That package carries
-patent-encumbered and oddly-licensed elements this tool has no use for; the eight
+patent-encumbered and oddly-licensed elements this tool has no use for; the six
 named plugins are LGPL. Shipping only what is used is both smaller and a licence
 position we can state.
 
@@ -78,6 +78,12 @@ directly: replace any `lib/*.so*` with your own build of the same SONAME.
 # Alternatives considered
 
 ## Docker
+
+> **Revisited 2026-07-28.** Rejected here as the *only* deliverable, which still
+> holds — the tarball remains the default. An exported image was later added
+> *alongside* it for hosts that already run containers; see
+> [ADR 0010](./0010-container-deliverable.md). Nothing below changed, the
+> audience widened.
 
 **Rejected by the constraint**, and rightly. But worth separating two things that
 sound alike: this decision still *builds* in CI on a GitHub runner, and the smoke
@@ -138,7 +144,11 @@ being solved.
 
 # Assumptions / open questions
 
-- Assumes the eight plugins remain sufficient. They are empirically derived, not
+- **Was eight plugins when written; six as of 2026-07-28.** `playback` existed
+  only to provide parsebin and `audioparsers` only because parsebin insisted on
+  parsing an audio pad the muxer then dropped — both fell out when libmisbklv
+  stopped using parsebin. Re-derived by removal, not assumed.
+- Assumes the six plugins remain sufficient. They are empirically derived, not
   guessed — but a future feature (a new container, a new codec) can add a
   requirement, and the failure mode is a runtime "missing plugin" that only the
   smoke test would catch. That is why the smoke test converts rather than merely

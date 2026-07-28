@@ -1,0 +1,165 @@
+#!/bin/sh
+# Copyright 2026 Eric Schneider
+# Licensed under the Apache License, Version 2.0
+#
+# Run parrot-to-klv from its container image.
+#
+# Arguments first, prompts only as a fallback: pass what you know and it runs
+# straight through, omit something and it asks — but *only* when there is a
+# terminal to ask on. A script or cron job with missing arguments gets usage and
+# a non-zero exit rather than hanging on a prompt nobody will answer.
+#
+# The container sees only the directories your files are actually in, the input
+# one read-only, and runs as you so the output is yours and not root's.
+set -eu
+
+HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+IMAGE_TAG='@IMAGE_TAG@'
+IMAGE_FILE="$HERE/@IMAGE_FILE@"
+
+usage() {
+  cat <<EOF
+Usage: $(basename "$0") <input.mp4> [-o <output.ts>] [options]
+
+  -o, --output <path>   write an MPEG-TS here. A directory is accepted; the
+                        name is then the input's with a .ts extension.
+                        Omit it entirely to inspect without converting.
+  --klv                 print the ST 0601 mapping and its coverage report
+  --with-location       include latitude/longitude in that report
+  --with-identity       include the airframe serial in that report
+  --clamp-attitude      clamp Items 6/7 instead of the 0x8000 sentinel
+
+Run with no arguments in a terminal to be prompted instead.
+
+Batch use — no prompting, everything explicit:
+  $(basename "$0") /data/flight.mp4 -o /data/flight.ts
+EOF
+}
+
+# --- engine -----------------------------------------------------------------
+if command -v docker >/dev/null 2>&1; then ENGINE=docker
+elif command -v podman >/dev/null 2>&1; then ENGINE=podman
+else
+  echo "error: neither docker nor podman found on PATH" >&2
+  exit 1
+fi
+
+# --- arguments --------------------------------------------------------------
+# Passthrough flags are bare (no values, no spaces), so accumulating them in a
+# string and letting the shell split it at the end is safe here. The two
+# arguments that *are* paths are pulled out, because they have to be rewritten
+# to where the container will see them.
+input=''; output=''; output_set=0; passthru=''
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -h|--help) usage; exit 0 ;;
+    -o|--output)
+      [ $# -ge 2 ] || { echo "error: $1 needs a path" >&2; exit 2; }
+      output=$2; output_set=1; shift 2 ;;
+    -*) passthru="$passthru $1"; shift ;;
+    *)
+      [ -z "$input" ] || { echo "error: unexpected argument: $1" >&2; exit 2; }
+      input=$1; shift ;;
+  esac
+done
+
+interactive=0
+[ -t 0 ] && [ -t 1 ] && interactive=1
+
+if [ -z "$input" ]; then
+  if [ "$interactive" -eq 0 ]; then
+    echo "error: no input file given" >&2
+    usage >&2
+    exit 2
+  fi
+  printf 'Input .mp4 file: '
+  IFS= read -r input || exit 2
+  [ -n "$input" ] || { echo "error: no input file given" >&2; exit 2; }
+fi
+
+[ -f "$input" ] || { echo "error: no such file: $input" >&2; exit 1; }
+in_path=$(realpath "$input")
+in_dir=$(dirname "$in_path")
+in_name=$(basename "$in_path")
+
+# Only ask about an output when one was not given. Two questions rather than
+# one: offering a default in brackets *and* treating blank as "no output" would
+# contradict itself, since blank-accepts-the-default is what brackets mean
+# everywhere else.
+if [ "$output_set" -eq 0 ] && [ "$interactive" -eq 1 ]; then
+  printf 'Convert to MPEG-TS? [Y/n] (n inspects without writing anything): '
+  IFS= read -r reply || exit 2
+  case "$reply" in
+    [Nn]*) : ;;
+    *)
+      default_out="$in_dir/$(basename "$in_name" .mp4).ts"
+      printf 'Output .ts file [%s]: ' "$default_out"
+      IFS= read -r reply || exit 2
+      output=${reply:-$default_out}
+      output_set=1 ;;
+  esac
+fi
+
+# A directory for -o means "here, with the input's name and a .ts extension".
+if [ "$output_set" -eq 1 ] && [ -d "$output" ]; then
+  output="${output%/}/$(basename "$in_name" .mp4).ts"
+fi
+
+if [ "$output_set" -eq 1 ] && [ -z "$(printf %s "$passthru" | tr -d ' ')" ] &&
+   [ "$interactive" -eq 1 ]; then
+  printf 'Print the ST 0601 coverage report (--klv)? [y/N]: '
+  IFS= read -r reply || exit 2
+  case "$reply" in
+    [Yy]*)
+      passthru="$passthru --klv"
+      printf 'Include location and airframe identity in it? [y/N]: '
+      IFS= read -r reply || exit 2
+      case "$reply" in [Yy]*) passthru="$passthru --with-location --with-identity" ;; esac ;;
+  esac
+fi
+
+# --- image ------------------------------------------------------------------
+if ! "$ENGINE" image inspect "$IMAGE_TAG" >/dev/null 2>&1; then
+  [ -f "$IMAGE_FILE" ] || {
+    echo "error: image $IMAGE_TAG is not loaded and $IMAGE_FILE is missing" >&2
+    exit 1
+  }
+  echo "Loading $IMAGE_TAG (first run only)..." >&2
+  "$ENGINE" load -i "$IMAGE_FILE" >/dev/null
+fi
+
+# --- mounts -----------------------------------------------------------------
+# Mount the directories the files are in, not the tree above them. Input is
+# read-only: this tool never writes to its input, and a typo in -o should not be
+# able to overwrite the recording.
+set -- --rm --network none --user "$(id -u):$(id -g)"
+
+if [ "$output_set" -eq 1 ]; then
+  out_dir=$(dirname "$(realpath -m "$output")")
+  out_name=$(basename "$output")
+  mkdir -p "$out_dir"
+  out_dir=$(realpath "$out_dir")
+  if [ "$out_dir" = "$in_dir" ]; then
+    # Same directory: mount it once, writable. Mounting one host path at two
+    # container paths works but reads as though they were different places.
+    set -- "$@" -v "$in_dir:/work" "$IMAGE_TAG" "/work/$in_name" -o "/work/$out_name"
+  else
+    set -- "$@" -v "$in_dir:/in:ro" -v "$out_dir:/out" \
+                "$IMAGE_TAG" "/in/$in_name" -o "/out/$out_name"
+  fi
+else
+  set -- "$@" -v "$in_dir:/in:ro" "$IMAGE_TAG" "/in/$in_name"
+fi
+
+# Not exec'd: the tool reports the path it was given, which is the container's
+# view ("/work/flight.ts") and means nothing to whoever typed a host path. Run
+# it, then say where the file actually landed.
+# `set -e` would abort here on a non-zero exit before the status is captured, so
+# the call goes in an `if`, which is exempt from it.
+# shellcheck disable=SC2086  # passthru is bare flags; splitting is intended
+if "$ENGINE" run "$@" $passthru; then status=0; else status=$?; fi
+
+if [ "$status" -eq 0 ] && [ "$output_set" -eq 1 ]; then
+  printf 'Output: %s\n' "$out_dir/$out_name"
+fi
+exit "$status"
