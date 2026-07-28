@@ -7,6 +7,11 @@
 
 ## 2026-07-28
 
+* **`v0.1.1` published.** Both deliverables and their checksums attached, built
+  and smoke-tested by the four-job `release.yml` before anything reached the
+  release page. Carries the item-naming report, the container image (ADR 0010)
+  and the libmisbklv CI fix; `v0.1.0` had none of them.
+
 * **`release.yml` exercised by `workflow_dispatch` before the v0.1.1 tag.** It
   gained a fourth job (`smoke-image`) with ADR 0010 and had only ever run in its
   three-job form, so the first tag using it would have been the first test of it.
