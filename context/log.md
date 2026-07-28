@@ -38,10 +38,21 @@
     `origin/main..HEAD`), so the name never appears in that range at all. The
     rewrite was verified content-neutral: the tip tree hash is identical before
     and after, since the working copy was already clean.
-  - **One occurrence remains, in published `25199e4`** — its commit message and
-    the `log.md` blob of that commit. Scrubbing it needs a force-push and a
-    re-sync of the other machine's clone, so it is deliberately left for a
-    coordinated pass.
+  - **Then the published history too** (`filter-repo --replace-text
+    --replace-message`, force-pushed): all 60 commits rewritten from the
+    offending one onward, every SHA from that point changed. Verified before
+    pushing — same commit count, tip tree hash byte-identical, zero residual
+    occurrences in any blob or message. Suite green after re-syncing: 9/9
+    `-L parrot`, 34/34 bare. Local rollback refs dropped and the reflog expired
+    afterwards, so the pre-rewrite objects are gone from this machine.
+  - **A third occurrence surfaced only during that pass** — `planning/PROGRESS.md`
+    in the original commit, which the first inventory missed by checking file
+    *counts* per commit but naming files only for some. It was caught because the
+    replacement set ended in a catch-all regex. Lesson: when scrubbing, enumerate
+    every path, and keep a catch-all that must never fire.
+  - Caveat recorded honestly: a force-push does not retract what was published.
+    GitHub keeps unreachable objects addressable by SHA until its own GC runs,
+    so this was tidying, not revocation.
   - **Convention going forward: identify external consumers by behaviour, never
     by product name.**
 * **Fork 6 decided — the video is not a passthrough, and has not been since the
