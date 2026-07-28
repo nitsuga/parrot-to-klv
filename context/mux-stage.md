@@ -118,6 +118,20 @@ them, so `make_fixture.py` also emits `parrot_v3_video.mp4` and
 `parrot_proto_video.mp4`, whose video track is a genuine encode — 64x64, 8
 all-IDR frames, packaged as AVCC samples with an `avcC` in the sample entry.
 
+`parrot_v3_video_audio.mp4` adds the third track a real recording has: AAC in an
+`mp4a`/`esds` sample entry, on its own timescale. **A fixture that omits audio
+is not the shape of the input this tool is for** — the muxer must link a pad it
+then throws away, and real footage found a bug there (upstream's pad-linking and
+H.264-format fix) while every fixture here stayed green. For that fixture, the
+"PMT lists exactly two streams" assertion earns a second meaning: the audio was
+dropped, not forwarded.
+
+Worth knowing when reading that as a regression guard: the bug it is modelled on
+does **not** reproduce on gstreamer 1.20, where `h264parse` already emits
+`byte-stream` and the pipeline links regardless. It is CI's newer stack that
+would catch a recurrence, which is the same lesson as the transitive-include
+break — a green suite says nothing about a stack you did not run on.
+
 ffmpeg is needed to *regenerate* those fixtures, never to use them: the
 committed `.mp4` is what the suite reads, so the rule that no test may require
 anything from `data/` still holds, and a machine with no encoder still runs

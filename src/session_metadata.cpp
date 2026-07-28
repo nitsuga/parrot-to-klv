@@ -153,10 +153,52 @@ SessionMetadata parse_session_metadata(FILE* file) {
     if (!file) return session;
 
     if (std::fseek(file, 0, SEEK_END) != 0) return session;
-    const long length = std::ftell(file);
-    if (length <= 0) return session;
-    std::vector<uint8_t> buf(static_cast<size_t>(length));
+    const int64_t file_size = std::ftell(file);
+    if (file_size <= 0) return session;
     if (std::fseek(file, 0, SEEK_SET) != 0) return session;
+
+    // Scan top-level box headers seeking 'moov', so we only read the metadata
+    // container into memory rather than buffering multi-gigabyte media tracks.
+    int64_t moov_begin = -1;
+    int64_t moov_end = -1;
+    int64_t pos = 0;
+    while (pos + 8 <= file_size) {
+        if (std::fseek(file, static_cast<long>(pos), SEEK_SET) != 0) break;
+        uint8_t hdr[8];
+        if (std::fread(hdr, 1, 8, file) != 8) break;
+        uint64_t size = (static_cast<uint64_t>(hdr[0]) << 24) | (static_cast<uint64_t>(hdr[1]) << 16) |
+                        (static_cast<uint64_t>(hdr[2]) << 8) | hdr[3];
+        const uint32_t type = (static_cast<uint32_t>(hdr[4]) << 24) | (static_cast<uint32_t>(hdr[5]) << 16) |
+                              (static_cast<uint32_t>(hdr[6]) << 8) | hdr[7];
+        int64_t header_len = 8;
+        if (size == 1) {
+            uint8_t hdr16[8];
+            if (std::fread(hdr16, 1, 8, file) != 8) break;
+            size = 0;
+            for (int i = 0; i < 8; ++i) size = (size << 8) | hdr16[i];
+            header_len = 16;
+        } else if (size == 0) {
+            size = static_cast<uint64_t>(file_size - pos);
+        }
+        if (size < static_cast<uint64_t>(header_len) || pos + static_cast<int64_t>(size) > file_size) {
+            break;
+        }
+        if (type == fourcc("moov")) {
+            moov_begin = pos + header_len;
+            moov_end = pos + static_cast<int64_t>(size);
+            break;
+        }
+        pos += static_cast<int64_t>(size);
+    }
+
+    if (moov_begin < 0 || moov_end <= moov_begin) return session;
+
+    const int64_t moov_len = moov_end - moov_begin;
+    constexpr int64_t kMaxMoovBytes = 100 * 1024 * 1024;  // 100 MB ceiling
+    if (moov_len > kMaxMoovBytes) return session;
+
+    std::vector<uint8_t> buf(static_cast<size_t>(moov_len));
+    if (std::fseek(file, static_cast<long>(moov_begin), SEEK_SET) != 0) return session;
     if (std::fread(buf.data(), 1, buf.size(), file) != buf.size()) return session;
 
     const auto store = [&](std::optional<std::string>& field, std::optional<std::string> value) {

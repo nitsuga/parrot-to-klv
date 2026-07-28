@@ -108,6 +108,40 @@ def video_trak(track_id: int, timescale: int, sizes: list[int], delta: int,
     return box(b"trak", tkhd(track_id, delta * len(sizes), width, height, 0) + mdia)
 
 
+def stsd_mp4a(asc: bytes, sample_rate: int, channels: int) -> bytes:
+    """An AAC sample entry: 'mp4a' carrying the ES descriptor tree in 'esds'."""
+    # DecoderSpecificInfo (tag 5) holds the AudioSpecificConfig; the tree above it
+    # is fixed boilerplate. Single-byte descriptor lengths, which suffice here.
+    def desc(tag: int, payload: bytes) -> bytes:
+        return bytes([tag, len(payload)]) + payload
+
+    dsi = desc(0x05, asc)
+    dcd = desc(0x04, struct.pack(">BB", 0x40, 0x15)  # MPEG-4 audio, AudioStream
+               + b"\x00\x00\x00"                     # bufferSizeDB (24-bit)
+               + struct.pack(">II", 0, 0)            # max / avg bitrate
+               + dsi)
+    es = desc(0x03, struct.pack(">HB", 1, 0) + dcd + desc(0x06, b"\x02"))
+    esds = full_box(b"esds", 0, 0, es)
+
+    entry = box(b"mp4a", b"\x00" * 6 + struct.pack(">H", 1)
+                + b"\x00" * 8
+                + struct.pack(">HH", channels, 16)
+                + struct.pack(">HH", 0, 0)
+                + struct.pack(">I", sample_rate << 16)
+                + esds)
+    return full_box(b"stsd", 0, 0, struct.pack(">I", 1) + entry)
+
+
+def audio_trak(track_id: int, timescale: int, sizes: list[int], delta: int,
+               chunk_offset: int, asc: bytes, channels: int) -> bytes:
+    smhd = full_box(b"smhd", 0, 0, struct.pack(">hH", 0, 0))
+    sample_desc = stsd_mp4a(asc, timescale, channels)
+    minf = box(b"minf", smhd + dinf() + stbl(sample_desc, sizes, delta, chunk_offset))
+    mdia = box(b"mdia", mdhd(timescale, delta * len(sizes))
+               + hdlr(b"soun", "SoundHandler") + minf)
+    return box(b"trak", tkhd(track_id, delta * len(sizes), 0, 0, 0x0100) + mdia)
+
+
 def geotag(iso6709: str) -> bytes:
     """moov/udta '\xa9xyz' -- Parrot records the flight's position here too.
 
@@ -155,27 +189,39 @@ def session_udta(iso6709: str) -> bytes:
 def build(mime: str, samples: list[bytes], video_samples: list[bytes],
           timescale: int = 30000, delta: int = 1000,
           content_encoding: str = "", session: bool = True,
-          video: "H264Track | None" = None) -> bytes:
-    """Assemble ftyp + mdat + moov. mdat first so chunk offsets are known up front."""
+          video: "H264Track | None" = None,
+          audio: "AacTrack | None" = None) -> bytes:
+    """Assemble ftyp + mdat + moov. mdat first so chunk offsets are known up front.
+
+    An audio track is optional and, when present, runs on its own timescale: AAC
+    frames are 1024 samples at the audio rate, which has nothing to do with the
+    video's. That is also what a real recording looks like.
+    """
     ftyp = box(b"ftyp", b"isom" + struct.pack(">I", 512) + b"isomiso2avc1mp41")
 
     video_blob = b"".join(video_samples)
     meta_blob = b"".join(samples)
-    mdat_payload = video_blob + meta_blob
+    audio_blob = b"".join(audio.samples) if audio else b""
+    mdat_payload = video_blob + meta_blob + audio_blob
     video_chunk_offset = len(ftyp) + 8
     meta_chunk_offset = video_chunk_offset + len(video_blob)
+    audio_chunk_offset = meta_chunk_offset + len(meta_blob)
     mdat = box(b"mdat", mdat_payload)
 
     duration = delta * max(len(samples), len(video_samples))
-    moov = box(b"moov", mvhd(timescale, duration, 3)
+    traks = (video_trak(1, timescale, [len(s) for s in video_samples], delta,
+                        video_chunk_offset,
+                        *( (video.width, video.height, video.avcc) if video
+                           else (320, 240, b"") ))
+             + meta_trak(2, 1, timescale, [len(s) for s in samples], delta,
+                         meta_chunk_offset, mime, content_encoding))
+    if audio:
+        traks += audio_trak(3, audio.sample_rate, [len(s) for s in audio.samples],
+                            1024, audio_chunk_offset, audio.asc, audio.channels)
+    moov = box(b"moov", mvhd(timescale, duration, 4 if audio else 3)
                + (session_udta("+48.85837+002.29448+135.250/") if session
                   else geotag("+48.85837+002.29448+135.250/"))
-               + video_trak(1, timescale, [len(s) for s in video_samples], delta,
-                            video_chunk_offset,
-                            *( (video.width, video.height, video.avcc) if video
-                               else (320, 240, b"") ))
-               + meta_trak(2, 1, timescale, [len(s) for s in samples], delta,
-                           meta_chunk_offset, mime, content_encoding))
+               + traks)
     return ftyp + mdat + moov
 
 
@@ -263,6 +309,55 @@ def encode_h264(frames: int, width: int, height: int, fps: int) -> H264Track:
                     + struct.pack(">H", len(sps)) + sps
                     + b"\x01" + struct.pack(">H", len(pps)) + pps)
     return H264Track(samples, box(b"avcC", avcc_payload), width, height)
+
+
+class AacTrack:
+    """Raw AAC access units plus the AudioSpecificConfig an 'esds' needs."""
+
+    def __init__(self, samples: list[bytes], asc: bytes, sample_rate: int, channels: int):
+        self.samples = samples
+        self.asc = asc
+        self.sample_rate = sample_rate
+        self.channels = channels
+
+
+def encode_aac(frames: int, sample_rate: int = 44100, channels: int = 1) -> AacTrack:
+    """Encode a tone with ffmpeg and strip the ADTS framing MP4 does not use.
+
+    A real Parrot recording carries audio, and until this existed no fixture did
+    — which is how an audio-pad bug in the mux reached real footage with the
+    suite green. The AudioSpecificConfig is derived from the first ADTS header
+    rather than assumed, so it stays right if the encoder picks another profile.
+    """
+    import subprocess
+    import tempfile
+
+    seconds = frames * 1024 / sample_rate
+    with tempfile.NamedTemporaryFile(suffix=".aac") as out:
+        subprocess.run(
+            ["ffmpeg", "-y", "-loglevel", "error",
+             "-f", "lavfi", "-i", f"sine=frequency=440:sample_rate={sample_rate}",
+             "-t", f"{seconds:.4f}", "-ac", str(channels), "-c:a", "aac",
+             "-f", "adts", out.name],
+            check=True)
+        adts = Path(out.name).read_bytes()
+
+    samples, asc, i = [], None, 0
+    while i + 7 <= len(adts):
+        if adts[i] != 0xFF or (adts[i + 1] & 0xF0) != 0xF0:
+            raise RuntimeError("lost ADTS sync")
+        length = ((adts[i + 3] & 0x03) << 11) | (adts[i + 4] << 3) | (adts[i + 5] >> 5)
+        header = 7 if (adts[i + 1] & 0x01) else 9  # protection_absent -> no CRC
+        if asc is None:
+            profile = (adts[i + 2] >> 6) & 0x3          # 0 = AAC-LC, i.e. object type 2
+            freq_index = (adts[i + 2] >> 2) & 0xF
+            chan = ((adts[i + 2] & 0x1) << 2) | ((adts[i + 3] >> 6) & 0x3)
+            asc = struct.pack(">H", ((profile + 1) << 11) | (freq_index << 7) | (chan << 3))
+        samples.append(adts[i + header:i + length])
+        i += length
+    if not samples:
+        raise RuntimeError("encoder produced no AAC frames")
+    return AacTrack(samples, asc, sample_rate, channels)
 
 
 # --- Parrot v3 metadata samples -------------------------------------------
@@ -514,6 +609,13 @@ def main() -> int:
         fixtures["parrot_proto_video.mp4"] = build(
             MIME_PREFIX + "com.parrot.videometadataproto",
             [proto_sample(i) for i in range(8)], h264.samples, video=h264)
+        # The shape of a real recording: video + audio + metadata. A source with
+        # an audio track exercises a path the other fixtures cannot — the muxer
+        # has to *drop* that track while still linking its pad.
+        aac = encode_aac(frames=12)
+        fixtures["parrot_v3_video_audio.mp4"] = build(
+            MIME_PREFIX + "com.parrot.videometadata3", samples, h264.samples,
+            video=h264, audio=aac)
 
     for name, data in fixtures.items():
         (out_dir / name).write_bytes(data)

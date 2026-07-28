@@ -237,6 +237,18 @@ int main(int argc, char* argv[]) {
             [](std::span<const uint8_t> d) { return parse_proto(d, nullptr); },
             [](const ParrotProtoFrame& f) { return from_proto(f); }));
 
+    // The shape of a real recording: video + audio + metadata. Every assertion
+    // above applies unchanged, and the PMT check earns a second meaning here —
+    // exactly two elementary streams means the source's audio was *dropped*,
+    // not forwarded. A source with audio also makes the muxer link a pad it has
+    // no use for, which is where real footage found a bug no fixture had.
+    check_conversion(
+        "v3+audio", fixtures + "/parrot_v3_video_audio.mp4", temp + "/mux_audio.ts",
+        expected_packets(
+            fixtures + "/parrot_v3_video_audio.mp4",
+            [](std::span<const uint8_t> d) { return parse_v3(d, nullptr); },
+            [](const ParrotV3Frame& f) { return from_v3(f); }));
+
     // A source with no usable video stream must fail loudly and leave nothing
     // behind — a half-written .ts would look like a conversion that worked.
     const std::string orphan = temp + "/mux_novideo.ts";
