@@ -63,13 +63,22 @@ uses `data/` skips cleanly without it.
 
 ## Next
 
-1. Cover the two attitude override flags in `transform_test` — both branches,
+1. Resolve fork 7 — confirm whether the ANAFI Ai records H.265, then pick from
+   [ADR 0007](../context/decisions/0007-h265-vs-st0604-generation.md) and
+   correct the four H.265 claims to match
+2. Cover the two attitude override flags in `transform_test` — both branches,
    the saturation boundary, and the mutually-exclusive rejection
-2. Resolve fork 4, Tier 2 geometry fidelity, in [ROADMAP](./ROADMAP.md), then
+3. Resolve fork 4, Tier 2 geometry fidelity, in [ROADMAP](./ROADMAP.md), then
    derive Items 21/22/23/24/25/57/78/82–89
 
 ## Known gaps
 
+- **H.265 recordings do not convert.** Asking libmisbklv for ST 0604 refuses any
+  non-H.264 source, so an H.265 input fails at open — while this file, ROADMAP,
+  `mux-stage` and `mux.hpp` all still say H.264 and H.265 both work. No fixture
+  is H.265, so the suite is green on a capability that is gone. Fork 7, proposed
+  in [ADR 0007](../context/decisions/0007-h265-vs-st0604-generation.md); the
+  four claims get corrected to match whichever way it resolves.
 - Deriving Items 21/22/23/24/25/57/78/82–89 needs a boresight-to-terrain
   intersection — the substantive remaining work in the transform stage, and the
   one part of the mapping with no direct Parrot source. Its fidelity is fork 4,

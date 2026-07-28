@@ -7,6 +7,14 @@
 
 ## 2026-07-28
 
+* **Fork 7 opened — H.265 sources vs. ST 0604 generation.**
+  [ADR 0007](./decisions/0007-h265-vs-st0604-generation.md) (`proposed`).
+  Asking libmisbklv for `Sei0604::Generate` refuses any non-H.264 source, and
+  `mux_to_ts()` asks unconditionally, so an H.265 recording now fails at open —
+  while PROGRESS, `mux-stage`, `mux.hpp` and ADR 0006 all still say H.264 and
+  H.265 both work. Found reviewing the fork-22 follow-on pin; no test could
+  catch it, since every fixture is H.264. The proposal is to ask for generation
+  only on H.264; the ADR carries the alternatives and what each costs.
 * **CONVENTIONS § Linking now documents what the bundle actually does.** It had
   recommended root-absolute `[Title](/concept.md)` first — a form that resolves
   against the site root, so it works nowhere — and the only instance of it in the

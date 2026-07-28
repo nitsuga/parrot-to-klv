@@ -18,6 +18,7 @@ diverge; one fork can span several ADRs).
 | 3 | [0004 — A shared telemetry snapshot between the parsers and the transform](./0004-shared-telemetry-snapshot.md) | accepted |
 | 5 | [0005 — Out-of-range policy for Items 6/7, and the two escape hatches](./0005-attitude-range-policy.md) | accepted |
 | 6 | [0006 — Accept libmisbklv's ST 0604 SEI injection; the video is no longer a pure passthrough](./0006-inherited-st0604-sei-injection.md) | accepted |
+| 7 | [0007 — H.265 sources versus ST 0604 generation, which now excludes them](./0007-h265-vs-st0604-generation.md) | proposed |
 
 _ADR 0001 predates formal fork numbering (no fork #): chosen direct MP4 parsing
 over GStreamer qtdemux based on investigation._

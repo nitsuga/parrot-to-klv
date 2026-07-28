@@ -66,3 +66,4 @@ _(`type: Decision` — ADRs: the *why* of resolved forks.)_
 * [0004 — A shared telemetry snapshot](./decisions/0004-shared-telemetry-snapshot.md) — Normalize both formats into one struct before mapping
 * [0005 — Out-of-range policy for Items 6/7](./decisions/0005-attitude-range-policy.md) — Keep the `0x8000` sentinel as the default; clamping and out-of-spec emission are opt-in flags
 * [0006 — Accept libmisbklv's ST 0604 SEI injection](./decisions/0006-inherited-st0604-sei-injection.md) — The video is never decoded but is no longer bit-identical; stop calling it a passthrough
+* [0007 — H.265 versus ST 0604 generation](./decisions/0007-h265-vs-st0604-generation.md) — **proposed**: asking for ST 0604 refuses non-H.264, so H.265 no longer converts; keep it, drop it, or push upstream

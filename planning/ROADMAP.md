@@ -61,6 +61,12 @@ A *fork* is a decision point — a branch in the plan/design that needs a choice
 Status legend: `OPEN` (undiscussed) · `PROPOSED` (Decision concept written,
 `status: proposed`) · `DECIDED` / `DEFERRED` (has an ADR — see the register).
 
+- **Fork 7 — H.265 sources vs. ST 0604 generation** `PROPOSED`: asking
+  libmisbklv for ST 0604 SEI refuses any non-H.264 source, so **H.265
+  recordings no longer convert at all** while four docs still say they do. Keep
+  H.265 by asking for generation only on H.264, drop H.265 and narrow scope, or
+  push H.265 support upstream. Proposal and trade-offs:
+  [ADR 0007](../context/decisions/0007-h265-vs-st0604-generation.md).
 - **Fork 4 — Tier 2 geometry fidelity** `OPEN`: flat-earth intersection vs. a
   DTED terrain model for frame centre, corner points, and slant/ground range.
   Weighs a data dependency against accuracy on sloped terrain. **Now open** —
