@@ -21,7 +21,7 @@ include(FetchContent)
 FetchContent_Declare(
   misbklv
   GIT_REPOSITORY git@github.com:nitsuga/libmisbklv.git
-  GIT_TAG b4544157240aea996b16f161d3e0c9e3f5e61420  # KLV pipeline fixes
+  GIT_TAG 8c296da4918a09382335a2e7cbfda5f521ecf4c8  # doc hygiene pass
 )
 FetchContent_MakeAvailable(misbklv)
 

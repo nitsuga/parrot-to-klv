@@ -58,9 +58,7 @@ uses `data/` skips cleanly without it.
 
 1. Cover the two attitude override flags in `transform_test` — both branches,
    the saturation boundary, and the mutually-exclusive rejection
-2. Confirm what libmisbklv `b454415` actually changed, then correct the
-   2026-07-27 log entry
-3. Resolve fork 4, Tier 2 geometry fidelity, in [ROADMAP](./ROADMAP.md), then
+2. Resolve fork 4, Tier 2 geometry fidelity, in [ROADMAP](./ROADMAP.md), then
    derive Items 21/22/23/24/25/57/78/82–89
 
 ## Known gaps
@@ -74,9 +72,6 @@ uses `data/` skips cleanly without it.
   extrapolation and its saturation ceiling, and the mutual-exclusion check are
   all unverified ([ADR 0005](../context/decisions/0005-attitude-range-policy.md)
   § Assumptions).
-- **What libmisbklv pin `b454415` contains is unconfirmed** — the log entry that
-  recorded it named a different hash and a different change. See
-  [log](../context/log.md) § 2026-07-27.
 - Item 2 for v3 recordings is anchored to session `media_date`, so it inherits
   that field's **second** granularity. Frame-to-frame spacing stays exact.
 - The mux has run on real footage on an authorized machine — that is what found

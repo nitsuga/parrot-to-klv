@@ -7,6 +7,23 @@
 
 ## 2026-07-27
 
+* **libmisbklv pinned to `8c296da`** (doc hygiene pass upstream). `b454415..8c296da`
+  touches only `context/`, `planning/`, `README.md` and `CLAUDE.md` — **no source
+  changes**, so this bump is behaviourally a no-op here. Full suite green: 9/9
+  `-L parrot` (one skip, `conformance_real_data`, no footage present) and 34/34
+  bare, which exercises libmisbklv's own tests as the early warning for a moved
+  pin.
+  - **This also settled the `b454415` provenance question** the earlier entry
+    flagged as unverified, by reading the fetched clone directly. `e3c7f4a`
+    ("Fix H.264 SEI/SPS association for ST 0604 passthrough") is real, and the
+    `h264parse config-interval=-1` narrative was its description, not an
+    invention. But the pin landed on `b454415`, a merge that also brings
+    `f6d52e4` — **ST 0604 SEI *generation*, upstream fork 21 / ADR 0023** — a
+    substantive feature the entry never mentioned. The entry named the wrong
+    commit *and* undersold what the pin actually pulled in.
+  - Worth knowing for our own ST 0604 posture: upstream no longer flatly defers
+    0604 (their ADR 0009 is qualified by ADR 0023). Nothing here depends on that
+    yet, but our mux stage inherits it.
 * **Fork 5 decided — out-of-range policy for Items 6/7**: the `0x8000` sentinel
   stays the default; `--clamp-attitude` and `--force-emit-attitude` are opt-in
   overrides for consumers that cannot parse it.
@@ -16,18 +33,12 @@
 * **Add progress indicator to conversions** (`src/mux.cpp`): prints "Converting...
   N%" every 10% during `-o` conversions. Uses carriage return to update the same
   line, cleared before final output. Helps visibility for long files.
-* **libmisbklv pin moved to `b454415`** — the hash in `CMakeLists.txt`, commented
-  "KLV pipeline fixes". Bumped as a drive-by inside the attitude commit rather
-  than on its own, contrary to the rule in `CLAUDE.md`.
-  - ⚠️ **What this pin contains is unverified.** The original entry here recorded
-    a *different* hash (`e3c7f4a`, which appears nowhere in the repo) and
-    described a timing fix — `h264parse config-interval=-1` to insert SPS/PPS
-    with every IDR frame for ST 0604 Picture Timing SEI, with a noted limitation
-    around VUI/SPS association in the remux path. That description cannot be
-    reconciled with the pinned hash or its comment from inside this repo, and
-    there is no local clone of libmisbklv to check against. Treat both the
-    timing-fix narrative and the "KLV pipeline fixes" comment as unconfirmed
-    until someone with upstream access reads `b454415`.
+* **libmisbklv pin moved to `b454415`**, as a drive-by inside the attitude
+  commit rather than on its own, contrary to the rule in `CLAUDE.md`. The entry
+  here first recorded the hash as `e3c7f4a`; **resolved later the same day** by
+  fetching the pin (see below). Both halves were partly right: `e3c7f4a` is a
+  real upstream commit and the timing-fix description belonged to it, but the
+  pin went to `b454415`, a merge carrying strictly more.
   - The suite was reported green (9/9) at the time of the bump.
 
 ## 2026-07-26
