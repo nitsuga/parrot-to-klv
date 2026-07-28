@@ -36,6 +36,14 @@ struct MuxReport {
 /// Samples that fail to decode are skipped and counted rather than aborting the
 /// conversion: one corrupt sample in a flight should cost that frame's
 /// telemetry, not the file.
-MuxReport mux_to_ts(const std::string& input, const std::string& output);
+///
+/// `clamp_attitude`: when true, clamps Items 6/7 to their spec ranges (±20°,
+/// ±50°) instead of emitting the 0x8000 "out-of-range" sentinel. Use for
+/// consumers that can't handle missing values gracefully.
+///
+/// `force_emit_attitude`: when true, emits actual values for Items 6/7 even when
+/// out-of-spec (extrapolates encoding beyond defined range). **Non-compliant**.
+MuxReport mux_to_ts(const std::string& input, const std::string& output,
+                    bool clamp_attitude = false, bool force_emit_attitude = false);
 
 }  // namespace parrot_to_klv

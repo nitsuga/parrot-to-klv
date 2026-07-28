@@ -5,6 +5,34 @@
      a fuller entry per significant implementation. Routine ingests/lint go here
      too. This is the ONLY home for history — PROGRESS.md is present-tense only. -->
 
+## 2026-07-27
+
+* **Add attitude handling options for consumer compatibility**
+  (`src/transform.{hpp,cpp}`, `src/mux.{hpp,cpp}`, `src/main.cpp`): Items 6/7
+  (Platform Pitch/Roll) have narrow spec ranges (±20°, ±50°) which quadcopters
+  routinely exceed. The spec requires emitting `0x8000` when out of range, but
+  the downstream consumer's KLV decoder treats this as a parse failure, leaving
+  the key absent, which causes `.at()` to throw `std::out_of_range`.
+  - **Added `--clamp-attitude` flag**: clamps Items 6/7 to their spec limits
+    instead of emitting `0x8000`, ensuring numeric values are always present.
+    Recommended for consumers that can't handle missing values gracefully. Items
+    90/91 (full-range pitch/roll) still carry accurate unclamped values.
+  - **Added `--force-emit-attitude` flag**: emits actual values even when
+    out-of-spec by extrapolating the ST 0601 encoding beyond its defined range.
+    **Non-compliant**; use only when the consumer requires it and you accept the
+    consequences. Manually encodes via `put_special()` to bypass libmisbklv's
+    range validation.
+  - Flags are mutually exclusive (validation added to main).
+  - Default behavior unchanged: spec-compliant `0x8000` when out of range.
+* **Add progress indicator to conversions** (`src/mux.cpp`): prints "Converting...
+  N%" every 10% during `-o` conversions. Uses carriage return to update the same
+  line, cleared before final output. Helps visibility for long files.
+* **libmisbklv pinned to e3c7f4a** (timing fix): sets `h264parse
+  config-interval=-1` to insert SPS/PPS with every IDR frame, improving
+  parameter set availability for ST 0604 Picture Timing SEI messages from Parrot
+  sources. Known limitation documented: some strict readers may still warn due to
+  VUI/SPS association complexities in the remux path. Full suite green (9/9).
+
 ## 2026-07-26
 
 * **Doc lint.** Four fixes, all of them the future going stale rather than the

@@ -35,10 +35,13 @@ H.265 both work) beside the KLV, and each packet is timestamped from its own
 metadata sample, so both branches share the file's timeline. Design, the
 timeline rule and the failure behaviour: [mux stage](../context/mux-stage.md).
 
-**Three tools build.** `parrot-to-klv` converts with `-o` and summarises without
-it (`--klv` for the 0601 mapping and its coverage; location and device identity
-are withheld unless `--with-location` / `--with-identity`). `parrot-scrub`
-replaces a recording's location fields so a real flight can become a fixture. `parrot-conform` commits
+**Three tools build.** `parrot-to-klv` converts with `-o` (shows progress every
+10%) and summarises without it (`--klv` for the 0601 mapping and its coverage;
+location and device identity are withheld unless `--with-location` /
+`--with-identity`). Attitude handling for consumer compatibility:
+`--clamp-attitude` clamps Items 6/7 to spec ranges; `--force-emit-attitude` emits
+out-of-spec values (non-compliant). `parrot-scrub` replaces a recording's location
+fields so a real flight can become a fixture. `parrot-conform` commits
 real-encoder evidence without the recording, and reports from two real ANAFI
 flights are in [`test/conformance/`](../test/conformance/) — the standing answer
 to whether a real encoder produces what the decoder assumes.
@@ -63,6 +66,11 @@ uses `data/` skips cleanly without it.
   intersection — the substantive remaining work in the transform stage, and the
   one part of the mapping with no direct Parrot source. Its fidelity is fork 4,
   now open in [ROADMAP](./ROADMAP.md).
+- **Items 6/7 narrow-range behavior**: by default, emits spec-compliant `0x8000`
+  when pitch/roll exceed ±20°/±50°. Some consumers treat this
+  as missing data and fail. Use `--clamp-attitude` for consumer compatibility or
+  `--force-emit-attitude` for full fidelity (non-compliant). Items 90/91 always
+  carry accurate full-range values.
 - Item 2 for v3 recordings is anchored to session `media_date`, so it inherits
   that field's **second** granularity. Frame-to-frame spacing stays exact.
 - The proto parser has never seen a real recording, and its fixtures are encoded

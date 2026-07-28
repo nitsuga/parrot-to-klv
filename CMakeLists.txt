@@ -21,7 +21,7 @@ include(FetchContent)
 FetchContent_Declare(
   misbklv
   GIT_REPOSITORY git@github.com:nitsuga/libmisbklv.git
-  GIT_TAG f9070fbe9a10b05f50021a65907b20cfc76859de  # MP4 video sources with audio tracks (parsebin pad linking + H.264 format)
+  GIT_TAG b4544157240aea996b16f161d3e0c9e3f5e61420  # KLV pipeline fixes
 )
 FetchContent_MakeAvailable(misbklv)
 

@@ -141,12 +141,50 @@ private:
     CoverageReport& coverage_;
 };
 
+/// Manually encode a narrow-range angle item that's out of spec.
+///
+/// Item 6 maps [-20°, +20°] → [0x8001, 0x7FFF] as a 2-byte signed int.
+/// Item 7 maps [-50°, +50°] → [0x8001, 0x7FFF] as a 2-byte signed int.
+/// This extrapolates the linear mapping beyond the spec range.
+///
+/// The spec mapping uses the full int16_t range except 0x8000 (reserved):
+/// - 0° → 0x0000
+/// - +limit → 0x7FFF
+/// - -limit → 0x8001
+/// We extrapolate proportionally, clamping to int16_t limits to avoid overflow.
+std::vector<uint8_t> encode_out_of_spec_angle(double degrees, double limit) {
+    // Scale factor: 0x7FFF per limit degrees
+    const double scale = 0x7FFF / limit;
+    const int32_t encoded = static_cast<int32_t>(std::round(degrees * scale));
+    // Clamp to int16_t range, avoiding 0x8000 which is the error sentinel
+    int16_t value;
+    if (encoded > 0x7FFF) {
+        value = 0x7FFF;
+    } else if (encoded < -0x7FFF) {
+        value = -0x7FFF;  // 0x8001
+    } else if (encoded == -0x8000) {
+        value = -0x7FFF;  // Bump away from reserved sentinel
+    } else {
+        value = static_cast<int16_t>(encoded);
+    }
+    return {static_cast<uint8_t>((value >> 8) & 0xFF),
+            static_cast<uint8_t>(value & 0xFF)};
+}
+
 /// Items 6/7 are ±20° and ±50°, which a quadcopter exceeds in ordinary flight.
 /// Out of range must be signalled with 0x8000, not clamped — and 90/91 carry
-/// the trustworthy value regardless.
-void put_narrow_angle(Staging& staging, uint16_t tag, double degrees, double limit) {
+/// the trustworthy value regardless. `clamp` overrides this for consumers that
+/// can't handle 0x8000 gracefully. `force_emit` emits out-of-spec values.
+void put_narrow_angle(Staging& staging, uint16_t tag, double degrees, double limit,
+                      bool clamp, bool force_emit) {
     if (std::abs(degrees) <= limit) {
         staging.put(tag, degrees);
+    } else if (force_emit) {
+        auto encoded = encode_out_of_spec_angle(degrees, limit);
+        staging.put_special(tag, encoded, render(degrees) + " (out-of-spec)");
+    } else if (clamp) {
+        const double clamped = std::clamp(degrees, -limit, limit);
+        staging.put(tag, clamped, render(clamped) + " (clamped)");
     } else {
         staging.put_special(tag, {0x80, 0x00}, "out-of-range (0x8000)");
     }
@@ -229,7 +267,8 @@ void anchor_to_session(TelemetrySnapshot& snapshot, const SessionMetadata& sessi
         static_cast<uint64_t>(*session.media_date_epoch_s) * 1000000ULL + elapsed_us;
 }
 
-Klv0601Frame to_0601(const TelemetrySnapshot& s, const SessionMetadata* session) {
+Klv0601Frame to_0601(const TelemetrySnapshot& s, const SessionMetadata* session,
+                     bool clamp_attitude, bool force_emit_attitude) {
     Klv0601Frame result;
     CoverageReport& coverage = result.coverage;
     misbklv::LocalSetBuilder builder(misbklv::gen::uas_0601);
@@ -250,8 +289,8 @@ Klv0601Frame to_0601(const TelemetrySnapshot& s, const SessionMetadata* session)
     // --- platform attitude (Items 5/6/7, and the trustworthy 90/91) ---
     const Euler platform = to_euler(s.drone_quat);
     staging.put(5, platform.yaw_deg);
-    put_narrow_angle(staging, 6, platform.pitch_deg, 20.0);
-    put_narrow_angle(staging, 7, platform.roll_deg, 50.0);
+    put_narrow_angle(staging, 6, platform.pitch_deg, 20.0, clamp_attitude, force_emit_attitude);
+    put_narrow_angle(staging, 7, platform.roll_deg, 50.0, clamp_attitude, force_emit_attitude);
     staging.put(90, platform.pitch_deg);
     staging.put(91, platform.roll_deg);
 

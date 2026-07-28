@@ -40,9 +40,18 @@ parrot-to-klv flight.mp4 --klv            # inspect: what maps, what doesn't
 ```
 
 The output carries the recording's own video elementary stream, unchanged, plus
-one ST 0601 packet per metadata sample. Without `-o` the tool only reads the
-file and reports; location and airframe identity are withheld from that report
-unless `--with-location` / `--with-identity` ask for them.
+one ST 0601 packet per metadata sample. Conversion shows progress every 10%.
+Without `-o` the tool only reads the file and reports; location and airframe
+identity are withheld from that report unless `--with-location` /
+`--with-identity` ask for them.
+
+**Attitude handling:** Items 6/7 (Platform Pitch/Roll) have narrow spec ranges
+(±20°, ±50°) which quadcopters routinely exceed. By default, the spec-mandated
+`0x8000` "out-of-range" sentinel is emitted. Some consumers can't handle this:
+- `--clamp-attitude` clamps to spec limits (consumer-friendly)
+- `--force-emit-attitude` emits actual values (non-compliant, use with caution)
+
+Items 90/91 always carry accurate full-range values regardless.
 
 The tests run against synthetic fixtures in `test/fixtures/`, so `ctest` needs no
 drone footage. Real test inputs live in `data/`, which is **gitignored** — it

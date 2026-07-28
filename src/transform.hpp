@@ -98,10 +98,21 @@ struct Klv0601Frame {
 /// mandatory-item enforcement and the omission is reported. Emitting a
 /// confident wrong timestamp would be worse than emitting none.
 ///
+/// **Attitude handling (Items 6/7)**: By default, when platform pitch exceeds
+/// ±20° or roll exceeds ±50°, the spec-mandated 0x8000 "out-of-range" sentinel
+/// is emitted. Some consumers treat this as a missing value and fail.
+/// - `clamp_attitude`: clamps to spec limits, ensuring numeric values always present
+/// - `force_emit_attitude`: emits actual values even when out-of-spec (extrapolates
+///   the Item 6/7 encoding beyond its defined range). **Non-compliant**: use only
+///   when the consumer requires it and you accept the consequences.
+/// Items 90/91 always carry accurate full-range values regardless of these flags.
+///
 /// Returns an empty packet if encoding fails; `coverage` still describes what
 /// was attempted.
 Klv0601Frame to_0601(const TelemetrySnapshot& snapshot,
-                     const SessionMetadata* session = nullptr);
+                     const SessionMetadata* session = nullptr,
+                     bool clamp_attitude = false,
+                     bool force_emit_attitude = false);
 
 /// Fill in `snapshot.utc_timestamp_us` for a recording whose frames carry only
 /// a monotonic clock, by anchoring that clock to the session's media date.

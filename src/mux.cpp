@@ -5,6 +5,7 @@
 
 #include <cstdint>
 #include <cstdio>
+#include <iostream>
 #include <optional>
 #include <span>
 #include <string>
@@ -44,7 +45,8 @@ std::string describe(misbklv::Error error) {
 /// v3 and proto differ in what a frame *is*, not in how a track is walked.
 template <typename Parse, typename Normalize, typename Emit>
 void convert_all(Mp4MetadataExtractor& extractor, const SessionMetadata& session,
-                 Parse parse, Normalize normalize, Emit emit, MuxReport& report) {
+                 Parse parse, Normalize normalize, Emit emit, MuxReport& report,
+                 bool clamp_attitude, bool force_emit_attitude) {
     // The first sample's clock is the origin the session media date anchors to,
     // so it has to be read before the loop rather than discovered inside it.
     uint64_t first_monotonic_us = 0;
@@ -69,7 +71,7 @@ void convert_all(Mp4MetadataExtractor& extractor, const SessionMetadata& session
         }
         auto snapshot = normalize(*frame);
         anchor_to_session(snapshot, session, first_monotonic_us);
-        auto klv = to_0601(snapshot, &session);
+        auto klv = to_0601(snapshot, &session, clamp_attitude, force_emit_attitude);
         if (klv.packet.empty()) {
             ++report.frames_skipped;
             continue;
@@ -81,7 +83,8 @@ void convert_all(Mp4MetadataExtractor& extractor, const SessionMetadata& session
 
 }  // namespace
 
-MuxReport mux_to_ts(const std::string& input, const std::string& output) {
+MuxReport mux_to_ts(const std::string& input, const std::string& output,
+                    bool clamp_attitude, bool force_emit_attitude) {
     MuxReport report;
 
     auto extractor = Mp4MetadataExtractor::open(input);
@@ -112,6 +115,9 @@ MuxReport mux_to_ts(const std::string& input, const std::string& output) {
     // in the open, a push, or the finish (its ADR 0022).
     misbklv::KlvSink sink("file:" + output, /*realtime=*/false, input);
 
+    const uint32_t total_samples = extractor->sample_count();
+    uint32_t last_progress_pct = 0;
+
     auto emit = [&](const std::vector<uint8_t>& packet, uint64_t timestamp_us) {
         auto message = misbklv::Message::parse(
             std::as_bytes(std::span<const uint8_t>(packet)));
@@ -132,6 +138,15 @@ MuxReport mux_to_ts(const std::string& input, const std::string& output) {
             return;
         }
         ++report.frames_emitted;
+
+        // Progress indicator: print every 10%
+        if (total_samples > 0) {
+            uint32_t progress_pct = (report.frames_emitted * 100) / total_samples;
+            if (progress_pct >= last_progress_pct + 10 && progress_pct <= 100) {
+                std::cerr << "Converting... " << progress_pct << "%\r" << std::flush;
+                last_progress_pct = progress_pct;
+            }
+        }
     };
 
     if (info.format == ParrotFormat::V3) {
@@ -144,7 +159,8 @@ MuxReport mux_to_ts(const std::string& input, const std::string& output) {
                 if (!frame) error = to_string(err);
                 return frame;
             },
-            [](const ParrotV3Frame& f) { return from_v3(f); }, emit, report);
+            [](const ParrotV3Frame& f) { return from_v3(f); }, emit, report,
+            clamp_attitude, force_emit_attitude);
     } else {
         convert_all(
             *extractor, session,
@@ -155,7 +171,13 @@ MuxReport mux_to_ts(const std::string& input, const std::string& output) {
                 if (!frame) error = to_string(err);
                 return frame;
             },
-            [](const ParrotProtoFrame& f) { return from_proto(f); }, emit, report);
+            [](const ParrotProtoFrame& f) { return from_proto(f); }, emit, report,
+            clamp_attitude, force_emit_attitude);
+    }
+
+    // Clear the progress line
+    if (report.frames_emitted > 0 && report.error.empty()) {
+        std::cerr << "                    \r" << std::flush;  // Clear the "Converting..." line
     }
 
     if (auto closed = sink.close(); !closed && report.error.empty()) {
