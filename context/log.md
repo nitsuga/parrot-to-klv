@@ -65,6 +65,22 @@
     rather than papered over. Restricting a dependency set is a good way to find
     out what you actually depend on.
 
+* **Doc lint before a break in the work.** Four drifts, all from the last two
+  changes rather than age:
+  - **README never mentioned that releases exist.** `v0.1.0` has been published
+    with downloadable deliverables and the front page still said "build it
+    yourself". Added a *Getting it* section naming both, which is recommended,
+    and pointing at the ADRs for why they are shaped that way.
+  - README's structure block and CI section predated `packaging/` and
+    `release.yml`; both now listed.
+  - ROADMAP's Phase 4 named only the bundle. It now names both deliverables and
+    says which is the default.
+  - PROGRESS said "nothing mid-flight" while an untagged v0.1.1 sat on `main`
+    with two unreleased changes, and its "Next" listed only fork 4. Both
+    corrected — the immediate actions are the libmisbklv re-pin and the tag.
+  - Checked every internal link resolves. The two hits are the illustrative
+    `./concept.md` in CONVENTIONS § Linking, present since the initial commit.
+
 * **Fork 10 decided — a container image as a second deliverable.**
   [ADR 0010](./decisions/0010-container-deliverable.md), accepted and
   implemented. `packaging/{Dockerfile,Dockerfile.debug,make-image.sh,parrot-to-klv}`.

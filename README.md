@@ -15,6 +15,22 @@ ST 0604 SEI, which the output carries because we ask libmisbklv to generate it
 (its default leaves the video untouched). See
 [`planning/ROADMAP.md`](planning/ROADMAP.md).
 
+## Getting it
+
+Tagged releases carry two prebuilt deliverables for Ubuntu 22.04 / 24.04,
+x86-64, on the [releases page](https://github.com/nitsuga/parrot-to-klv/releases):
+
+- **`…-linux-x86_64.tar.gz`** — extract and run. Self-contained: no GStreamer,
+  no root, nothing installed. This is the recommended one.
+- **`…-linux-x86_64-docker.tar.gz`** — an exported container image plus a
+  launcher, for hosts that already run containers.
+
+Each carries a `USAGE.md`. Why they are shaped this way:
+[ADR 0009](context/decisions/0009-release-bundle.md) and
+[ADR 0010](context/decisions/0010-container-deliverable.md).
+
+Build from source instead if you want to develop on it:
+
 ## Build
 
 C++ with CMake. [libmisbklv](https://github.com/nitsuga/libmisbklv) is pulled in
@@ -85,7 +101,10 @@ directory taxonomy in [`context/CONVENTIONS.md`](context/CONVENTIONS.md)
 **CI**, both on push and pull request:
 [`build.yml`](.github/workflows/build.yml) builds and runs the suite on Ubuntu,
 and [`link-check.yml`](.github/workflows/link-check.yml) fails on broken internal
-doc links. The build job needs one secret, since libmisbklv is a private
+doc links. [`release.yml`](.github/workflows/release.yml) runs on a `v*` tag (or
+manually, which builds and tests but does not publish), producing both release
+deliverables and smoke-testing each one before anything is attached to a
+release. The build job needs one secret, since libmisbklv is a private
 dependency — setup in [`.github/workflows/README-ci.md`](.github/workflows/README-ci.md).
 
 ## Structure
@@ -95,8 +114,10 @@ CLAUDE.md              how-to-work instructions (agent auto-loads)
 CMakeLists.txt         build (FetchContent pulls libmisbklv at a pinned commit)
 .github/workflows/
   build.yml            CI — builds and runs the suite on Ubuntu
+  release.yml          CI — builds both release deliverables on a tag
   link-check.yml       CI — fails on broken internal doc links
   README-ci.md         the one secret build.yml needs, and why
+packaging/             release deliverables: bundle, image, launcher, usage
 src/                   C++ source (parrot-to-klv, parrot-scrub, parrot-conform)
 test/                  tests + synthetic MP4 fixtures
   make_fixture.py      regenerates test/fixtures/ (ffmpeg for the video ones)
