@@ -52,7 +52,7 @@ base struct (Bebop 2 / Disco / ANAFI). *Session* = untimed MP4 session metadata.
 | 7 | Platform Roll Angle | `drone.quat` → roll | ditto | rad→deg. **Range is only ±50°** |
 | 8 | Platform True Airspeed | — | `air_speed` (Q8.8) | round to uint8 m/s; **negative means no data** — omit the item |
 | 10 | Platform Designation | session `model` | session `model` | utf8, e.g. `"ANAFI Ai"` |
-| 11 | Image Source Sensor | `camera.spectrum` + `camera.subtype` | — | free-form utf8, not an enum: spectrum gives the stem (`EO` / `IR` / `EO/IR Blended`), subtype qualifies it (`EO Wide`, `IR Tele`). v2/v3 carry no spectrum, so the item has no source there |
+| 11 | Image Source Sensor | `camera.spectrum` + `camera.subtype` | thermal ext `0x4534` presence, opt-in only | free-form utf8, not an enum: spectrum gives the stem (`EO` / `IR` / `EO/IR Blended`), subtype qualifies it (`EO Wide`, `IR Tele`). v2/v3 state no spectrum; `--infer-image-source` guesses the stem from whether thermal metadata was written, labelled `(inferred)` — [ADR 0011](./decisions/0011-inferred-image-source-sensor.md) |
 | 12 | Image Coordinate System | — | — | constant `"Geodetic WGS84"` |
 | 13 | Sensor Latitude | `camera.location.latitude` | `latitude` (Q10.22) | direct. Prefer `camera.location` over `drone.location`; fall back when absent |
 | 14 | Sensor Longitude | `camera.location.longitude` | `longitude` (Q10.22) | direct |

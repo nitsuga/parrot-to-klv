@@ -108,7 +108,7 @@ void print_frame(const ParrotProtoFrame& f, bool with_location) {
 /// differ in what a frame *is*, not in how a track is walked.
 template <typename Parse, typename Normalize>
 int decode_all(Mp4MetadataExtractor& extractor, const SessionMetadata& session,
-               Disclosure disclosure, bool show_klv, bool clamp_attitude,
+               Disclosure disclosure, bool show_klv, const TransformOptions& options,
                Parse parse, Normalize normalize) {
     uint32_t decoded = 0;
     uint32_t failed = 0;
@@ -145,7 +145,7 @@ int decode_all(Mp4MetadataExtractor& extractor, const SessionMetadata& session,
                 // v3 frames carry only a monotonic clock; the session's media
                 // date is what turns it into wall time.
                 anchor_to_session(snapshot, session, first_monotonic_us);
-                const auto klv = to_0601(snapshot, &session, clamp_attitude);
+                const auto klv = to_0601(snapshot, &session, options);
                 std::cout << "    -> ST 0601 packet: " << klv.packet.size() << " bytes\n"
                           << klv.coverage.to_text(disclosure);
             }
@@ -166,7 +166,7 @@ int main(int argc, char* argv[]) {
     bool with_location = false;
     bool show_klv = false;
     bool with_identity = false;
-    bool clamp_attitude = false;
+    TransformOptions options;
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
         if (arg == "--with-location") {
@@ -176,7 +176,9 @@ int main(int argc, char* argv[]) {
         } else if (arg == "--with-identity") {
             with_identity = true;
         } else if (arg == "--clamp-attitude") {
-            clamp_attitude = true;
+            options.clamp_attitude = true;
+        } else if (arg == "--infer-image-source") {
+            options.infer_image_source = true;
         } else if (arg == "--force-emit-attitude") {
             // Removed (ADR 0008). Rejected rather than ignored: an unknown
             // argument here is silently dropped, and this one used to change
@@ -212,13 +214,20 @@ int main(int argc, char* argv[]) {
                   << "  --clamp-attitude clamps pitch/roll to spec ranges (±20°, ±50°)\n"
                   << "  instead of emitting 0x8000 when out of range. Use for consumers\n"
                   << "  that can't handle missing values gracefully. Items 90/91 always\n"
-                  << "  carry the true full-range attitude either way.\n";
+                  << "  carry the true full-range attitude either way.\n\n"
+                  << "Image Source Sensor (Item 11):\n"
+                  << "  --infer-image-source names the sensor EO or IR for a recording\n"
+                  << "  whose format states no spectrum (every v3 recording), inferring\n"
+                  << "  it from whether the frame carried thermal metadata. This is a\n"
+                  << "  guess from a proxy, not a converted field: a thermal recording\n"
+                  << "  that wrote no thermal metadata would be named EO. Off by default,\n"
+                  << "  and the coverage report marks the item (inferred).\n";
         return 1;
     }
 
     // Converting is the tool's job; the summary below is the inspection mode.
     if (!output.empty()) {
-        const auto report = mux_to_ts(input, output, clamp_attitude);
+        const auto report = mux_to_ts(input, output, options);
         if (!report.error.empty()) {
             std::cerr << "Conversion failed: " << report.error << "\n";
             return 1;
@@ -280,7 +289,7 @@ int main(int argc, char* argv[]) {
     if (info.format == ParrotFormat::V3) {
         std::cout << "\n--- Decoding v3 samples ---\n";
         return decode_all(
-            *extractor, session, disclosure, show_klv, clamp_attitude,
+            *extractor, session, disclosure, show_klv, options,
             [](std::span<const uint8_t> data, std::string& error) -> std::optional<ParrotV3Frame> {
                 ParrotV3Error err{};
                 auto frame = parse_v3(data, &err);
@@ -292,7 +301,7 @@ int main(int argc, char* argv[]) {
     if (info.format == ParrotFormat::Proto) {
         std::cout << "\n--- Decoding proto samples ---\n";
         return decode_all(
-            *extractor, session, disclosure, show_klv, clamp_attitude,
+            *extractor, session, disclosure, show_klv, options,
             [](std::span<const uint8_t> data,
                std::string& error) -> std::optional<ParrotProtoFrame> {
                 ParrotProtoError err{};

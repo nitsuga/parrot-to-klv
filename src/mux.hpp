@@ -52,11 +52,9 @@ struct MuxReport {
 /// conversion: one corrupt sample in a flight should cost that frame's
 /// telemetry, not the file.
 ///
-/// `clamp_attitude`: when true, clamps Items 6/7 to their spec ranges (±20°,
-/// ±50°) instead of emitting the 0x8000 "out-of-range" sentinel. Use for
-/// consumers that can't handle missing values gracefully; Items 90/91 carry the
-/// true attitude either way (ADR 0005, ADR 0008).
+/// `options` is passed through to `to_0601` for every frame — the mapping
+/// relaxations are a property of the conversion, not of the muxing.
 MuxReport mux_to_ts(const std::string& input, const std::string& output,
-                    bool clamp_attitude = false);
+                    const TransformOptions& options = {});
 
 }  // namespace parrot_to_klv

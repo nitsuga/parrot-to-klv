@@ -134,6 +134,15 @@ struct TelemetrySnapshot {
     /// Which physical camera. Proto only; qualifies `spectrum` when naming the
     /// sensor.
     ImageSubtype subtype = ImageSubtype::Unknown;
+    /// Whether this frame carried thermal metadata (v3's 0x4534 extension).
+    ///
+    /// Not telemetry the mapping converts — the thermal spots themselves have no
+    /// ST 0601 item and are dropped. It is here as the only in-band trace a v3
+    /// recording leaves of *which sensor was imaging*, which the opt-in Item 11
+    /// inference reads as a proxy for the spectrum (ADR 0011). A proxy, not the
+    /// field: absence is the weaker half, since it says only that no thermal
+    /// metadata was written.
+    bool thermal_data_present = false;
 
     // --- state ---
     FlyingState flying_state = FlyingState::Landed;

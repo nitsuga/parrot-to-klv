@@ -7,6 +7,31 @@
 
 ## 2026-07-28
 
+* **Item 11 can now be inferred for v3, behind `--infer-image-source`** —
+  [ADR 0011](./decisions/0011-inferred-image-source-sensor.md), fork 11. v3
+  states no imaging spectrum, so every ANAFI-range conversion reported Item 11 as
+  `format does not carry it`; the flag guesses `IR` / `EO` from whether the frame
+  carried the thermal extension. Off by default, never overrides a stated
+  spectrum, rendered `EO (inferred)` in the coverage report.
+  - **Raised by a user converting real ANAFI USA footage**, who needed Item 11
+    for a downstream consumer and asked whether its absence was an oversight. It
+    was not — the field genuinely is not in v3 — which is why this ships as an
+    inference with the failure modes named rather than as a mapping.
+  - **The subtype is not guessed alongside the stem.** No v3 field distinguishes
+    wide from tele, so the value is a bare `EO`, never `EO Wide`. A guessed
+    qualifier would add nothing while making the guess look more precise.
+  - **`(inferred)` is a report label, not a wire suffix.** Item 11 is a name that
+    consumers string-match; a caveat inside it would break the match. Same
+    treatment `(clamped)` already gets, and asserted in `transform_test`.
+  - **`to_0601` / `mux_to_ts` now take `TransformOptions`** instead of a trailing
+    `bool clamp_attitude`. Two adjacent unnamed bools at a call site is a defect
+    waiting to happen; the third would have been worse. Call sites read
+    `{.clamp_attitude = true}`.
+  - Suites green: 9/9 `-L parrot`.
+  - Doc lint caught in passing: [[transform-stage]] still described
+    `--force-emit-attitude` as a live flag, two ADRs after
+    [[0008-force-emit-attitude-cannot-work]] removed it.
+
 * **`v0.1.1` published.** Both deliverables and their checksums attached, built
   and smoke-tested by the four-job `release.yml` before anything reached the
   release page. Carries the item-naming report, the container image (ADR 0010)

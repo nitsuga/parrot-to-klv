@@ -121,9 +121,13 @@ public:
         }
     }
 
-    void put_text(uint16_t tag, std::string_view value) {
+    void put_text(uint16_t tag, std::string_view value, const std::string& rendered) {
         auto result = builder_.set(tag, misbklv::Value{value});
-        if (result) coverage_.emitted[tag] = std::string(value);
+        if (result) coverage_.emitted[tag] = rendered;
+    }
+
+    void put_text(uint16_t tag, std::string_view value) {
+        put_text(tag, value, std::string(value));
     }
 
     /// Stage pre-encoded bytes — used for the out-of-range special values,
@@ -283,7 +287,8 @@ void anchor_to_session(TelemetrySnapshot& snapshot, const SessionMetadata& sessi
 }
 
 Klv0601Frame to_0601(const TelemetrySnapshot& s, const SessionMetadata* session,
-                     bool clamp_attitude) {
+                     const TransformOptions& options) {
+    const bool clamp_attitude = options.clamp_attitude;
     Klv0601Frame result;
     CoverageReport& coverage = result.coverage;
     misbklv::LocalSetBuilder builder(misbklv::gen::uas_0601);
@@ -423,10 +428,19 @@ Klv0601Frame to_0601(const TelemetrySnapshot& s, const SessionMetadata* session,
         coverage.omitted[10] = OmissionReason::NeedsSessionData;
     }
     // Item 11 names the active sensor. Proto's `camera.spectrum` is the only
-    // source; v3 carries nothing equivalent, and an unknown spectrum is left
-    // unnamed rather than assumed to be EO.
+    // stated source; v3 carries nothing equivalent, and an unknown spectrum is
+    // left unnamed rather than assumed to be EO.
     if (auto sensor = image_source_sensor(s.spectrum, s.subtype)) {
         staging.put_text(11, *sensor);
+    } else if (options.infer_image_source) {
+        // Opt-in only (ADR 0011). The stated spectrum is checked first, so this
+        // fills a gap and never overrides what the recording said. The subtype
+        // is deliberately not guessed alongside — no v3 field distinguishes wide
+        // from tele, so the name stays a bare stem rather than inventing one.
+        const auto inferred =
+            s.thermal_data_present ? ImageSpectrum::Thermal : ImageSpectrum::Visible;
+        const auto name = *image_source_sensor(inferred, ImageSubtype::Unknown);
+        staging.put_text(11, name, name + " (inferred)");
     } else {
         coverage.omitted[11] = s.source_format == ParrotFormat::V3
                                    ? OmissionReason::NoSourceInFormat

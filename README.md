@@ -77,6 +77,14 @@ the real attitude. There is no option to put the true angle into Items 6/7:
 ST 0601 maps ±limit onto the whole 16-bit range, so a larger value has no
 encoding there at all.
 
+**Image Source Sensor:** Item 11 names the sensor (`EO`, `IR`, `EO Wide`). The
+proto format states it; **v3 does not**, so the whole ANAFI range omits the item
+by default. `--infer-image-source` guesses it from whether the frame carried
+thermal metadata — opt-in, never overriding a stated spectrum, and marked
+`(inferred)` in the coverage report. It names blended EO/IR footage `IR`, which
+is the price of a v3 format that gives nothing to tell the two apart
+([ADR 0011](context/decisions/0011-inferred-image-source-sensor.md)).
+
 The tests run against synthetic fixtures in `test/fixtures/`, so `ctest` needs no
 drone footage. Real test inputs live in `data/`, which is **gitignored** — it
 holds footage with live location data and must never be committed.

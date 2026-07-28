@@ -70,3 +70,4 @@ _(`type: Decision` — ADRs: the *why* of resolved forks.)_
 * [0008 — `--force-emit-attitude` cannot do what it promises](./decisions/0008-force-emit-attitude-cannot-work.md) — The encoding has no headroom past ±limit, so the flag only ever emitted the clamped value; removed
 * [0009 — Ship a relocatable bundle](./decisions/0009-release-bundle.md) — Build on the oldest target and bundle GStreamer + the plugins used, so a user extracts and runs with nothing installed
 * [0010 — A container image as a second deliverable](./decisions/0010-container-deliverable.md) — Exported distroless image built from the bundle, with a launcher that mounts only what is in play and runs as the caller
+* [0011 — Inferring Item 11 for formats that state no spectrum](./decisions/0011-inferred-image-source-sensor.md) — v3 states no spectrum; `--infer-image-source` guesses EO/IR from thermal-metadata presence, opt-in and labelled `(inferred)`

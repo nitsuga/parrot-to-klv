@@ -167,6 +167,11 @@ TelemetrySnapshot from_v3(const ParrotV3Frame& f) {
     s.piloting_mode = common_mode(f.piloting_mode);
     s.tracking_active = f.piloting_mode == PilotingMode::Tracking;
 
+    // v3 states no spectrum, so `s.spectrum` stays Unknown. The thermal
+    // extension is the only trace of which sensor was imaging; carried across
+    // for the opt-in Item 11 inference, which is the sole thing that reads it.
+    s.thermal_data_present = f.thermal.has_value();
+
     // ADR 0002's residue: fields 0601 has nowhere to put. Listed only when the
     // frame actually carried them.
     s.dropped_fields.push_back("battery_percentage");

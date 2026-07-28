@@ -48,7 +48,10 @@ behaviour: [mux stage](../context/mux-stage.md).
 location and device identity are withheld unless `--with-location` /
 `--with-identity`; `--clamp-attitude` overrides the Items 6/7
 out-of-range default per
-[ADR 0005](../context/decisions/0005-attitude-range-policy.md)). `parrot-scrub`
+[ADR 0005](../context/decisions/0005-attitude-range-policy.md), and
+`--infer-image-source` fills Item 11 for a format that states no spectrum per
+[ADR 0011](../context/decisions/0011-inferred-image-source-sensor.md)).
+`parrot-scrub`
 replaces a recording's location fields so a real flight can become a fixture.
 `parrot-conform` commits
 real-encoder evidence without the recording, and reports from two real ANAFI
@@ -73,8 +76,8 @@ uses `data/` skips cleanly without it.
 
 ## In progress
 
-- Nothing mid-flight. `v0.1.1` is published with both deliverables and `main`
-  carries no unreleased change.
+- Nothing mid-flight. `v0.1.1` is published with both deliverables; `main` now
+  carries the Item 11 inference ahead of it.
 
 ## Next
 
@@ -97,6 +100,12 @@ uses `data/` skips cleanly without it.
   glibc floor — a sound argument, not a test. It also pins a build-time
   GStreamer: host security updates do not reach it, a rebuild does
   ([ADR 0009](../context/decisions/0009-release-bundle.md) § Consequences).
+- **The `IR` half of `--infer-image-source` has never met a thermal recording.**
+  The `EO` half is exercised by fixtures and by real EO flights; that thermal
+  imagery always writes the thermal extension is reasoning about the format, not
+  evidence from it
+  ([ADR 0011](../context/decisions/0011-inferred-image-source-sensor.md)
+  § Assumptions). Blended EO/IR footage is knowingly named `IR`.
 - Item 2 for v3 recordings is anchored to session `media_date`, so it inherits
   that field's **second** granularity. Frame-to-frame spacing stays exact.
 - The mux has run on real footage on an authorized machine — that is what found

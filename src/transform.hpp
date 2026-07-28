@@ -78,6 +78,29 @@ struct CoverageReport {
     std::string to_text(const Disclosure& disclosure = {}) const;
 };
 
+/// Opt-ins that relax the mapping's default "never state what the recording did
+/// not say" rule.
+///
+/// Every member defaults to false, and the default output is what the recording
+/// supports and nothing more. Each flag exists because a real consumer cannot
+/// use the strict form, and each one is named in the coverage report when it
+/// changes an item — a relaxation the report does not admit to would be
+/// indistinguishable from data.
+///
+/// A struct rather than a parameter list: these are all booleans, and adjacent
+/// unnamed bools at a call site are a defect waiting to happen.
+struct TransformOptions {
+    /// Clamp Items 6/7 to their spec ranges instead of emitting the 0x8000
+    /// out-of-range sentinel (ADR 0005). Items 90/91 carry the true attitude
+    /// either way.
+    bool clamp_attitude = false;
+    /// Infer Item 11 (Image Source Sensor) for a recording whose format does
+    /// not carry the imaging spectrum, from whether the frame carried thermal
+    /// metadata (ADR 0011). **This is an inference, not a conversion** — see
+    /// `to_0601` below.
+    bool infer_image_source = false;
+};
+
 /// One frame mapped to ST 0601.
 struct Klv0601Frame {
     /// Encoded packet: UL key, BER length, items, checksum.
@@ -101,19 +124,27 @@ struct Klv0601Frame {
 /// **Attitude handling (Items 6/7)**: By default, when platform pitch exceeds
 /// ±20° or roll exceeds ±50°, the spec-mandated 0x8000 "out-of-range" sentinel
 /// is emitted. Some consumers treat this as a missing value and fail.
-/// - `clamp_attitude`: clamps to spec limits, ensuring numeric values are always
-///   present. The clamped item is labelled as such in the coverage report.
+/// - `TransformOptions::clamp_attitude`: clamps to spec limits, ensuring numeric
+///   values are always present. The clamped item is labelled as such in the
+///   coverage report.
 ///
 /// There is no option to emit the true angle here, and there cannot be: ST 0601
 /// maps ±limit onto the whole int16 range, so a larger value has no encoding in
 /// these items (ADR 0008). Items 90/91 always carry accurate full-range values,
 /// which is where a consumer wanting the real attitude should read.
 ///
+/// **Item 11 inference**: `TransformOptions::infer_image_source` fills Item 11
+/// for a recording that carries no spectrum field (every v3 recording) by
+/// reading the presence of thermal metadata as the signal — see ADR 0011. It is
+/// an inference from a proxy, not a conversion of a field, so it is off by
+/// default and the inferred item is marked `(inferred)` in the coverage report.
+/// It never overrides a spectrum the recording actually states.
+///
 /// Returns an empty packet if encoding fails; `coverage` still describes what
 /// was attempted.
 Klv0601Frame to_0601(const TelemetrySnapshot& snapshot,
                      const SessionMetadata* session = nullptr,
-                     bool clamp_attitude = false);
+                     const TransformOptions& options = {});
 
 /// Fill in `snapshot.utc_timestamp_us` for a recording whose frames carry only
 /// a monotonic clock, by anchoring that clock to the session's media date.

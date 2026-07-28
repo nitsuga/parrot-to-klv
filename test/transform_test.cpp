@@ -330,6 +330,50 @@ void check_image_source_sensor() {
           "proto without a spectrum reports the frame, not the format");
 }
 
+/// ADR 0011: Item 11 can be inferred from thermal-metadata presence, but only
+/// when asked for, only where the recording states nothing, and only labelled.
+void check_image_source_inference() {
+    ParrotV3Frame eo;
+    eo.drone_quat = Quaternion{1.0, 0.0, 0.0, 0.0};
+    eo.frame_quat = eo.drone_quat;
+
+    ParrotV3Frame ir = eo;
+    ir.thermal = ThermalExt{};
+
+    // Default is unchanged: the flag is the whole difference.
+    check(to_0601(from_v3(eo)).coverage.omitted.count(11) == 1,
+          "without the flag, v3 still omits Item 11");
+    check(to_0601(from_v3(ir)).coverage.omitted.count(11) == 1,
+          "the thermal extension alone does not fill Item 11");
+
+    const TransformOptions infer{.infer_image_source = true};
+    const auto no_thermal = to_0601(from_v3(eo), nullptr, infer);
+    check(decode_packet(no_thermal.packet).texts.at(11) == "EO",
+          "no thermal metadata infers EO");
+    const auto with_thermal = to_0601(from_v3(ir), nullptr, infer);
+    check(decode_packet(with_thermal.packet).texts.at(11) == "IR",
+          "thermal metadata infers IR");
+
+    // The wire value is the bare sensor name — "(inferred)" is a report label,
+    // not something a 0601 consumer should have to parse out of Item 11.
+    check(no_thermal.coverage.emitted.at(11) == "EO (inferred)",
+          "the report says the value was inferred");
+    check(no_thermal.coverage.to_text().find("EO (inferred)") != std::string::npos,
+          "the rendered report carries the label too");
+
+    // A stated spectrum wins: the flag fills a gap, it never overrides.
+    ParrotProtoFrame stated;
+    stated.drone_quat = Quaternion{1.0, 0.0, 0.0, 0.0};
+    stated.frame_quat = stated.drone_quat;
+    stated.spectrum = CameraSpectrum::Visible;
+    stated.subtype = CameraSubtype::Wide;
+    const auto proto_klv = to_0601(from_proto(stated), nullptr, infer);
+    check(decode_packet(proto_klv.packet).texts.at(11) == "EO Wide",
+          "a stated spectrum is used verbatim even with inference on");
+    check(proto_klv.coverage.emitted.at(11) == "EO Wide",
+          "a stated spectrum is not labelled inferred");
+}
+
 void check_unknown_utc_is_not_invented() {
     ParrotProtoFrame frame;
     frame.drone_quat = identity();
@@ -396,7 +440,7 @@ void check_attitude_clamped() {
     // --clamp-attitude: emit the spec limit instead of the 0x8000 sentinel, for
     // consumers that treat a missing key as a parse failure (ADR 0005).
     auto snapshot = steep_snapshot(45.0, 0.0);
-    const auto klv = to_0601(snapshot, nullptr, /*clamp=*/true);
+    const auto klv = to_0601(snapshot, nullptr, {.clamp_attitude = true});
     const auto decoded = decode_packet(klv.packet);
     check(decoded.parsed, "clamped packet parses");
 
@@ -411,7 +455,7 @@ void check_attitude_clamped() {
     // Negative side, and Item 7's wider limit.
     auto rolled = steep_snapshot(0.0, -70.0);
     const auto neg = decode_packet(
-        to_0601(rolled, nullptr, /*clamp=*/true).packet);
+        to_0601(rolled, nullptr, {.clamp_attitude = true}).packet);
     check_near(neg.reals.at(7), -50.0, 0.01, "Item 7 clamps to its -50 limit");
     check_near(neg.reals.at(91), -70.0, 0.01, "Item 91 keeps the true roll");
 }
@@ -422,13 +466,13 @@ void check_attitude_in_range_is_untouched() {
     auto snapshot = steep_snapshot(10.0, 0.0);
     const auto plain = decode_packet(to_0601(snapshot).packet);
     const auto clamped = decode_packet(
-        to_0601(snapshot, nullptr, /*clamp=*/true).packet);
+        to_0601(snapshot, nullptr, {.clamp_attitude = true}).packet);
 
     check_near(plain.reals.at(6), 10.0, 0.01, "in-range pitch is emitted as measured");
     check_near(clamped.reals.at(6), plain.reals.at(6), 1e-9,
                "--clamp-attitude leaves an in-range Item 6 alone");
 
-    const auto klv = to_0601(snapshot, nullptr, /*clamp=*/true);
+    const auto klv = to_0601(snapshot, nullptr, {.clamp_attitude = true});
     check(klv.coverage.emitted.at(6).find("clamped") == std::string::npos,
           "an in-range item is not labelled clamped");
 }
@@ -477,6 +521,7 @@ int main() {
     check_v3_mapping();
     check_proto_mapping();
     check_image_source_sensor();
+    check_image_source_inference();
     check_unknown_utc_is_not_invented();
     check_narrow_angle_specials();
     check_attitude_clamped();

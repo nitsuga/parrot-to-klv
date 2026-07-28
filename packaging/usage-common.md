@@ -18,6 +18,7 @@ without reading the KLV. Other codecs are carried through unstamped.
 | `--with-location` | include latitude/longitude in that report. |
 | `--with-identity` | include the airframe serial in that report. |
 | `--clamp-attitude` | see *Attitude* below. |
+| `--infer-image-source` | see *Image Source Sensor* below. |
 
 ## Reports withhold sensitive values by default
 
@@ -38,6 +39,25 @@ parse failure; `--clamp-attitude` emits the spec limit instead.
 in use. If you want the real number, read those. There is no option to put the
 true angle into Items 6/7 — ST 0601 maps ±limit onto the whole 16-bit range, so
 a larger value has no encoding there at all.
+
+## Image Source Sensor
+
+Item 11 names the sensor that produced the imagery — `EO`, `IR`, `EO Wide`. The
+proto format states this outright. **The v3 format does not**, so for the whole
+ANAFI range the item is omitted by default and the report says the format does
+not carry it.
+
+`--infer-image-source` fills it in anyway, from the one trace a v3 recording
+leaves: thermal metadata present means `IR`, absent means `EO`. That is a guess
+from a proxy, so it is off by default, it never overrides a spectrum the
+recording actually states, and the coverage report marks it `(inferred)`. The
+KLV value itself is the bare name — the caveat stays in the report.
+
+Two things it gets wrong, and cannot do better on: **blended EO/IR footage** is
+named `IR`, because v3 gives nothing to distinguish it from pure thermal; and a
+thermal recording that wrote no thermal metadata would be named `EO`. No subtype
+is guessed — v3 has no field distinguishing wide from tele, so the value is
+always a bare stem.
 
 ## What is not converted
 

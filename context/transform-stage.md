@@ -63,9 +63,18 @@ values are checked as a consumer sees them rather than as we staged them.
   carry the trustworthy value alongside. Two opt-in flags override the default
   for consumers that cannot parse the sentinel (`--clamp-attitude`) or that want
   fidelity over conformance (`--force-emit-attitude`, non-compliant); the
-  coverage report labels both, and 90/91 stay accurate under either. Why the
+  coverage report labels it, and 90/91 stay accurate either way. Why the
   default survived contact with a decoder that chokes on `0x8000`:
-  [[0005-attitude-range-policy]].
+  [[0005-attitude-range-policy]]. A second flag promising the true angle shipped
+  briefly and was removed — the encoding has no headroom for one
+  ([[0008-force-emit-attitude-cannot-work]]).
+- **Item 11 is inferred, or nothing.** v3 states no imaging spectrum, so the
+  sensor cannot be *named* from a v3 recording — only guessed at, from whether
+  the frame carried the thermal extension. `--infer-image-source` does that,
+  off by default, never overriding a spectrum the recording states, and marked
+  `(inferred)` in the report. The guess is wrong for blended EO/IR footage and
+  wrong in the damaging direction for a thermal recording that wrote no thermal
+  metadata: [[0011-inferred-image-source-sensor]].
 - **Item 112 is undefined at rest.** Course over ground is `atan2` of two
   numbers that are pure noise when the aircraft is stationary, so it is omitted
   below 0.5 m/s rather than reporting a direction of travel that does not exist.
