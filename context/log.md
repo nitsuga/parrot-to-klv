@@ -29,13 +29,21 @@
 
   - ADR 0006's citations were updated in place instead, since a citation is meant
     to be followed; `e3c7f4a` and `f9070fb` there survive the rewrite unchanged.
-* **Sanitized a third-party product name out of ADRs 0005 and 0006.** A
-  downstream consumer was named outright in four places; it is now described by
-  what it does ("a downstream KLV decoder", "the consumer's decoder"). No
-  argument changed — what mattered was the `.at()`-on-missing-key behaviour, not
-  whose decoder it was. History deliberately left alone; the name survives in
-  earlier commits. **Convention going forward: identify external consumers by
-  behaviour, never by product name.**
+* **Sanitized a third-party product name out of ADRs 0005 and 0006, then out of
+  the unpushed history.** A downstream consumer was named outright in four
+  places; it is now described by what it does ("a downstream KLV decoder", "the
+  consumer's decoder"). No argument changed — what mattered was the
+  `.at()`-on-missing-key behaviour, not whose decoder it was.
+  - The five unpushed commits were rewritten (`filter-branch` over
+    `origin/main..HEAD`), so the name never appears in that range at all. The
+    rewrite was verified content-neutral: the tip tree hash is identical before
+    and after, since the working copy was already clean.
+  - **One occurrence remains, in published `25199e4`** — its commit message and
+    the `log.md` blob of that commit. Scrubbing it needs a force-push and a
+    re-sync of the other machine's clone, so it is deliberately left for a
+    coordinated pass.
+  - **Convention going forward: identify external consumers by behaviour, never
+    by product name.**
 * **Fork 6 decided — the video is not a passthrough, and has not been since the
   `b454415` pin.** [ADR 0006](./decisions/0006-inherited-st0604-sei-injection.md):
   keep libmisbklv's unconditional ST 0604 SEI injection, retire the "unchanged"
