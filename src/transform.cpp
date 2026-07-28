@@ -7,6 +7,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <iomanip>
 #include <span>
 #include <sstream>
 #include <string>
@@ -162,6 +163,23 @@ void put_narrow_angle(Staging& staging, uint16_t tag, double degrees, double lim
     }
 }
 
+/// The registry's name for a tag, or empty if it has none.
+///
+/// The report is read by people matching it against ST 0601 itself, so the item
+/// number stays alongside the name rather than being replaced by it: "Item 21"
+/// is how the standard and this project's own docs refer to it.
+std::string_view item_name(uint16_t tag) {
+  const auto* descriptor = misbklv::gen::uas_0601.find(tag);
+  return descriptor ? descriptor->name : std::string_view{};
+}
+
+/// The registry's units for a tag, or empty where it has none.
+std::string_view item_units(uint16_t tag) {
+  const auto* descriptor = misbklv::gen::uas_0601.find(tag);
+  if (!descriptor) return {};
+  return descriptor->units == "-" ? std::string_view{} : descriptor->units;
+}
+
 }  // namespace
 
 std::string to_string(OmissionReason reason) {
@@ -204,18 +222,43 @@ std::string CoverageReport::to_text(const Disclosure& disclosure) const {
     // Item 4 carries the airframe serial — device identity, which the
     // conformance reports exclude by construction for the same reason.
     const auto is_identity = [](uint16_t tag) { return tag == 4; };
+    // Names come from the registry, so this report reads as ST 0601 rather than
+    // as a list of tag numbers. One item per line: with names attached, the old
+    // single-line form ran past 400 characters.
+    //
+    // The name column is sized to the widest name actually present, so a report
+    // with only short names stays narrow instead of padding to a constant that
+    // fits Item 16.
+    std::size_t width = 0;
+    for (const auto& [tag, value] : emitted) width = std::max(width, item_name(tag).size());
+    for (const auto& [tag, reason] : omitted) width = std::max(width, item_name(tag).size());
+
+    const auto label = [&](uint16_t tag) {
+        std::ostringstream row;
+        row << "    Item " << std::setw(3) << tag << "  " << std::left << std::setw(
+                   static_cast<int>(width)) << std::string(item_name(tag)) << std::right;
+        return row.str();
+    };
+
     std::ostringstream out;
-    out << "  emitted " << emitted.size() << " item(s):";
+    out << "  emitted " << emitted.size() << " item(s):\n";
     for (const auto& [tag, value] : emitted) {
         const bool hide = (is_location(tag) && !disclosure.location) ||
                           (is_identity(tag) && !disclosure.identity);
-        out << " " << tag << "=" << (hide ? "withheld" : value);
+        out << label(tag) << "  = " << (hide ? "withheld" : value);
+        // Units only on a bare number: a value already carrying a qualifier
+        // ("20.000 (clamped)") would read as "(clamped) deg", and "withheld deg"
+        // says nothing that "withheld" did not.
+        const auto units = item_units(tag);
+        if (!hide && !units.empty() && value.find(' ') == std::string::npos) {
+            out << " " << units;
+        }
+        out << "\n";
     }
-    out << "\n";
     if (!omitted.empty()) {
         out << "  omitted " << omitted.size() << " item(s):\n";
         for (const auto& [tag, reason] : omitted) {
-            out << "    item " << tag << " — " << to_string(reason) << "\n";
+            out << label(tag) << "  — " << to_string(reason) << "\n";
         }
     }
     if (!dropped_fields.empty()) {

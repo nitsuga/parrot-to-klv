@@ -7,6 +7,27 @@
 
 ## 2026-07-28
 
+* **The `--klv` coverage report names items instead of numbering them.** It read
+  `2=1538842372000000 … item 11 — format does not carry it`; it now reads
+  `Item   2  Precision Time Stamp  = 1538842372000000 microseconds` and
+  `Item  11  Image Source Sensor   — format does not carry it`. Names and units
+  come from libmisbklv's ST 0601 registry, so the report stays in step with the
+  standard rather than carrying a second copy of it.
+  - **The number stays alongside the name.** "Item 21" is how ST 0601 indexes it
+    and how this project's own docs refer to it, so replacing the number would
+    have cost the cross-reference the report is usually read against.
+  - Emitted items moved to one per line: with names attached the old single line
+    ran past 400 characters. The name column is sized to the widest name present,
+    so a short report stays narrow.
+  - Units are appended only to a bare number — a value already qualified
+    (`out-of-range (0x8000)`, `20.000 (clamped)`) would otherwise read
+    "(clamped) deg", and "withheld deg" says nothing "withheld" did not. Asserted
+    in `transform_test` rather than left to reasoning.
+  - Two tests asserted the old wire format (`13=withheld`, `4=withheld`). They now
+    find the item's line and check it says withheld, which is the actual
+    requirement and does not break the next time a column moves.
+  - Conformance reports do not embed this text, so nothing committed changed.
+
 * **First `v0.1.0` tag failed to build; the 22.04 runner needed a package
   untangled.** `libgstreamer1.0-dev` depends on `libunwind-dev`, and the
   `ubuntu-22.04` image ships LLVM's `libunwind-*-dev`, which conflicts with it —

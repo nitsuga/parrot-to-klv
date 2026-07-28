@@ -44,6 +44,17 @@ void check_near(double actual, double expected, double tolerance, const std::str
     }
 }
 
+/// The line of `text` naming `item`, or "" — so an assertion about one item's
+/// rendering does not depend on the report's column widths.
+std::string line_for(const std::string& text, const std::string& item) {
+    const auto at = text.find(item);
+    if (at == std::string::npos) return {};
+    const auto begin = text.rfind('\n', at);
+    const auto end = text.find('\n', at);
+    return text.substr(begin == std::string::npos ? 0 : begin + 1,
+                       end == std::string::npos ? std::string::npos : end - (begin + 1));
+}
+
 /// Decode an emitted packet back into tag -> value, the way a consumer would.
 struct Decoded {
     std::map<uint16_t, double> reals;
@@ -205,7 +216,8 @@ void check_v3_mapping() {
     const std::string safe = frame.coverage.to_text();
     check(safe.find("45.5") == std::string::npos, "latitude is withheld by default");
     check(safe.find("-73.5") == std::string::npos, "longitude is withheld by default");
-    check(safe.find("13=withheld") != std::string::npos, "…and marked as withheld");
+    check(line_for(safe, "Sensor Latitude").find("withheld") != std::string::npos,
+          "…and Item 13 is marked withheld rather than silently dropped");
     const std::string revealed = frame.coverage.to_text(Disclosure{.location = true});
     check(revealed.find("45.5") != std::string::npos, "--with-location reveals latitude");
 }
@@ -355,6 +367,16 @@ void check_narrow_angle_specials() {
           "Item 6 reports the out-of-range special rather than a value");
     // Item 90 is the one to trust: ±90 degrees, so 45 fits.
     check_near(decoded.reals.at(90), 45.0, 0.01, "Item 90 carries the true pitch");
+
+    // The report names items now, and appends the registry's units — but only to
+    // a bare number. A value already carrying a qualifier would otherwise read
+    // "out-of-range (0x8000) deg".
+    const std::string report = klv.coverage.to_text();
+    const std::string pitch = line_for(report, "Platform Pitch Angle ");
+    check(pitch.find("Item   6") != std::string::npos, "the report names Item 6 and its label");
+    check(pitch.find("out-of-range") != std::string::npos, "…and shows the sentinel");
+    check(pitch.find(") deg") == std::string::npos,
+          "…without appending units to a qualified value");
 }
 
 /// A snapshot pitched and rolled past both Item 6 and Item 7 spec ranges.

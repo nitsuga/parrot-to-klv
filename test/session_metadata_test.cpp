@@ -28,6 +28,17 @@ void check(bool condition, const std::string& what) {
     }
 }
 
+/// The line of `text` naming `item`, or "" — so an assertion about one item's
+/// rendering does not depend on the report's column widths.
+std::string line_for(const std::string& text, const std::string& item) {
+    const auto at = text.find(item);
+    if (at == std::string::npos) return {};
+    const auto begin = text.rfind('\n', at);
+    const auto end = text.find('\n', at);
+    return text.substr(begin == std::string::npos ? 0 : begin + 1,
+                       end == std::string::npos ? std::string::npos : end - (begin + 1));
+}
+
 template <typename T>
 void check_eq(const T& actual, const T& expected, const std::string& what) {
     if (!(actual == expected)) {
@@ -153,7 +164,8 @@ void check_session_items() {
     // the caller opts in, separately from the location opt-in.
     const std::string guarded = klv.coverage.to_text();
     check(guarded.find("PI040416") == std::string::npos, "serial is withheld by default");
-    check(guarded.find("4=withheld") != std::string::npos, "…and marked as withheld");
+    check(line_for(guarded, "Platform Tail Number").find("withheld") != std::string::npos,
+          "…and Item 4 is marked withheld rather than silently dropped");
     check(klv.coverage.to_text(Disclosure{.location = true}).find("PI040416") ==
               std::string::npos,
           "revealing location does not reveal identity");
