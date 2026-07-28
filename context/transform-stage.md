@@ -101,7 +101,11 @@ loss to be reported rather than implied. `CoverageReport` is that obligation
 made concrete, and it is a first-class output — `parrot-to-klv --klv` prints it
 per frame:
 
-- **emitted** — every item that made it, with its value
+- **emitted** — every item that made it, one per line, with its value. Number,
+  name and units all come from libmisbklv's ST 0601 registry rather than a
+  second copy of the standard kept here, so the report cannot drift from what
+  was encoded. The number stays alongside the name because that is how ST 0601
+  indexes an item and how these docs refer to it
 - **omitted** — items the mapping knows about but did not emit, each with a
   reason: the format does not carry it, this frame did not, it needs terrain
   intersection, it needs session metadata, or the mapping itself is an open

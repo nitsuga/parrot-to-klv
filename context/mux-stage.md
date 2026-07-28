@@ -14,10 +14,10 @@ video elementary stream plus the ST 0601 packets [[transform-stage]] produced.
 caller.
 
 Almost none of the container work is ours. libmisbklv's `KlvSink` takes a
-`video_source` and builds `filesrc ! parsebin` alongside its KLV appsrc into one
-`mpegtsmux`, so this stage is a loop that pushes packets with timestamps. What
-this document covers is the part that *is* ours: the timeline the packets go on,
-and the failure behaviour.
+`video_source` and builds `filesrc ! demuxer ! parser` alongside its KLV appsrc
+into one `mpegtsmux`, so this stage is a loop that pushes packets with
+timestamps. What this document covers is the part that *is* ours: the timeline
+the packets go on, and the failure behaviour.
 
 ## Files
 
@@ -29,10 +29,21 @@ and the failure behaviour.
 
 ## Video is never decoded — but it is not bit-identical either
 
-`parsebin` parses the elementary stream and hands it to the muxer, so whatever
-the drone encoded is what comes out, with no generation loss. The source's other
-tracks are dropped, including its Parrot metadata track: the KLV in the output
-is the KLV this tool generated, not a copy of the input's.
+`h264parse`/`h265parse` parse the elementary stream and hand it to the muxer, so
+whatever the drone encoded is what comes out, with no generation loss. No decoder
+is involved, and — since libmisbklv's ADR 0025 — none needs to be *installed*
+either, which is what lets the release bundle ship without one
+([[0009-release-bundle]]). The source's other tracks are dropped, including its
+Parrot metadata track: the KLV in the output is the KLV this tool generated, not
+a copy of the input's.
+
+**"Dropped" means each one gets its own queue to a fakesink, and the queue is
+load-bearing.** A demuxer pushes every stream from a single thread and a sink
+prerolling in PAUSED blocks that thread, so without a queue in between, a stream
+we discard stalls the video behind it and the pipeline never reaches PLAYING.
+That is what hung libmisbklv's CI, invisibly on gstreamer 1.20. Recorded here
+because it looks like tidiness from this side of the boundary; libmisbklv's
+ADR 0020 owns the decision.
 
 **There is one codec branch, and it is about timestamps, not video.** The
 airframes in scope record H.264, and ST 0604 SEI generation is H.264-only

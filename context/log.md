@@ -7,6 +7,27 @@
 
 ## 2026-07-28
 
+* **Doc lint after the re-pin — three descriptions of upstream's pipeline had
+  gone stale.** All from the mechanism moving underneath them, not from age.
+  - **[[mux-stage]] still said `filesrc ! parsebin`**, two pins after it stopped
+    being that. Now `filesrc ! demuxer ! parser`, with the point that matters
+    from this side stated: no decoder need be *installed*, which is what lets the
+    bundle ship without one.
+  - **"The source's other tracks are dropped" was true but hid a trap.** Dropped
+    means each stream gets its own queue to a fakesink, and the queue is
+    load-bearing — remove it and a discarded stream deadlocks preroll. It reads
+    as tidiness from here, so it is written down here; libmisbklv's ADR 0020 owns
+    the decision.
+  - **[[0001-mp4-extraction-approach]]'s follow-on named parsebin too.**
+    Annotated rather than rewritten, beside the existing ST 0604 note — nothing
+    the ADR decides turns on which chain it is, but the sentence should not read
+    as current.
+  - **[[transform-stage]] under-described the coverage report** after the naming
+    change: "with its value" for something that now prints number, name, value
+    and units, one item per line, all sourced from libmisbklv's registry.
+  - Register, ROADMAP forks, bundle plugin counts and sizes, and every internal
+    link all checked clean.
+
 * **Re-pinned to libmisbklv `8e866e1` — the CI hang is fixed, and 1.24 was
   silently keeping the source's ST 0604.** Two faults upstream, both invisible on
   the 1.20 stack this machine runs, which is why only CI ever saw the first and

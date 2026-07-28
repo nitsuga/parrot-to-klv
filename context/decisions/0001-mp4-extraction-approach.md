@@ -128,6 +128,14 @@ one thing we do not touch. See [[mux-stage]].
 > timing NALs to carry ST 0604. The boundary this ADR draws still holds (no
 > video crosses *our* code), but the stream is no longer bit-identical. See
 > [[0006-inherited-st0604-sei-injection]].
+>
+> **And the mechanism named above has changed (2026-07-28):** `filesrc !
+> parsebin` is now `filesrc ! demuxer` with the container sniffed up front —
+> parsebin required a *decoder* to be present before it would call a stream
+> parsed, which a bundle shipping no decoders cannot satisfy (libmisbklv's ADR
+> 0025, [[0009-release-bundle]] § Consequences). Nothing this ADR decides turns
+> on which of the two it is; the sentence is corrected so it is not read as
+> current. [[mux-stage]] carries the live description.
 
 # References
 
