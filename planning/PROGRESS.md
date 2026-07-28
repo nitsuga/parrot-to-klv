@@ -55,6 +55,13 @@ real-encoder evidence without the recording, and reports from two real ANAFI
 flights are in [`test/conformance/`](../test/conformance/) — the standing answer
 to whether a real encoder produces what the decoder assumes.
 
+**A release bundle builds.** `packaging/make-bundle.sh` assembles a relocatable
+tree — the tool plus private copies of GStreamer and the eight LGPL plugins it
+uses — that runs on 22.04/24.04 with nothing installed
+([ADR 0009](../context/decisions/0009-release-bundle.md)). 16 MB, ~7 MB
+compressed. `release.yml` builds it on tag, then converts a fixture inside a bare
+`ubuntu:24.04` container to prove the claim before publishing.
+
 **The whole suite passes with no drone footage present**, and the one test that
 uses `data/` skips cleanly without it.
 
@@ -79,6 +86,10 @@ uses `data/` skips cleanly without it.
   intersection — the substantive remaining work in the transform stage, and the
   one part of the mapping with no direct Parrot source. Its fidelity is fork 4,
   now open in [ROADMAP](./ROADMAP.md).
+- **The bundle is x86-64 only, and CI can only prove 24.04.** 22.04 rests on the
+  glibc floor — a sound argument, not a test. It also pins a build-time
+  GStreamer: host security updates do not reach it, a rebuild does
+  ([ADR 0009](../context/decisions/0009-release-bundle.md) § Consequences).
 - Item 2 for v3 recordings is anchored to session `media_date`, so it inherits
   that field's **second** granularity. Frame-to-frame spacing stays exact.
 - The mux has run on real footage on an authorized machine — that is what found

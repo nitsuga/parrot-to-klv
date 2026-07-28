@@ -68,3 +68,4 @@ _(`type: Decision` — ADRs: the *why* of resolved forks.)_
 * [0006 — Accept libmisbklv's ST 0604 SEI injection](./decisions/0006-inherited-st0604-sei-injection.md) — The video is never decoded but is no longer bit-identical; stop calling it a passthrough
 * [0007 — H.265 versus ST 0604 generation](./decisions/0007-h265-vs-st0604-generation.md) — Ask for ST 0604 only on H.264; carry any other codec through unstamped rather than refusing it
 * [0008 — `--force-emit-attitude` cannot do what it promises](./decisions/0008-force-emit-attitude-cannot-work.md) — The encoding has no headroom past ±limit, so the flag only ever emitted the clamped value; removed
+* [0009 — Ship a relocatable bundle](./decisions/0009-release-bundle.md) — Build on the oldest target and bundle GStreamer + the eight plugins used, so a user extracts and runs with nothing installed

@@ -57,6 +57,23 @@ target_link_libraries(parrot-conform PRIVATE parrot_extract)
 
 target_link_libraries(parrot-to-klv PRIVATE parrot_mux)
 
+# Release bundling (packaging/make-bundle.sh). Off for ordinary builds — this
+# only makes sense for the artifact that ships.
+#
+# The rpath lets the binary find the bundle's own libraries when run directly,
+# without the wrapper. libstdc++ and libgcc go in statically because nothing
+# else in the process uses them: every bundled library and every GStreamer
+# plugin is C, so no C++ ABI crosses the dlopen boundary and there is no second
+# runtime to disagree with. That drops ~2 MB and removes the host's libstdc++
+# from the compatibility surface entirely.
+option(PARROT_BUNDLE "Build the CLI for a relocatable release bundle" OFF)
+if(PARROT_BUNDLE)
+  set_target_properties(parrot-to-klv PROPERTIES
+    BUILD_RPATH "\$ORIGIN/../lib"
+    INSTALL_RPATH "\$ORIGIN/../lib")
+  target_link_options(parrot-to-klv PRIVATE -static-libstdc++ -static-libgcc)
+endif()
+
 # The mux stage, split from parrot_extract because it is the one part that needs
 # a media backend: everything else parses and maps with no gstreamer in sight.
 add_library(parrot_mux STATIC src/mux.cpp)

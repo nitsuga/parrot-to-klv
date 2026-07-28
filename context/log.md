@@ -7,6 +7,33 @@
 
 ## 2026-07-28
 
+* **Fork 9 decided — ship a relocatable bundle.**
+  [ADR 0009](./decisions/0009-release-bundle.md), accepted and implemented.
+  `packaging/make-bundle.sh` + `.github/workflows/release.yml`.
+  - The tool plus private copies of GStreamer and the eight LGPL plugins it uses:
+    16 MB, ~7 MB compressed, extract and run, no root, nothing installed.
+    Verified from a scrubbed environment — only `libc` and `libm` resolve outside
+    the bundle.
+  - Built on **22.04, deliberately not `ubuntu-latest`**: glibc compatibility
+    runs forward only, so the oldest target is the only correct build host. CI
+    checks the binary imports nothing above `GLIBC_2.35` rather than trusting the
+    runner label. `-static-libstdc++` removes the host C++ runtime from the
+    surface entirely, which is safe here because nothing else in the process is
+    C++ — every bundled library and plugin is C.
+  - **The smoke job is the point of the workflow**: it converts a fixture inside a
+    bare `ubuntu:24.04` container and asserts the output carries KLV and ST 0604.
+    It first checks the image really has no GStreamer, so the test cannot quietly
+    stop testing anything.
+  - Rejected: Docker at runtime (the constraint), static GStreamer (`gst-full` is
+    a fragile build to own, and LGPL relinking gets hard), AppImage (type-2 needs
+    FUSE2 and 22.04/24.04 ship FUSE3 — it would require the one `apt install` we
+    were told not to assume).
+  - **Packaging found a real defect**, recorded in full under the re-pin entry
+    below: parsebin needed a decoder in the registry to expose a parsed stream,
+    and the decoders that satisfied it were the encumbered ones. Fixed upstream
+    rather than papered over. Restricting a dependency set is a good way to find
+    out what you actually depend on.
+
 * **Re-pinned to libmisbklv `8766e56` — video passthrough no longer needs a
   decoder installed.** Their fork 23 / ADR 0025, written and landed from here
   while packaging the release bundle (fork 9, in progress).

@@ -53,6 +53,10 @@ implement here
   [ADR 0006](../context/decisions/0006-inherited-st0604-sei-injection.md)). See
   [mux stage](../context/mux-stage.md).
 
+- **Phase 4 — Release** — *done*: a relocatable bundle for Ubuntu 22.04/24.04
+  x86-64, built and smoke-tested by `release.yml` on tag
+  ([ADR 0009](../context/decisions/0009-release-bundle.md)).
+
 ## Open forks
 
 A *fork* is a decision point — a branch in the plan/design that needs a choice

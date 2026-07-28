@@ -1,0 +1,162 @@
+name: Release bundle
+
+# Builds the relocatable bundle a user can extract and run without installing
+# anything — see context/decisions/0009-release-bundle.md.
+#
+# Tag-driven, plus manual runs for testing the pipeline without minting a
+# release. A manual run produces the artifact and proves it works; only a tag
+# publishes.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false   # never cancel a half-finished publish
+
+jobs:
+  build:
+    # Pinned to the OLDEST supported release, deliberately, and not
+    # ubuntu-latest. glibc compatibility runs forward only: a binary built
+    # against 22.04's 2.35 runs on 24.04, one built on 24.04 does not run on
+    # 22.04. Moving this to a newer image silently drops 22.04 support.
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake g++ \
+            libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+            libgstreamer-plugins-bad1.0-dev \
+            gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
+            gstreamer1.0-plugins-bad
+
+      # Same read-only deploy key as the test workflow — GITHUB_TOKEN is scoped
+      # to this repository and cannot clone the private dependency. See
+      # .github/workflows/README-ci.md.
+      - name: Authorise the private dependency
+        env:
+          MISBKLV_DEPLOY_KEY: ${{ secrets.MISBKLV_DEPLOY_KEY }}
+        run: |
+          if [ -z "$MISBKLV_DEPLOY_KEY" ]; then
+            echo "::error::secret MISBKLV_DEPLOY_KEY is not set — see .github/workflows/README-ci.md"
+            exit 1
+          fi
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$MISBKLV_DEPLOY_KEY" > ~/.ssh/misbklv
+          chmod 600 ~/.ssh/misbklv
+          ssh-keyscan -t rsa,ecdsa,ed25519 github.com >> ~/.ssh/known_hosts 2>/dev/null
+          printf 'Host github.com\n  IdentityFile ~/.ssh/misbklv\n  IdentitiesOnly yes\n' \
+            >> ~/.ssh/config
+
+      - name: Build
+        run: |
+          cmake -S . -B build-release -DPARROT_BUNDLE=ON -DCMAKE_BUILD_TYPE=Release
+          cmake --build build-release --target parrot-to-klv -j"$(nproc)"
+
+      # The portability guarantee, checked rather than assumed. Everything the
+      # binary imports must exist on the oldest target; 22.04 ships glibc 2.35.
+      # This fails the build rather than shipping something that dies on a user's
+      # machine with a symbol-version error.
+      - name: Check the glibc floor
+        run: |
+          max=$(objdump -T build-release/parrot-to-klv \
+                | grep -oE 'GLIBC_[0-9.]+' | sort -Vu | tail -1)
+          echo "highest glibc symbol required: $max"
+          if [ "$(printf '%s\nGLIBC_2.35\n' "$max" | sort -V | tail -1)" != "GLIBC_2.35" ]; then
+            echo "::error::binary needs $max, above the 2.35 floor — it will not run on 22.04"
+            exit 1
+          fi
+
+      - name: Assemble the bundle
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          [ "$GITHUB_REF_TYPE" = tag ] || version="$(git rev-parse --short HEAD)"
+          name="parrot-to-klv-${version}-linux-x86_64"
+          echo "BUNDLE_NAME=$name" >> "$GITHUB_ENV"
+          ./packaging/make-bundle.sh build-release "staging/$name"
+          tar -C staging -czf "$name.tar.gz" "$name"
+          sha256sum "$name.tar.gz" | tee "$name.tar.gz.sha256"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bundle
+          path: |
+            ${{ env.BUNDLE_NAME }}.tar.gz
+            ${{ env.BUNDLE_NAME }}.tar.gz.sha256
+          if-no-files-found: error
+
+      # Carried separately so the smoke job needs no checkout: a bare container
+      # has no git, and the point of that job is to add as little as possible.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: smoke-fixtures
+          path: test/fixtures/parrot_v3_video_audio.mp4
+          if-no-files-found: error
+
+  smoke:
+    # The actual claim under test: a clean, *newest* target with no GStreamer
+    # installed. This is the job that would have caught the two-day CI outage,
+    # and it is the reason this workflow exists rather than trusting the glibc
+    # argument alone.
+    needs: build
+    runs-on: ubuntu-latest
+    container: ubuntu:24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with: {name: bundle, path: dl}
+      - uses: actions/download-artifact@v4
+        with: {name: smoke-fixtures, path: fixtures}
+
+      # Prove the negative before relying on it. If a base image ever starts
+      # shipping GStreamer, this test quietly stops testing anything.
+      - name: Confirm the container has no GStreamer
+        run: |
+          if ldconfig -p 2>/dev/null | grep -q libgstreamer; then
+            echo "::error::base image ships GStreamer — this smoke test proves nothing"
+            exit 1
+          fi
+          echo "no GStreamer present, as required"
+
+      - name: Extract and convert
+        run: |
+          tar -xzf dl/*.tar.gz
+          cd parrot-to-klv-*/
+          ./parrot-to-klv ../fixtures/parrot_v3_video_audio.mp4 -o /tmp/out.ts
+          test -s /tmp/out.ts || { echo "::error::no output written"; exit 1; }
+
+      # A file of the right size is not proof it is right. Check the two things
+      # the tool exists to produce: a KLV stream, and ST 0604 in the video.
+      - name: Check the output is actually a conversion
+        run: |
+          grep -qa KLVA /tmp/out.ts \
+            || { echo "::error::no KLVA registration descriptor in the output"; exit 1; }
+          n=$(grep -ac MISPmicrosectime /tmp/out.ts || true)
+          [ "${n:-0}" -gt 0 ] \
+            || { echo "::error::no ST 0604 SEI in the video elementary stream"; exit 1; }
+          echo "output carries KLV and ST 0604"
+
+  publish:
+    # Only a tag publishes. A workflow_dispatch run stops after smoke, which is
+    # what makes it safe to use for testing the pipeline itself.
+    needs: smoke
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with: {name: bundle, path: dl}
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dl/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes \
+            || gh release upload "$GITHUB_REF_NAME" dl/* --repo "$GITHUB_REPOSITORY" --clobber
