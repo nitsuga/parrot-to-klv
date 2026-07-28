@@ -25,6 +25,25 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(misbklv)
 
+# libmisbklv treats its gstreamer backend as optional: if pkg-config cannot find
+# the modules it needs, it prints one status line and carries on without
+# defining `misbklv::gst`. The mux stage cannot be built without that target, so
+# the failure would otherwise surface further down as a bare "target not found",
+# which says nothing about the actual cause. CI spent a while red on exactly
+# that. Fail here instead, naming the package.
+if(NOT TARGET misbklv::gst)
+  message(FATAL_ERROR
+    "libmisbklv was configured without its gstreamer backend, so misbklv::gst "
+    "does not exist and the mux stage cannot link.\n"
+    "Look further up this output for 'gstreamer not found' — pkg-config is "
+    "missing one of gstreamer-1.0, gstreamer-app-1.0 or "
+    "gstreamer-codecparsers-1.0. On Debian/Ubuntu:\n"
+    "  sudo apt-get install libgstreamer1.0-dev "
+    "libgstreamer-plugins-base1.0-dev libgstreamer-plugins-bad1.0-dev\n"
+    "codecparsers ships in the plugins-bad *-dev* package; installing only the "
+    "runtime gstreamer1.0-plugins-bad is the usual reason this fires.")
+endif()
+
 # Project source files
 add_executable(parrot-to-klv src/main.cpp)
 

@@ -7,6 +7,28 @@
 
 ## 2026-07-28
 
+* **CI had been red since the drive-by pin bump; fixed.** `Build and test` failed
+  at *configure* on every push from `0ca3990` (2026-07-28 01:04) onward — the
+  merge that carried `25199e4` and its unannounced pin to `b454415`. That pin
+  brought libmisbklv's ST 0604 SEI generation, which parses H.264 NALs and so
+  needs `gstreamer-codecparsers-1.0`; the workflow installed the *runtime*
+  `gstreamer1.0-plugins-bad` but not `libgstreamer-plugins-bad1.0-dev`, which is
+  what ships the `.pc` file. Added it.
+  - **Nothing compiled for two days**, so no test ran in CI across the whole ST
+    0604 / fork 7 / fork 8 sequence. Every "suite green" in the entries below is
+    a local result only. `link-check` stayed green throughout, which is why the
+    repo did not look broken at a glance.
+  - **The diagnostic was the reason it took a log dig.** libmisbklv treats its
+    gstreamer backend as optional: it prints one status line and carries on
+    without defining `misbklv::gst`, so the failure surfaced as a bare
+    `target "misbklv::gst" not found` against `parrot_mux`, naming neither
+    gstreamer nor a package. `CMakeLists.txt` now checks for the target straight
+    after `FetchContent_MakeAvailable` and fails with the apt line. Verified by
+    configuring with `pkg-config` stubbed out to fail.
+  - Fifth distinct problem traced to that one drive-by bump, after the wrong hash
+    in the log, the silent end of video passthrough, the H.265 regression, and
+    the ST 0604 posture shift. The rule it broke — a pin bump is its own commit —
+    exists precisely so someone reads what the pin contains.
 * **Fork 8 decided — `--force-emit-attitude` removed.**
   [ADR 0008](./decisions/0008-force-emit-attitude-cannot-work.md), accepted and
   implemented the same day. `encode_out_of_spec_angle`, the `force_emit`

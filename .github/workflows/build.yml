@@ -20,15 +20,23 @@ jobs:
       - uses: actions/checkout@v5
 
       # -dev packages for the build (libmisbklv's gstreamer backend links
-      # gstreamer-1.0 + gstreamer-app-1.0); the plugin packages for the run.
-      # The mux stage needs, at runtime: playback/parsebin and app (base),
-      # isomp4/qtdemux (good), and mpegtsmux + tsdemux + h264parse (bad).
+      # gstreamer-1.0, gstreamer-app-1.0 and gstreamer-codecparsers-1.0); the
+      # plugin packages for the run. The mux stage needs, at runtime:
+      # playback/parsebin and app (base), isomp4/qtdemux (good), and mpegtsmux +
+      # tsdemux + h264parse (bad).
+      #
+      # libgstreamer-plugins-bad1.0-dev is easy to miss: codecparsers is a *-dev*
+      # package, and installing only the runtime gstreamer1.0-plugins-bad leaves
+      # libmisbklv quietly building without its media backend. That is not a
+      # theoretical trap — it is what it did here, and every build failed at
+      # configure until this line was added.
       - name: Install build dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
             cmake g++ \
             libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+            libgstreamer-plugins-bad1.0-dev \
             gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
             gstreamer1.0-plugins-bad
 
