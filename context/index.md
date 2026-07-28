@@ -50,9 +50,10 @@ _(`type: Component` — modules / subsystems of the project.)_
 * [Transform stage](./transform-stage.md) — Parrot telemetry to ST 0601: the
   format-neutral snapshot, the Tier 1 mapping and its sign/range traps, and the
   conversion coverage report
-* [Mux stage](./mux-stage.md) — MP4 to MPEG-TS with the source's video passed
-  through unchanged: the one timeline both branches share, and what a failed
-  conversion must not leave behind
+* [Mux stage](./mux-stage.md) — MP4 to MPEG-TS with the source's video never
+  decoded, though its timing NALs are rewritten to carry ST 0604: the one
+  timeline both branches share, and what a failed conversion must not leave
+  behind
 
 ## Decisions
 
@@ -64,3 +65,4 @@ _(`type: Decision` — ADRs: the *why* of resolved forks.)_
 * [0003 — Protobuf dependency for the proto-format parser](./decisions/0003-protobuf-dependency.md) — Hand-roll a minimal proto3 reader, no toolchain dependency
 * [0004 — A shared telemetry snapshot](./decisions/0004-shared-telemetry-snapshot.md) — Normalize both formats into one struct before mapping
 * [0005 — Out-of-range policy for Items 6/7](./decisions/0005-attitude-range-policy.md) — Keep the `0x8000` sentinel as the default; clamping and out-of-spec emission are opt-in flags
+* [0006 — Accept libmisbklv's ST 0604 SEI injection](./decisions/0006-inherited-st0604-sei-injection.md) — The video is never decoded but is no longer bit-identical; stop calling it a passthrough

@@ -32,7 +32,10 @@ still in production. Both are implemented.
   designed or committed to. The CLI is the product for now.
 
 **Out of scope:** v1 (deprecated by Parrot; the Bebop 1 era), real-time
-streaming, GUI, KLV standards beyond ST 0601.
+streaming, GUI, KLV standards beyond ST 0601 — with one inherited exception: the
+output carries **ST 0604** SEI, generated unconditionally by the pinned
+libmisbklv rather than implemented here
+([ADR 0006](../context/decisions/0006-inherited-st0604-sei-injection.md)).
 
 ## Phases
 
@@ -45,8 +48,10 @@ streaming, GUI, KLV standards beyond ST 0601.
   conversion coverage report. Tier 2 derived geometry remains, gated on the
   open fork below.
 - **Phase 3 — Mux** — *done*: video + KLV remuxed into MPEG-TS through
-  libmisbklv's `KlvSink`, the source's elementary stream passed through
-  unchanged. See [mux stage](../context/mux-stage.md).
+  libmisbklv's `KlvSink`, the source's elementary stream never decoded (its
+  timing NALs are rewritten to carry ST 0604 — see
+  [ADR 0006](../context/decisions/0006-inherited-st0604-sei-injection.md)). See
+  [mux stage](../context/mux-stage.md).
 
 ## Open forks
 

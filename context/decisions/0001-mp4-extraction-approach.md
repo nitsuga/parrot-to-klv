@@ -123,6 +123,12 @@ That keeps this ADR's boundary intact rather than bending it: we still do not
 demux with GStreamer, because the thing GStreamer is good at — video — is the
 one thing we do not touch. See [[mux-stage]].
 
+> **Superseded in one detail (2026-07-27):** "re-muxed unchanged" was true when
+> written and is not true now — the pinned libmisbklv rewrites the video's
+> timing NALs to carry ST 0604. The boundary this ADR draws still holds (no
+> video crosses *our* code), but the stream is no longer bit-identical. See
+> [[0006-inherited-st0604-sei-injection]].
+
 # References
 
 - Investigation showed `gst-discoverer-1.0` on sample file didn't list metadata

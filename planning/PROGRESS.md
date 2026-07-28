@@ -9,8 +9,8 @@ chronological history (what landed when, decision detail) lives in
 ## Now
 
 **The pipeline runs end to end: `parrot-to-klv in.mp4 -o out.ts` writes an
-MPEG-TS carrying the recording's own video unchanged plus a synchronous ST 0601
-KLV stream.** Every phase has landed; what remains is depth, not plumbing —
+MPEG-TS carrying the recording's own video plus a synchronous ST 0601 KLV
+stream.** Every phase has landed; what remains is depth, not plumbing —
 Tier 2 geometry (fork 4) and the deferred mapping questions. See
 [ROADMAP](./ROADMAP.md) for scope and phase status.
 
@@ -29,11 +29,15 @@ could not carry ([ADR 0002](../context/decisions/0002-unmappable-parrot-fields.m
 What remains unemitted is unemittable without a decision or an input the
 recording lacks. Shape and traps: [transform stage](../context/transform-stage.md).
 
-**The mux stage carries the video through untouched.** libmisbklv's `KlvSink`
-re-muxes the source's elementary stream (parsed, never decoded, so H.264 and
-H.265 both work) beside the KLV, and each packet is timestamped from its own
-metadata sample, so both branches share the file's timeline. Design, the
-timeline rule and the failure behaviour: [mux stage](../context/mux-stage.md).
+**The mux stage never decodes the video — but does not pass it through
+untouched.** libmisbklv's `KlvSink` re-muxes the source's elementary stream
+(parsed, never decoded, so H.264 and H.265 both work) beside the KLV, and each
+packet is timestamped from its own metadata sample, so both branches share the
+file's timeline. The video's timing NALs are rewritten on the way: Picture
+Timing SEI out, ST 0604 in, unconditionally and with no opt-out
+([ADR 0006](../context/decisions/0006-inherited-st0604-sei-injection.md)).
+Design, the timeline rule and the failure behaviour:
+[mux stage](../context/mux-stage.md).
 
 **Three tools build.** `parrot-to-klv` converts with `-o` (shows progress every
 10%) and summarises without it (`--klv` for the 0601 mapping and its coverage;

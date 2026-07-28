@@ -107,7 +107,8 @@ MuxReport mux_to_ts(const std::string& input, const std::string& output,
     }
 
     // The sink owns both branches: it re-muxes `input`'s video elementary stream
-    // unchanged alongside the KLV we push. A failure to open the source surfaces
+    // alongside the KLV we push — never decoding it, but rewriting its timing
+    // NALs to carry ST 0604 (ADR 0006). A failure to open the source surfaces
     // on the first emit(), which is where the error below comes from.
     //
     // Nothing here cleans up a half-written output: libmisbklv guarantees that a

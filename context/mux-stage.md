@@ -1,7 +1,7 @@
 ---
 type: Component
 title: Mux stage — MP4 in, MPEG-TS with video + KLV out
-description: How a Parrot MP4 becomes an MPEG-TS carrying its own video unchanged plus a synchronous ST 0601 KLV stream — the one timeline both branches share, and what a failed conversion must not leave behind
+description: How a Parrot MP4 becomes an MPEG-TS carrying its own video — never decoded, but with its timing NALs rewritten to carry ST 0604 — plus a synchronous ST 0601 KLV stream; the one timeline both branches share, and what a failed conversion must not leave behind
 tags: [mux, mpegts, klv, gstreamer, libmisbklv, phase-3]
 timestamp: 2026-07-26T06:00:00Z
 ---
@@ -27,13 +27,25 @@ and the failure behaviour.
 | `test/mux_test.cpp` | `ctest` target `mux` |
 | `test/make_fixture.py` | Also generates the two real-H.264 fixtures this stage needs |
 
-## Video is passed through, never decoded
+## Video is never decoded — but it is not bit-identical either
 
-`parsebin` parses the elementary stream and hands it to the muxer as it was, so
-whatever the drone encoded — H.264 from the ANAFI range, H.265 from an Ai — is
-what comes out, with no codec branching here and no generation loss. The
-source's other tracks are dropped, including its Parrot metadata track: the KLV
-in the output is the KLV this tool generated, not a copy of the input's.
+`parsebin` parses the elementary stream and hands it to the muxer, so whatever
+the drone encoded — H.264 from the ANAFI range, H.265 from an Ai — is what comes
+out, with no codec branching here and no generation loss. The source's other
+tracks are dropped, including its Parrot metadata track: the KLV in the output
+is the KLV this tool generated, not a copy of the input's.
+
+**The timing NALs are rewritten, though**, so do not describe this as a
+passthrough. libmisbklv strips Picture Timing SEI (type 1), injects ST 0604
+Precision Time Stamp SEI (type 5) built from the ST 0601 `sensorTimestamp`, and
+repeats SPS/PPS with every IDR frame. Parrot MP4s carry no SEI timestamps at all
+— timing lives in the `mett` track — so this is generated, not preserved, and it
+is what lets a consumer correlate frames without reading the KLV branch.
+
+None of that is ours: it is unconditional in the pinned libmisbklv, arrived in a
+drive-by pin bump, and has no opt-out. Why we keep it and what it costs:
+[[0006-inherited-st0604-sei-injection]]. The claim that survives is **never
+decoded, never re-encoded** — not "unchanged".
 
 ## One timeline, taken from the metadata track
 

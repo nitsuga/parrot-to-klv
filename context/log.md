@@ -7,6 +7,28 @@
 
 ## 2026-07-27
 
+* **Fork 6 decided — the video is not a passthrough, and has not been since the
+  `b454415` pin.** [ADR 0006](./decisions/0006-inherited-st0604-sei-injection.md):
+  keep libmisbklv's unconditional ST 0604 SEI injection, retire the "unchanged"
+  claim everywhere it appears.
+  - **Found by lint**, checking whether our own ST 0604 posture had gone stale
+    after the pin bump below. It had not — nothing claimed upstream defers 0604
+    — but the adjacent vocabulary turned up a bigger miss: the tool had been
+    rewriting the H.264 elementary stream for a full pin cycle while nine sites,
+    including the CLI's success message, said it passed video through unchanged.
+  - **Verified before believing it**: converting `parrot_v3_video_audio.mp4`
+    yields eight `MISPmicrosectime` SEI messages in the output TS, one per
+    metadata sample, against zero in the source MP4. Picture Timing SEI is
+    stripped and SPS/PPS repeat per IDR.
+  - Corrected in `src/main.cpp` (both user-facing strings), `src/mux.{hpp,cpp}`,
+    `README.md`, `ROADMAP.md`, `PROGRESS.md`, `mux-stage.md`, `context/index.md`;
+    [ADR 0001](./decisions/0001-mp4-extraction-approach.md)'s "re-muxed
+    unchanged" annotated as superseded in that one detail rather than rewritten.
+  - Scope moved with it: ROADMAP and README listed "KLV standards beyond ST
+    0601" as out of scope while every conversion emitted ST 0604. Now stated as
+    an inherited exception — carried, not implemented.
+  - The claim that survives is **never decoded, never re-encoded**. Full suite
+    green after the string changes: 9/9 `-L parrot`, 34/34 bare.
 * **libmisbklv pinned to `8c296da`** (doc hygiene pass upstream). `b454415..8c296da`
   touches only `context/`, `planning/`, `README.md` and `CLAUDE.md` — **no source
   changes**, so this bump is behaviourally a no-op here. Full suite green: 9/9

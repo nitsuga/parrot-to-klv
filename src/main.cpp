@@ -195,8 +195,10 @@ int main(int argc, char* argv[]) {
     if (input.empty()) {
         std::cerr << "Usage: " << argv[0] << " <input.mp4> [-o <output.ts>] [options]\n\n"
                   << "  -o/--output converts: writes an MPEG-TS carrying the source's\n"
-                  << "  video unchanged plus an ST 0601 KLV stream. Without it the tool\n"
-                  << "  only reads the file and reports what it found.\n"
+                  << "  video plus an ST 0601 KLV stream. The video is never decoded or\n"
+                  << "  re-encoded, but its timing NALs are rewritten: ST 0604 SEI is\n"
+                  << "  added for frame-accurate time. Without -o the tool only reads\n"
+                  << "  the file and reports what it found.\n"
                   << "  Location is withheld by default so the output is safe to share;\n"
                   << "  --with-location prints latitude/longitude from the flight.\n"
                   << "  --klv maps each frame to ST 0601 and prints the conversion\n"
@@ -227,7 +229,7 @@ int main(int argc, char* argv[]) {
         if (report.frames_skipped > 0) {
             std::cout << " (" << report.frames_skipped << " skipped)";
         }
-        std::cout << ", video passed through unchanged\n";
+        std::cout << ", video never re-encoded (ST 0604 SEI added)\n";
         if (show_klv) {
             std::cout << "\n" << report.coverage.to_text({with_location, with_identity});
         }
