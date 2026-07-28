@@ -15,6 +15,7 @@
 #include "misbklv/message.hpp"
 #include "misbklv/stream.hpp"
 
+#include "mp4_box_scan.hpp"
 #include "mp4_metadata_extractor.hpp"
 #include "parrot_proto.hpp"
 #include "parrot_v3.hpp"
@@ -36,6 +37,25 @@ std::string describe(misbklv::Error error) {
         case misbklv::Error::Unsupported:      return "unsupported by the backend";
     }
     return "unknown error";
+}
+
+/// True for the sample entry formats that hold H.264.
+///
+/// `avc3` differs from `avc1` only in carrying parameter sets in-band, which is
+/// a decoder's problem and not ours — both are `video/x-h264` to the backend.
+bool is_h264(uint32_t sample_entry_format) {
+    return sample_entry_format == fourcc("avc1") || sample_entry_format == fourcc("avc3");
+}
+
+/// The first video track's sample entry format, or 0 if there is no video.
+///
+/// Deliberately reports the *format* rather than a yes/no, so a conversion can
+/// name the codec it declined to stamp instead of just declining.
+uint32_t video_sample_entry(FILE* file) {
+    for (const auto& track : scan_mp4_tracks(file)) {
+        if (track.handler_type == kHandlerVide) return track.sample_entry_format;
+    }
+    return 0;
 }
 
 /// Decode every metadata sample of one format and hand each mapped packet to
@@ -103,8 +123,12 @@ MuxReport mux_to_ts(const std::string& input, const std::string& output,
     SessionMetadata session;
     if (FILE* handle = std::fopen(input.c_str(), "rb")) {
         session = parse_session_metadata(handle);
+        // Both of these seek from the start themselves, so they can share the
+        // handle in either order.
+        report.video_sample_entry = video_sample_entry(handle);
         std::fclose(handle);
     }
+    report.st0604_generated = is_h264(report.video_sample_entry);
 
     // The sink owns both branches: it re-muxes `input`'s video elementary stream
     // alongside the KLV we push — never decoding it, but rewriting its timing
@@ -119,13 +143,22 @@ MuxReport mux_to_ts(const std::string& input, const std::string& output,
     // for Parrot MP4s is moot (they carry none) but matters if an input ever
     // arrives already stamped.
     //
+    // Only ask for it on H.264, though. Generation is H.264-only upstream, and
+    // asking on any other codec does not degrade — it *refuses the session*, so
+    // an H.265 recording would fail to convert at all. Preserve carries such a
+    // source through unstamped instead, which is the whole of fork 7
+    // (ADR 0007): degrade the guarantee only where it cannot be met. Anything
+    // unrecognised takes the same path, so a codec we have never seen converts
+    // rather than erroring on a guess.
+    //
     // A failure to open the source surfaces on the first emit(), which is where
     // the error below comes from. Nothing here cleans up a half-written output:
     // libmisbklv guarantees that a failed insert session leaves no file it
     // created, whether the failure lands in the open, a push, or the finish
     // (its ADR 0022).
     misbklv::KlvSink sink("file:" + output, /*realtime=*/false, input,
-                          misbklv::Sei0604::Generate);
+                          report.st0604_generated ? misbklv::Sei0604::Generate
+                                                  : misbklv::Sei0604::Preserve);
 
     const uint32_t total_samples = extractor->sample_count();
     uint32_t last_progress_pct = 0;

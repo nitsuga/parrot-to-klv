@@ -7,14 +7,38 @@
 
 ## 2026-07-28
 
-* **Fork 7 opened — H.265 sources vs. ST 0604 generation.**
-  [ADR 0007](./decisions/0007-h265-vs-st0604-generation.md) (`proposed`).
-  Asking libmisbklv for `Sei0604::Generate` refuses any non-H.264 source, and
-  `mux_to_ts()` asks unconditionally, so an H.265 recording now fails at open —
-  while PROGRESS, `mux-stage`, `mux.hpp` and ADR 0006 all still say H.264 and
-  H.265 both work. Found reviewing the fork-22 follow-on pin; no test could
-  catch it, since every fixture is H.264. The proposal is to ask for generation
-  only on H.264; the ADR carries the alternatives and what each costs.
+* **Fork 7 decided — ask for ST 0604 only on H.264, carry anything else through
+  unstamped.** [ADR 0007](./decisions/0007-h265-vs-st0604-generation.md),
+  accepted and implemented the same day.
+  - **The regression it fixes was real and reproducible.** With `Generate`
+    unconditional, the new HEVC fixture fails: `Sei0604::Generate needs H.264
+    video; source carries video/x-h265` → `could not mux frame 0: media pipeline
+    failed`. Note that lands on the *first emit* as `Error::Backend`, not at open
+    as `Error::Unsupported` — the ADR's first reading of the upstream code was
+    wrong on that detail and has been corrected from the observed behaviour.
+  - `mux_to_ts()` reads the video track's sample entry (`scan_mp4_tracks`, on the
+    handle already open for session metadata) and asks for `Generate` only on
+    `avc1`/`avc3`. Anything unrecognised takes the `Preserve` path too: the test
+    is "do we know this is H.264", not "do we know it is not".
+  - `MuxReport` gained `st0604_generated` and `video_sample_entry`, and the CLI
+    prints which path ran. A conditional guarantee that announces itself is
+    tolerable; a silent one is not.
+  - **New fixture `parrot_v3_video_h265.mp4`** — `hvc1`/`hvcC`, same 64x64
+    all-IDR shape as the H.264 pair, libx265 needed only to regenerate. Building
+    `hvcC` surfaced a trap worth recording: the 12 profile_tier_level bytes must
+    be copied from the *unescaped* SPS, since x265's constraint-flag zero run
+    trips emulation prevention and a verbatim copy silently shifts every field
+    after it. A guard caught it rather than it shipping as a subtly wrong config.
+  - **`mux_test` now asserts both branches** — and property 4's video-PID guard
+    was changed to fail rather than skip when no video stream is found. As
+    written it would have passed silently on exactly this regression, which is
+    the second time this week a vacuous guard has been the reason something
+    stayed invisible.
+  - Docs corrected: `mux-stage`, PROGRESS, `mux.hpp`. The claim that an ANAFI Ai
+    records H.265 is gone — the airframes in scope record H.264, so the non-H.264
+    path is defensive, not load-bearing.
+  - Punted deliberately: H.265 ST 0604 generation upstream, which has its own ADR
+    there. This decision stays correct if that ever lands.
 * **CONVENTIONS § Linking now documents what the bundle actually does.** It had
   recommended root-absolute `[Title](/concept.md)` first — a form that resolves
   against the site root, so it works nowhere — and the only instance of it in the

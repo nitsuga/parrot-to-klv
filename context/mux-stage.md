@@ -25,17 +25,23 @@ and the failure behaviour.
 |------|------|
 | `src/mux.{hpp,cpp}` | `mux_to_ts()` and `MuxReport` |
 | `test/mux_test.cpp` | `ctest` target `mux` |
-| `test/make_fixture.py` | Also generates the two real-H.264 fixtures this stage needs |
+| `test/make_fixture.py` | Also generates the real-encode fixtures this stage needs (H.264 and one HEVC) |
 
 ## Video is never decoded — but it is not bit-identical either
 
 `parsebin` parses the elementary stream and hands it to the muxer, so whatever
-the drone encoded — H.264 from the ANAFI range, H.265 from an Ai — is what comes
-out, with no codec branching here and no generation loss. The source's other
+the drone encoded is what comes out, with no generation loss. The source's other
 tracks are dropped, including its Parrot metadata track: the KLV in the output
 is the KLV this tool generated, not a copy of the input's.
 
-**The timing NALs are rewritten, though**, so do not describe this as a
+**There is one codec branch, and it is about timestamps, not video.** The
+airframes in scope record H.264, and ST 0604 SEI generation is H.264-only
+upstream — so `mux_to_ts()` asks for generation on H.264 and carries anything
+else through untouched and unstamped. Asking on H.265 does not degrade, it
+refuses the conversion, which is fork 7
+([[0007-h265-vs-st0604-generation]]).
+
+**For H.264 the timing NALs are rewritten**, so do not describe that path as a
 passthrough. libmisbklv strips Picture Timing SEI (type 1), injects ST 0604
 Precision Time Stamp SEI (type 5) built from the ST 0601 `sensorTimestamp`, and
 repeats SPS/PPS with every IDR frame. Parrot MP4s carry no SEI timestamps at all
@@ -48,7 +54,8 @@ behaviour. It arrived as an unconditional upstream change with no opt-out, which
 is why the ADR reads as it does; the opt-out landed later, and we kept the
 behaviour deliberately. Why, and what it costs:
 [[0006-inherited-st0604-sei-injection]]. The claim that survives is **never
-decoded, never re-encoded** — not "unchanged".
+decoded, never re-encoded** — not "unchanged". On a non-H.264 source
+"unchanged" *is* accurate, which is the one place the older wording still holds.
 
 Under `Generate` the KLV is the stream's single timestamp authority: any ST 0604
 the source already carried is *replaced* rather than added to. Moot for Parrot
@@ -144,6 +151,13 @@ then throws away, and real footage found a bug there (upstream's pad-linking and
 H.264-format fix) while every fixture here stayed green. For that fixture, the
 "PMT lists exactly two streams" assertion earns a second meaning: the audio was
 dropped, not forwarded.
+
+`parrot_v3_video_h265.mp4` is the same recording in HEVC — `hvc1` with an
+`hvcC`, built the same way and needing libx265 only to regenerate. It exists to
+hold the other branch of [[0007-h265-vs-st0604-generation]]: it must convert,
+and it must come out with **no** ST 0604. That "no" is asserted rather than
+assumed, because the regression it guards against is one where the video is
+refused outright, and an absent assertion looks identical to a passing one.
 
 Worth knowing when reading that as a regression guard: the bug it is modelled on
 does **not** reproduce on gstreamer 1.20, where `h264parse` already emits

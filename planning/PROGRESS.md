@@ -29,18 +29,19 @@ could not carry ([ADR 0002](../context/decisions/0002-unmappable-parrot-fields.m
 What remains unemitted is unemittable without a decision or an input the
 recording lacks. Shape and traps: [transform stage](../context/transform-stage.md).
 
-**The mux stage never decodes the video — but does not pass it through
-untouched.** libmisbklv's `KlvSink` re-muxes the source's elementary stream
-(parsed, never decoded, so H.264 and H.265 both work) beside the KLV, and each
-packet is timestamped from its own metadata sample, so both branches share the
-file's timeline. The video's timing NALs are rewritten on the way — Picture
-Timing SEI out, ST 0604 in — because we ask for it: upstream's default now
-leaves the stream byte-identical, and `mux_to_ts()` passes
-`Sei0604::Generate` so our downstream client can read time from the video
-([ADR 0006](../context/decisions/0006-inherited-st0604-sei-injection.md)).
-`mux_test` asserts the SEI is there and carries our item 2 values.
-Design, the timeline rule and the failure behaviour:
-[mux stage](../context/mux-stage.md).
+**The mux stage never decodes the video — and for H.264 does not pass it through
+untouched either.** libmisbklv's `KlvSink` re-muxes the source's elementary
+stream (parsed, never decoded, so H.264 and H.265 both convert) beside the KLV,
+and each packet is timestamped from its own metadata sample, so both branches
+share the file's timeline. On an H.264 source the timing NALs are rewritten —
+Picture Timing SEI out, ST 0604 in — because we ask for it
+([ADR 0006](../context/decisions/0006-inherited-st0604-sei-injection.md)); any
+other codec is carried through unstamped, because generation is H.264-only
+upstream and asking for it elsewhere refuses the conversion outright
+([ADR 0007](../context/decisions/0007-h265-vs-st0604-generation.md)).
+`MuxReport::st0604_generated` and the CLI both say which happened, and
+`mux_test` asserts both branches. Design, the timeline rule and the failure
+behaviour: [mux stage](../context/mux-stage.md).
 
 **Three tools build.** `parrot-to-klv` converts with `-o` (shows progress every
 10%) and summarises without it (`--klv` for the 0601 mapping and its coverage;
@@ -63,22 +64,19 @@ uses `data/` skips cleanly without it.
 
 ## Next
 
-1. Resolve fork 7 — confirm whether the ANAFI Ai records H.265, then pick from
-   [ADR 0007](../context/decisions/0007-h265-vs-st0604-generation.md) and
-   correct the four H.265 claims to match
-2. Cover the two attitude override flags in `transform_test` — both branches,
+1. Cover the two attitude override flags in `transform_test` — both branches,
    the saturation boundary, and the mutually-exclusive rejection
-3. Resolve fork 4, Tier 2 geometry fidelity, in [ROADMAP](./ROADMAP.md), then
+2. Resolve fork 4, Tier 2 geometry fidelity, in [ROADMAP](./ROADMAP.md), then
    derive Items 21/22/23/24/25/57/78/82–89
 
 ## Known gaps
 
-- **H.265 recordings do not convert.** Asking libmisbklv for ST 0604 refuses any
-  non-H.264 source, so an H.265 input fails at open — while this file, ROADMAP,
-  `mux-stage` and `mux.hpp` all still say H.264 and H.265 both work. No fixture
-  is H.265, so the suite is green on a capability that is gone. Fork 7, proposed
-  in [ADR 0007](../context/decisions/0007-h265-vs-st0604-generation.md); the
-  four claims get corrected to match whichever way it resolves.
+- **Non-H.264 output carries no ST 0604.** Generation is H.264-only upstream, so
+  an H.265 source converts but is unstamped
+  ([ADR 0007](../context/decisions/0007-h265-vs-st0604-generation.md)). Moot for
+  the airframes in scope, which record H.264; it matters only to a consumer
+  reading time from the video of an out-of-scope recording, and both the report
+  and the CLI say when it happened.
 - Deriving Items 21/22/23/24/25/57/78/82–89 needs a boresight-to-terrain
   intersection — the substantive remaining work in the transform stage, and the
   one part of the mapping with no direct Parrot source. Its fidelity is fork 4,

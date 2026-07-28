@@ -1,6 +1,7 @@
 // Copyright 2026 Eric Schneider
 // Licensed under the Apache License, Version 2.0
 
+#include "mp4_box_scan.hpp"
 #include "mp4_metadata_extractor.hpp"
 #include "mux.hpp"
 #include "parrot_proto.hpp"
@@ -229,7 +230,18 @@ int main(int argc, char* argv[]) {
         if (report.frames_skipped > 0) {
             std::cout << " (" << report.frames_skipped << " skipped)";
         }
-        std::cout << ", video never re-encoded (ST 0604 SEI added)\n";
+        // Say which of the two video paths ran: a consumer reading time from the
+        // elementary stream needs to know, and finding out by looking for SEI
+        // that is not there is a bad way to learn it (ADR 0007).
+        if (report.st0604_generated) {
+            std::cout << ", video never re-encoded (ST 0604 SEI added)\n";
+        } else if (report.video_sample_entry != 0) {
+            std::cout << ", video carried unchanged — no ST 0604: generation needs "
+                         "H.264, source is "
+                      << fourcc_to_string(report.video_sample_entry) << "\n";
+        } else {
+            std::cout << ", no video track in the source\n";
+        }
         if (show_klv) {
             std::cout << "\n" << report.coverage.to_text({with_location, with_identity});
         }

@@ -211,8 +211,14 @@ Expected expected_packets(const std::string& mp4, Parse parse, Normalize normali
 }
 
 /// Convert one fixture and check the output against `expected`.
+///
+/// `expect_st0604` is the two branches of fork 7 (ADR 0007): an H.264 source
+/// gets Precision Time Stamps generated into its video, anything else is
+/// carried through without them. Both directions are asserted — "no SEI" is a
+/// deliberate outcome here, not an absence worth shrugging at.
 void check_conversion(const std::string& name, const std::string& mp4,
-                      const std::string& ts, const Expected& expected) {
+                      const std::string& ts, const Expected& expected,
+                      bool expect_st0604 = true) {
     const auto report = mux_to_ts(mp4, ts);
     check(report.error.empty(), name + ": conversion failed — " + report.error);
     if (!report.error.empty()) return;
@@ -230,10 +236,12 @@ void check_conversion(const std::string& name, const std::string& mp4,
                                    " elementary stream(s), expected video + KLV");
     bool has_video = false, has_klv = false;
     for (const auto& es : streams) {
-        if (es.stream_type == 0x1B) has_video = true;
+        // 0x1B is H.264, 0x24 HEVC — the codec is the source's business, not
+        // this property's. What matters is that video survived the mux.
+        if (es.stream_type == 0x1B || es.stream_type == 0x24) has_video = true;
         if (es.stream_type == 0x06 && es.klva) has_klv = true;
     }
-    check(has_video, name + ": no H.264 elementary stream in the output");
+    check(has_video, name + ": no video elementary stream in the output");
     check(has_klv, name + ": no KLV (0x06 + KLVA) elementary stream in the output");
 
     // 2 and 3. Read the KLV back as a consumer would — bytes and timing both.
@@ -265,9 +273,18 @@ void check_conversion(const std::string& name, const std::string& mp4,
     //    (its ADR 0024), so without that argument this output would be silently
     //    correct in every other respect and useless to a client reading time
     //    from the video stream.
+    check(report.st0604_generated == expect_st0604,
+          name + ": report says st0604_generated=" +
+              (report.st0604_generated ? "true" : "false") + ", expected the opposite");
+
+    // stream_type 0x1B is H.264, 0x24 is HEVC. Take whichever the source used —
+    // and *fail* if neither is present rather than skipping the checks below.
+    // A guard that quietly passes on a missing video PID is how an H.265
+    // regression stayed invisible long enough to become fork 7.
     unsigned video_pid = 0;
     for (const auto& es : streams)
-        if (es.stream_type == 0x1B) video_pid = es.pid;
+        if (es.stream_type == 0x1B || es.stream_type == 0x24) video_pid = es.pid;
+    check(video_pid != 0, name + ": PMT lists no video elementary stream");
     if (video_pid) {
         // ST 0604 carries ABSOLUTE time (ST 0601 item 2, µs since 1970), not the
         // presentation timestamps above — so the expectation is the item 2 value
@@ -281,14 +298,22 @@ void check_conversion(const std::string& name, const std::string& mp4,
         }
 
         const auto stamps = read_0604_timestamps(read_es(ts, video_pid));
-        check(!stamps.empty(), name + ": video elementary stream carries no ST 0604 SEI");
-        size_t foreign = 0;
-        for (uint64_t got : stamps)
-            if (std::find(want_absolute.begin(), want_absolute.end(), got) ==
-                want_absolute.end())
-                ++foreign;
-        check(foreign == 0, name + ": " + std::to_string(foreign) +
-                                " ST 0604 timestamp(s) match no emitted KLV item 2");
+        if (expect_st0604) {
+            check(!stamps.empty(), name + ": video elementary stream carries no ST 0604 SEI");
+            size_t foreign = 0;
+            for (uint64_t got : stamps)
+                if (std::find(want_absolute.begin(), want_absolute.end(), got) ==
+                    want_absolute.end())
+                    ++foreign;
+            check(foreign == 0, name + ": " + std::to_string(foreign) +
+                                    " ST 0604 timestamp(s) match no emitted KLV item 2");
+        } else {
+            // Preserve must actually preserve: asking for generation on this
+            // source would not have degraded to an unstamped stream, it would
+            // have refused the conversion outright.
+            check(stamps.empty(), name + ": expected no ST 0604 on a non-H.264 source, found " +
+                                      std::to_string(stamps.size()));
+        }
     }
 
     // Each packet must come back where its metadata sample sat — the same
@@ -338,6 +363,19 @@ int main(int argc, char* argv[]) {
             fixtures + "/parrot_v3_video_audio.mp4",
             [](std::span<const uint8_t> d) { return parse_v3(d, nullptr); },
             [](const ParrotV3Frame& f) { return from_v3(f); }));
+
+    // An H.265 source: the other branch of fork 7. It must convert like any
+    // other — same packets, same timeline, video in the PMT — and come out with
+    // no ST 0604, because generation is H.264-only upstream. Asking for it here
+    // does not degrade, it fails the conversion, so this fixture is the guard
+    // against a well-meaning change to mux.cpp putting Generate back.
+    check_conversion(
+        "v3+h265", fixtures + "/parrot_v3_video_h265.mp4", temp + "/mux_h265.ts",
+        expected_packets(
+            fixtures + "/parrot_v3_video_h265.mp4",
+            [](std::span<const uint8_t> d) { return parse_v3(d, nullptr); },
+            [](const ParrotV3Frame& f) { return from_v3(f); }),
+        /*expect_st0604=*/false);
 
     // A source with no usable video stream must fail loudly and leave nothing
     // behind — a half-written .ts would look like a conversion that worked.

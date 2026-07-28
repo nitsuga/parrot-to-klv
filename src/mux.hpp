@@ -21,6 +21,14 @@ struct MuxReport {
     /// Coverage of the first emitted frame — the mapping is the same for every
     /// frame of a recording, so one report characterises the conversion.
     CoverageReport coverage;
+    /// The video track's sample entry format ('avc1', 'hvc1', …), 0 if none.
+    uint32_t video_sample_entry = 0;
+    /// Whether the output's video carries ST 0604 Precision Time Stamps.
+    ///
+    /// False for a non-H.264 source: generation is H.264-only upstream, so such
+    /// a recording is carried through unstamped rather than refused (ADR 0007).
+    /// A consumer that reads time from the elementary stream must check this.
+    bool st0604_generated = false;
     std::string error;
 };
 
@@ -28,10 +36,15 @@ struct MuxReport {
 /// source's video elementary stream plus a synchronous ST 0601 KLV stream.
 ///
 /// The video is **never decoded or re-encoded** — parsed only — so the output
-/// holds the same H.264/H.265 the drone recorded, with no generation loss. It
-/// is *not* bit-identical: libmisbklv rewrites the timing NALs, stripping
-/// Picture Timing SEI and injecting ST 0604 from the KLV sensor timestamp, and
-/// repeats parameter sets per IDR. See ADR 0006. Each metadata sample becomes one
+/// holds the same H.264/H.265 the drone recorded, with no generation loss.
+///
+/// For an **H.264** source it is *not* bit-identical: libmisbklv rewrites the
+/// timing NALs, stripping Picture Timing SEI and injecting ST 0604 from the KLV
+/// sensor timestamp, and repeats parameter sets per IDR (ADR 0006). For any
+/// **other codec** the elementary stream is carried unchanged and carries no ST
+/// 0604 — generation is H.264-only upstream, and asking for it elsewhere would
+/// refuse the conversion outright (ADR 0007). `MuxReport::st0604_generated`
+/// says which happened. Each metadata sample becomes one
 /// KLV packet, timestamped with that sample's own presentation time from the
 /// start of the file, which is the timeline libmisbklv gives the video branch.
 ///

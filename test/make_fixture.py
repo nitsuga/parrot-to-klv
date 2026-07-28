@@ -78,6 +78,23 @@ def stsd_avc1(width: int = 320, height: int = 240, avcc: bytes = b"") -> bytes:
     return full_box(b"stsd", 0, 0, struct.pack(">I", 1) + entry)
 
 
+def stsd_hvc1(width: int = 320, height: int = 240, hvcc: bytes = b"") -> bytes:
+    """An HEVC sample entry. Identical to 'avc1' but for the type and config box.
+
+    The VisualSampleEntry layout is codec-independent, so only the four-character
+    code and the trailing configuration box differ.
+    """
+    entry = box(b"hvc1", b"\x00" * 6 + struct.pack(">H", 1)
+                + b"\x00" * 16
+                + struct.pack(">HH", width, height)
+                + struct.pack(">II", 0x480000, 0x480000)
+                + struct.pack(">IHH", 0, 1, 0)
+                + b"\x00" * 30
+                + struct.pack(">Hh", 24, -1)
+                + hvcc)
+    return full_box(b"stsd", 0, 0, struct.pack(">I", 1) + entry)
+
+
 def stbl(sample_desc: bytes, sizes: list[int], delta: int, chunk_offset: int) -> bytes:
     stts = full_box(b"stts", 0, 0, struct.pack(">III", 1, len(sizes), delta))
     stsc = full_box(b"stsc", 0, 0, struct.pack(">IIII", 1, 1, len(sizes), 1))
@@ -99,9 +116,10 @@ def meta_trak(track_id: int, video_track_id: int, timescale: int, sizes: list[in
 
 def video_trak(track_id: int, timescale: int, sizes: list[int], delta: int,
                chunk_offset: int, width: int = 320, height: int = 240,
-               avcc: bytes = b"") -> bytes:
+               config: bytes = b"", codec: str = "avc1") -> bytes:
     vmhd = full_box(b"vmhd", 0, 1, struct.pack(">HHHH", 0, 0, 0, 0))
-    sample_desc = stsd_avc1(width, height, avcc)
+    sample_desc = (stsd_hvc1(width, height, config) if codec == "hvc1"
+                   else stsd_avc1(width, height, config))
     minf = box(b"minf", vmhd + dinf() + stbl(sample_desc, sizes, delta, chunk_offset))
     mdia = box(b"mdia", mdhd(timescale, delta * len(sizes))
                + hdlr(b"vide", "VideoHandler") + minf)
@@ -211,8 +229,8 @@ def build(mime: str, samples: list[bytes], video_samples: list[bytes],
     duration = delta * max(len(samples), len(video_samples))
     traks = (video_trak(1, timescale, [len(s) for s in video_samples], delta,
                         video_chunk_offset,
-                        *( (video.width, video.height, video.avcc) if video
-                           else (320, 240, b"") ))
+                        *( (video.width, video.height, video.config, video.codec)
+                           if video else (320, 240, b"", "avc1") ))
              + meta_trak(2, 1, timescale, [len(s) for s in samples], delta,
                          meta_chunk_offset, mime, content_encoding))
     if audio:
@@ -243,9 +261,23 @@ def build(mime: str, samples: list[bytes], video_samples: list[bytes],
 class H264Track:
     """AVCC samples plus the avcC decoder config, as an MP4 needs them."""
 
+    codec = "avc1"
+
     def __init__(self, samples: list[bytes], avcc: bytes, width: int, height: int):
         self.samples = samples
-        self.avcc = avcc
+        self.config = avcc
+        self.width = width
+        self.height = height
+
+
+class H265Track:
+    """Length-prefixed HEVC samples plus the hvcC decoder config."""
+
+    codec = "hvc1"
+
+    def __init__(self, samples: list[bytes], hvcc: bytes, width: int, height: int):
+        self.samples = samples
+        self.config = hvcc
         self.width = width
         self.height = height
 
@@ -309,6 +341,99 @@ def encode_h264(frames: int, width: int, height: int, fps: int) -> H264Track:
                     + struct.pack(">H", len(sps)) + sps
                     + b"\x01" + struct.pack(">H", len(pps)) + pps)
     return H264Track(samples, box(b"avcC", avcc_payload), width, height)
+
+
+def rbsp(nal: bytes) -> bytes:
+    """Strip emulation-prevention bytes: 00 00 03 -> 00 00.
+
+    A 0x03 is inserted after any 00 00 that would otherwise look like a start
+    code. Reading fixed-width fields out of a NAL means undoing that first.
+    """
+    out = bytearray()
+    zeros = 0
+    for byte in nal:
+        if zeros == 2 and byte == 0x03:
+            zeros = 0
+            continue
+        out.append(byte)
+        zeros = zeros + 1 if byte == 0 else 0
+    return bytes(out)
+
+
+def encode_h265(frames: int, width: int, height: int, fps: int) -> H265Track:
+    """Encode a test pattern as HEVC and repackage it the way an MP4 wants it.
+
+    Same shape as `encode_h264`: cut an access unit at each VCL NAL, put the
+    parameter sets in the config record rather than the samples. HEVC differs in
+    three ways that matter here -- a two-byte NAL header, a VPS alongside SPS and
+    PPS, and VCL types being 0..31 rather than two specific values.
+
+    This fixture exists to prove an H.265 source still converts (ADR 0007): the
+    ST 0604 SEI libmisbklv generates is H.264-only, so asking for it here would
+    refuse the session outright rather than degrade.
+    """
+    import subprocess
+    import tempfile
+
+    with tempfile.NamedTemporaryFile(suffix=".h265") as out:
+        subprocess.run(
+            ["ffmpeg", "-y", "-loglevel", "error",
+             "-f", "lavfi", "-i", f"testsrc=size={width}x{height}:rate={fps}",
+             "-frames:v", str(frames), "-c:v", "libx265", "-g", "1",
+             # One temporal layer keeps the SPS's profile_tier_level exactly 12
+             # bytes, which is what hvcC copies verbatim below.
+             "-x265-params", "log-level=none:bframes=0",
+             "-pix_fmt", "yuv420p", "-f", "hevc", out.name],
+            check=True)
+        annexb = Path(out.name).read_bytes()
+
+    vps = sps = pps = None
+    samples, current = [], b""
+    for nal in split_nals(annexb):
+        kind = (nal[0] >> 1) & 0x3F
+        if kind == 32:
+            vps = nal
+        elif kind == 33:
+            sps = nal
+        elif kind == 34:
+            pps = nal
+        elif kind <= 31:  # VCL: one slice per picture at this size
+            current += struct.pack(">I", len(nal)) + nal
+            samples.append(current)
+            current = b""
+    if vps is None or sps is None or pps is None:
+        raise RuntimeError("encoder produced no parameter sets")
+    if len(samples) != frames:
+        raise RuntimeError(f"expected {frames} access units, cut {len(samples)}")
+
+    # hvcC. The 12 bytes of profile_tier_level are copied out of the SPS: they
+    # sit after the 2-byte NAL header and one byte holding
+    # sps_video_parameter_set_id / max_sub_layers_minus1 / temporal_id_nesting,
+    # and with a single temporal layer they are exactly the 12 bytes hvcC wants,
+    # in the same order.
+    #
+    # The copy must come from the *unescaped* payload. x265 emits a constraint
+    # field run of zeroes that trips emulation prevention, so the escaped NAL has
+    # a 0x03 sitting inside the range -- copying those bytes verbatim silently
+    # shifts every field after it.
+    ptl = rbsp(sps)[3:15]
+    if len(ptl) != 12:
+        raise RuntimeError("SPS too short for profile_tier_level")
+
+    def nal_array(nal_type: int, nal: bytes) -> bytes:
+        return (struct.pack(">BH", 0x80 | nal_type, 1)
+                + struct.pack(">H", len(nal)) + nal)
+
+    hvcc_payload = (b"\x01" + ptl
+                    + struct.pack(">H", 0xF000)   # min_spatial_segmentation_idc
+                    + b"\xfc"                      # parallelismType
+                    + b"\xfd"                      # chromaFormat 4:2:0
+                    + b"\xf8" + b"\xf8"            # bit depths, 8-bit
+                    + struct.pack(">H", 0)         # avgFrameRate: unspecified
+                    + b"\x0f"                      # 4-byte NAL length prefixes
+                    + struct.pack(">B", 3)
+                    + nal_array(32, vps) + nal_array(33, sps) + nal_array(34, pps))
+    return H265Track(samples, box(b"hvcC", hvcc_payload), width, height)
 
 
 class AacTrack:
@@ -616,6 +741,20 @@ def main() -> int:
         fixtures["parrot_v3_video_audio.mp4"] = build(
             MIME_PREFIX + "com.parrot.videometadata3", samples, h264.samples,
             video=h264, audio=aac)
+
+    # An H.265 source takes the other branch of fork 7 (ADR 0007): it converts,
+    # but carries no ST 0604, because generation is H.264-only upstream and
+    # asking for it on HEVC refuses the session rather than degrading.
+    try:
+        h265 = encode_h265(frames=len(samples), width=64, height=64, fps=30)
+    except (FileNotFoundError, RuntimeError) as err:
+        print(f"parrot_v3_video_h265.mp4: SKIPPED ({err}) -- needs ffmpeg with libx265",
+              file=sys.stderr)
+        h265 = None
+    else:
+        fixtures["parrot_v3_video_h265.mp4"] = build(
+            MIME_PREFIX + "com.parrot.videometadata3", samples, h265.samples,
+            video=h265)
 
     for name, data in fixtures.items():
         (out_dir / name).write_bytes(data)

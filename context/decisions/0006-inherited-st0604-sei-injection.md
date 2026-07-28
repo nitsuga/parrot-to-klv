@@ -58,6 +58,12 @@ claim that is still true and still load-bearing:
 > are rewritten**: Picture Timing SEI is replaced by ST 0604, and parameter sets
 > repeat per IDR.
 
+> **Narrowed in one detail (2026-07-28):** "no codec branching" and the rewritten
+> timing NALs describe the **H.264** path. Generation turned out to be H.264-only
+> upstream, so there is now exactly one codec branch and any other source is
+> carried through unstamped — [[0007-h265-vs-st0604-generation]]. Everything else
+> here stands.
+
 That is the honest line, and it preserves the property users actually cared
 about (no transcode) while dropping the one we can no longer support (bit
 fidelity).
