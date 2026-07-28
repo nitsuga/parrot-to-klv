@@ -25,7 +25,7 @@ constexpr double kRadToDeg = 180.0 / 3.14159265358979323846;
 
 /// Below this ground speed, course angle (Item 112) is undefined — atan2 of two
 /// numbers that are both noise. The mapping spec says omit rather than emit a
-/// direction the aircraft is not travelling in.
+/// direction the aircraft is not traveling in.
 constexpr double kCourseSpeedThresholdMps = 0.5;
 
 /// Wrap to [0, 360), the range Items 5/18/20 and 112 use.
@@ -147,7 +147,7 @@ private:
 };
 
 /// Items 6/7 are ±20° and ±50°, which a quadcopter exceeds in ordinary flight.
-/// Out of range must be signalled with 0x8000, not clamped — and 90/91 carry
+/// Out of range must be signaled with 0x8000, not clamped — and 90/91 carry
 /// the trustworthy value regardless. `clamp` overrides this for consumers that
 /// can't handle 0x8000 gracefully.
 ///
@@ -396,7 +396,7 @@ Klv0601Frame to_0601(const TelemetrySnapshot& s, const SessionMetadata* session,
         staging.put(42, s.target->altitude_amsl_m);
         // Parrot's radial/tangential horizontal accuracies are not literally
         // CE90/LE90. Reporting them as such is an open question in the mapping,
-        // so they are withheld rather than relabelled.
+        // so they are withheld rather than relabeled.
         coverage.omitted[45] = OmissionReason::Unresolved;
         coverage.omitted[46] = OmissionReason::Unresolved;
     } else {

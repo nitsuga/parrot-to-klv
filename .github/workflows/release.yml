@@ -45,7 +45,7 @@ jobs:
       # Same read-only deploy key as the test workflow — GITHUB_TOKEN is scoped
       # to this repository and cannot clone the private dependency. See
       # .github/workflows/README-ci.md.
-      - name: Authorise the private dependency
+      - name: Authorize the private dependency
         env:
           MISBKLV_DEPLOY_KEY: ${{ secrets.MISBKLV_DEPLOY_KEY }}
         run: |
@@ -166,7 +166,7 @@ jobs:
     # Runs on the host rather than in a container: it needs a working docker to
     # load the image into. The claim under test is different from the bundle
     # job's — not "runs without GStreamer" but "runs as the caller and leaves the
-    # output owned by them", which is the failure mode a containerised file tool
+    # output owned by them", which is the failure mode a containerized file tool
     # gets wrong.
     needs: build
     runs-on: ubuntu-latest

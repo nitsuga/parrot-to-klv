@@ -1,7 +1,7 @@
 ---
 type: Decision
 title: ADR 0011 — Inferring Item 11 for formats that state no spectrum
-description: Name the sensor EO or IR from thermal-metadata presence, behind an opt-in flag and labelled as inferred, rather than leaving Item 11 permanently empty for v3 recordings
+description: Name the sensor EO or IR from thermal-metadata presence, behind an opt-in flag and labeled as inferred, rather than leaving Item 11 permanently empty for v3 recordings
 status: accepted
 fork: 11
 tags: [decision, mapping, misb, 0601, parrot, v3]
@@ -79,13 +79,13 @@ Item 11 exists to answer, for the majority of recordings in scope. The
 information *is* in the file, weakly. Refusing to surface it under any
 circumstance treats "cannot be certain" as "must not say", which is not the line
 this project draws elsewhere — `--clamp-attitude` already ships a value that is
-knowingly not the true one, behind a flag, labelled.
+knowingly not the true one, behind a flag, labeled.
 
 ## Emit the inference by default
 
 **Rejected.** It would make every v3 conversion assert a sensor identity the
 recording never stated, silently, including to consumers who never read this
-ADR. The failure direction is bad — mislabelling thermal footage `EO` — and the
+ADR. The failure direction is bad — mislabeling thermal footage `EO` — and the
 default must not be the one that can mislead without being asked.
 
 ## Infer from the airframe model instead
@@ -116,7 +116,7 @@ report, which is where it now is.
 
 - v3 recordings can carry Item 11 for consumers that need it, at the cost of a
   flag those consumers must know to pass — which is the point: passing it is the
-  acknowledgement.
+  acknowledgment.
 - Blended EO/IR v3 recordings will be named `IR` under the flag. Documented
   here, in the CLI help, and in the user guide; there is no v3 signal that would
   let the tool do better.
@@ -148,5 +148,5 @@ report, which is where it now is.
 - [[transform-stage]] § The coverage report — where `(inferred)` is rendered
 - [ADR 0002](./0002-unmappable-parrot-fields.md) — the thermal spots themselves
   as unmappable residue
-- [ADR 0005](./0005-attitude-range-policy.md) — the precedent for a labelled,
+- [ADR 0005](./0005-attitude-range-policy.md) — the precedent for a labeled,
   opt-in relaxation

@@ -88,7 +88,7 @@ struct TargetLocation {
 ///
 /// This is the boundary ADR 0004 draws: per-format knowledge — units, enum
 /// numbering, which fields exist — stops here. Angles are **degrees**,
-/// velocities m/s, distances metres, regardless of what the wire carried.
+/// velocities m/s, distances meters, regardless of what the wire carried.
 /// `std::optional` means "this recording does not supply it", so the mapping's
 /// rule is uniformly "omit the item" rather than a per-format special case.
 struct TelemetrySnapshot {
@@ -172,7 +172,7 @@ TelemetrySnapshot from_v3(const ParrotV3Frame& frame);
 
 /// Normalize a proto frame.
 ///
-/// Converts the FOVs from radians to degrees, honours the in-band "unknown"
+/// Converts the FOVs from radians to degrees, honors the in-band "unknown"
 /// sentinels (zero altitude, zero UTC accuracy) by leaving the corresponding
 /// optionals empty, and prefers `camera.location` over `drone.location` for the
 /// sensor position, per the mapping spec.

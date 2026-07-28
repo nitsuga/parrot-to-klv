@@ -44,7 +44,7 @@ jobs:
       # GITHUB_TOKEN is scoped to *this* repository and cannot clone it. A
       # read-only deploy key on libmisbklv, held here as a secret, is the
       # narrowest thing that works — see .github/workflows/README-ci.md.
-      - name: Authorise the private dependency
+      - name: Authorize the private dependency
         env:
           MISBKLV_DEPLOY_KEY: ${{ secrets.MISBKLV_DEPLOY_KEY }}
         run: |

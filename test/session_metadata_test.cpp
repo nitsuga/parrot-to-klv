@@ -76,7 +76,7 @@ void check_fixture(const std::string& fixture_dir) {
     check(session.media_date_epoch_s.has_value(), "media date parses to an epoch");
     if (session.media_date_epoch_s) {
         check_eq(*session.media_date_epoch_s, int64_t{1538842372},
-                 "media date converts to UTC, honouring the +02:00 offset");
+                 "media date converts to UTC, honoring the +02:00 offset");
     }
 }
 

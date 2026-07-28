@@ -152,7 +152,7 @@ message WifiLinkMetadata {
 }
 
 message StarfishLinkMetadata {
-    // Contents not transcribed; recognised so the oneof is not mistaken for
+    // Contents not transcribed; recognized so the oneof is not mistaken for
     // wifi. Skipped by the reader.
 }
 

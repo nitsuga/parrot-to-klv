@@ -12,7 +12,7 @@ Locates the Parrot timed-metadata track in an MP4, identifies which Parrot forma
 it carries, and yields its samples. The first stage of the pipeline; everything
 downstream consumes `MetadataSample`.
 
-Realises [ADR 0001](./decisions/0001-mp4-extraction-approach.md) (direct MP4
+Realizes [ADR 0001](./decisions/0001-mp4-extraction-approach.md) (direct MP4
 parsing over GStreamer `qtdemux`) — see its follow-on note.
 
 ## Files
@@ -26,7 +26,7 @@ parsing over GStreamer `qtdemux`) — see its follow-on note.
 | `test/vmeta_subset.proto` | The mapped subset of Parrot's schema, transcribed; documentation and fixture reference, **not** compiled |
 | `src/session_metadata.{hpp,cpp}` | Reads Parrot's untimed session tags from `moov/udta` — see § Session metadata |
 | `src/parrot_scrub.{hpp,cpp}`, `src/scrub_main.cpp` | `parrot-scrub` — see § Scrubbing |
-| `src/main.cpp` | `parrot-to-klv` — extract, decode, summarise |
+| `src/main.cpp` | `parrot-to-klv` — extract, decode, summarize |
 | `test/make_fixture.py` | Generates the synthetic MP4 fixtures |
 | `test/mp4_extraction_test.cpp` | `ctest` target `mp4_extraction` |
 | `test/parrot_v3_test.cpp` | `ctest` target `parrot_v3` |
@@ -57,7 +57,7 @@ mismatch would silently read the wrong track.
 The `stsd` MIME type — `application/octet-stream;type=com.parrot.videometadata3`
 and friends — is the only thing that says which Parrot format the payload uses,
 and Parrot's own documentation states it is sufficient. It resolves to a typed
-`ParrotFormat`, and an unrecognised MIME type is a hard error that reports every
+`ParrotFormat`, and an unrecognized MIME type is a hard error that reports every
 track found.
 
 **Do not add a fallback here.** An earlier revision defaulted to v3 when
@@ -125,7 +125,7 @@ The timezone offset is the trap: dropping it puts every frame's Item 2 two hours
 out, consistently and invisibly. `parse_iso8601_to_epoch` uses `timegm` (never
 `mktime` — the converter's local timezone has nothing to do with when the flight
 happened) and subtracts the trailing offset. It returns nothing rather than
-guessing on a string it does not recognise.
+guessing on a string it does not recognize.
 
 ### Serial and geotag are sensitive, and separately so
 

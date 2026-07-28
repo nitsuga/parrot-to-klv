@@ -68,7 +68,7 @@ Four things make it relocatable, and each is load-bearing:
 
 **The plugin list is explicit**, not "copy plugins-bad". That package carries
 patent-encumbered and oddly-licensed elements this tool has no use for; the six
-named plugins are LGPL. Shipping only what is used is both smaller and a licence
+named plugins are LGPL. Shipping only what is used is both smaller and a license
 position we can state.
 
 **Libraries are linked dynamically**, which satisfies the LGPL's relinking right
@@ -98,7 +98,7 @@ builds a monolithic static GStreamer with a chosen plugin set. Two reasons. It i
 a large, fragile build to own. And LGPL relinking becomes genuinely hard: with
 dynamic bundling a user swaps a `.so`; with static linking we would owe object
 files or a relink path. Dynamic bundling is both less work and the cleaner
-licence position.
+license position.
 
 ## AppImage
 

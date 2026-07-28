@@ -23,7 +23,7 @@ struct ScrubOptions {
     ///
     /// Telemetry is not the only thing in a recording that reveals where it was
     /// taken — the imagery does too. Scrubbing coordinates makes the *metadata*
-    /// safe to publish; it does nothing about a recognisable skyline. Set this
+    /// safe to publish; it does nothing about a recognizable skyline. Set this
     /// when the output is destined to be committed.
     bool zero_media = false;
 
@@ -54,7 +54,7 @@ struct ScrubReport {
     std::string error;
 
     /// Things found that this tool does not scrub. Non-empty means the output
-    /// still needs a human's judgement before it is shared.
+    /// still needs a human's judgment before it is shared.
     std::vector<std::string> warnings;
 };
 
@@ -64,7 +64,7 @@ struct ScrubReport {
 /// Byte-for-byte copy plus in-place field overwrites: sample sizes never change,
 /// so every box, table and offset in the file survives untouched. That keeps the
 /// output a faithful specimen of the original encoder, which is the whole point
-/// of scrubbing a real recording rather than synthesising one.
+/// of scrubbing a real recording rather than synthesizing one.
 ///
 /// Refuses any format it cannot scrub. A file that this tool cannot fully handle
 /// must not leave here looking safe.

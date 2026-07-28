@@ -49,7 +49,7 @@ other. One build, two packagings.
 | `ubuntu:22.04` | 94 MB | 34.2 MB |
 | `distroless/base-debian12` | 37 MB | **13.8 MB** |
 
-Base size matters more here than usual: layer sharing normally amortises it, and
+Base size matters more here than usual: layer sharing normally amortizes it, and
 `docker save` defeats that entirely — every user downloads the full base every
 time. The bundle's shell wrapper is not used in the image; `ENV` does the same
 job at build time, so no shell is needed at all.
@@ -64,7 +64,7 @@ Three things it does that are easy to get wrong:
 - **`--user "$(id -u):$(id -g)"`.** Without it the container runs as root and
   every output file lands on the host owned by `root:root`, which the user then
   cannot delete without `sudo`. This is the single most common complaint about
-  containerised file tools. It works because the tool needs no home directory:
+  containerized file tools. It works because the tool needs no home directory:
   the GStreamer registry falls back to `mktemp` when the cache path is not
   writable, verified with `HOME` unset and with `HOME` pointing at nothing.
 - **Mount the file's directory, not the tree.** Input mounted read-only at
@@ -92,7 +92,7 @@ line, so "run the debug variant" is a one-line answer.
 
 The shape originally sketched.
 
-**Rejected** in favour of args-first. Two interfaces means two things to
+**Rejected** in favor of args-first. Two interfaces means two things to
 document, keep in step and get wrong; and a script that always prompts cannot be
 scripted at all. Raw `docker run` is still documented, but as a fallback for
 people who want it rather than the only non-interactive path.
@@ -130,7 +130,7 @@ the audience turns out to be registry-connected.
   in CI.
 - Assumes the image is loaded from the tarball beside the launcher. Someone who
   moves the launcher on its own gets a clear error, not a silent failure.
-- SELinux relabelling (`:z`/`:Z` on mounts) is not handled. Irrelevant on the
+- SELinux relabeling (`:z`/`:Z` on mounts) is not handled. Irrelevant on the
   supported Ubuntu targets; it would matter on Fedora or RHEL.
 
 # Citations

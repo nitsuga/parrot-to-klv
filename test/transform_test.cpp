@@ -197,7 +197,7 @@ void check_v3_mapping() {
     check(frame.coverage.omitted.at(75) == OmissionReason::NoSourceInFormat,
           "Item 75 omission blames the format");
     check(frame.coverage.omitted.at(23) == OmissionReason::NeedsDerivation,
-          "Tier 2 frame centre is reported as needing derivation");
+          "Tier 2 frame center is reported as needing derivation");
     check(frame.coverage.omitted.count(134) == 1, "Item 134 zoom omitted for v3");
     check(frame.coverage.emitted.count(13) == 1, "coverage lists Item 13 as emitted");
     check(!frame.coverage.to_text().empty(), "coverage renders as text");
@@ -292,7 +292,7 @@ void check_image_source_sensor() {
     check(*image_source_sensor(Spectrum::Thermal, Sub::Unknown) == "IR", "thermal alone is IR");
     check(*image_source_sensor(Spectrum::Thermal, Sub::Wide) == "IR Wide", "thermal + wide");
     // Item 11 is free-form utf8, so a fused image is named rather than being
-    // mislabelled as one of its halves or dropped.
+    // mislabeled as one of its halves or dropped.
     check(*image_source_sensor(Spectrum::Blended, Sub::Unknown) == "EO/IR Blended",
           "blended is named");
     check(*image_source_sensor(Spectrum::Blended, Sub::Tele) == "EO/IR Blended Tele",
@@ -331,7 +331,7 @@ void check_image_source_sensor() {
 }
 
 /// ADR 0011: Item 11 can be inferred from thermal-metadata presence, but only
-/// when asked for, only where the recording states nothing, and only labelled.
+/// when asked for, only where the recording states nothing, and only labeled.
 void check_image_source_inference() {
     ParrotV3Frame eo;
     eo.drone_quat = Quaternion{1.0, 0.0, 0.0, 0.0};
@@ -371,7 +371,7 @@ void check_image_source_inference() {
     check(decode_packet(proto_klv.packet).texts.at(11) == "EO Wide",
           "a stated spectrum is used verbatim even with inference on");
     check(proto_klv.coverage.emitted.at(11) == "EO Wide",
-          "a stated spectrum is not labelled inferred");
+          "a stated spectrum is not labeled inferred");
 }
 
 void check_unknown_utc_is_not_invented() {
@@ -462,7 +462,7 @@ void check_attitude_clamped() {
 
 void check_attitude_in_range_is_untouched() {
     // The flag may not alter a value that was always emittable — a flag that
-    // changes in-range behaviour is a flag that changes every conversion.
+    // changes in-range behavior is a flag that changes every conversion.
     auto snapshot = steep_snapshot(10.0, 0.0);
     const auto plain = decode_packet(to_0601(snapshot).packet);
     const auto clamped = decode_packet(
@@ -474,7 +474,7 @@ void check_attitude_in_range_is_untouched() {
 
     const auto klv = to_0601(snapshot, nullptr, {.clamp_attitude = true});
     check(klv.coverage.emitted.at(6).find("clamped") == std::string::npos,
-          "an in-range item is not labelled clamped");
+          "an in-range item is not labeled clamped");
 }
 
 void check_status_enums() {

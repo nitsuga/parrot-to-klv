@@ -33,7 +33,7 @@ Per [ADR 0004](./decisions/0004-shared-telemetry-snapshot.md):
 **map** (0601 semantics).
 
 The snapshot is where per-format knowledge stops. It carries one unit convention
-— degrees, m/s, metres — so proto's radian FOVs and v3's degree FOVs are the
+— degrees, m/s, meters — so proto's radian FOVs and v3's degree FOVs are the
 same thing by the time anything maps them. It carries `CommonPilotingMode`,
 which both parsers reach **by name**, because the binary and protobuf schemas
 number the same concepts differently. And it uses `std::optional` for anything a
@@ -58,7 +58,7 @@ values are checked as a consumer sees them rather than as we staged them.
 - **Item 51 is negated.** 0601 §8.51 measures vertical speed toward zenith;
   Parrot NED is positive down. The sign flip lives in exactly one place.
 - **Items 6/7 are ±20° and ±50°**, which a quadcopter exceeds in ordinary
-  flight. Out of range is signalled with the `0x8000` special value by default,
+  flight. Out of range is signaled with the `0x8000` special value by default,
   not clamped — a clamped attitude is a confident lie — and Items 90/91 (±90°)
   carry the trustworthy value alongside. Two opt-in flags override the default
   for consumers that cannot parse the sentinel (`--clamp-attitude`) or that want
@@ -140,7 +140,7 @@ spells them `--with-location` and `--with-identity`.
   percentage. No defined correspondence exists, so inventing one would put a
   fabricated number in a standard field.
 - **Items 45/46 CE90/LE90.** Parrot's radial and tangential horizontal
-  accuracies are not literally CE90/LE90. Withheld rather than relabelled.
+  accuracies are not literally CE90/LE90. Withheld rather than relabeled.
 Items 4 and 10 (tail number, platform designation) come from session metadata
 when the recording has it, and are reported as `needs MP4 session metadata`
 when it does not. Item 11 (image source sensor) comes from proto's

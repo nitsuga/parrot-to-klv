@@ -85,6 +85,17 @@ So:
 
 ## Project preferences
 
+- **Spelling: American English**, everywhere prose appears — code comments, doc
+  strings, CLI help and error text, test messages, Markdown, commit messages.
+  `color` not `colour`, `center` not `centre`, `behavior` not `behaviour`,
+  `labeled` not `labelled`, `-ize`/`-ization` not `-ise`/`-isation`, `meters`
+  not `metres`, `license` (noun and verb) not `licence`, `judgment`,
+  `acknowledgment`, `analyze`. This is consistency, not correctness — the
+  standards this project implements (MISB ST 0601, "Frame **Center**") are
+  American-spelled, so matching them keeps our prose and our quoted item names
+  from disagreeing on the same page. **`references/` and `external/` are exempt
+  and must not be touched**: the first is immutable source-of-truth input, the
+  second is vendored third-party code.
 - **Commit messages**: Conventional Commits format. No `Co-Authored-By` trailer.
 - **Repo layout**:
   - `references/` — immutable source-of-truth inputs. Read, never modify.

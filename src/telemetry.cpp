@@ -68,9 +68,9 @@ ImageSubtype common_subtype(CameraSubtype subtype) {
 /// Proto's in-band sentinel: zero altitude means "unknown", since proto3 gives
 /// scalars no presence bit. Treating it as a real 0 m would put the aircraft at
 /// sea level.
-std::optional<double> altitude_or_unknown(double metres) {
-    if (metres == 0.0) return std::nullopt;
-    return metres;
+std::optional<double> altitude_or_unknown(double meters) {
+    if (meters == 0.0) return std::nullopt;
+    return meters;
 }
 
 }  // namespace
@@ -117,7 +117,7 @@ std::optional<std::string> image_source_sensor(ImageSpectrum spectrum, ImageSubt
         case ImageSpectrum::Visible: name = "EO"; break;
         case ImageSpectrum::Thermal: name = "IR"; break;
         // Item 11 is free-form utf8, so a fused image can be named for what it
-        // is instead of being mislabelled as one of its halves.
+        // is instead of being mislabeled as one of its halves.
         case ImageSpectrum::Blended: name = "EO/IR Blended"; break;
         // No stem, no name: a bare "Wide" would not tell a consumer whether the
         // imagery is visible or thermal, which is the point of the item.

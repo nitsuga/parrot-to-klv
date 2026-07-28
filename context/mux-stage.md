@@ -17,7 +17,7 @@ Almost none of the container work is ours. libmisbklv's `KlvSink` takes a
 `video_source` and builds `filesrc ! demuxer ! parser` alongside its KLV appsrc
 into one `mpegtsmux`, so this stage is a loop that pushes packets with
 timestamps. What this document covers is the part that *is* ours: the timeline
-the packets go on, and the failure behaviour.
+the packets go on, and the failure behavior.
 
 ## Files
 
@@ -61,9 +61,9 @@ is what lets a consumer correlate frames without reading the KLV branch.
 
 It is ours now: libmisbklv's default (`Sei0604::Preserve`) leaves the elementary
 stream byte-identical, and `mux_to_ts()` passes `Sei0604::Generate` to get this
-behaviour. It arrived as an unconditional upstream change with no opt-out, which
+behavior. It arrived as an unconditional upstream change with no opt-out, which
 is why the ADR reads as it does; the opt-out landed later, and we kept the
-behaviour deliberately. Why, and what it costs:
+behavior deliberately. Why, and what it costs:
 [[0006-inherited-st0604-sei-injection]]. The claim that survives is **never
 decoded, never re-encoded** — not "unchanged". On a non-H.264 source
 "unchanged" *is* accurate, which is the one place the older wording still holds.
@@ -173,7 +173,7 @@ and it must come out with **no** ST 0604. That "no" is asserted rather than
 assumed, because the regression it guards against is one where the video is
 refused outright, and an absent assertion looks identical to a passing one.
 
-Worth knowing when reading that as a regression guard: the bug it is modelled on
+Worth knowing when reading that as a regression guard: the bug it is modeled on
 does **not** reproduce on gstreamer 1.20, where `h264parse` already emits
 `byte-stream` and the pipeline links regardless. It is CI's newer stack that
 would catch a recurrence, which is the same lesson as the transitive-include

@@ -19,7 +19,7 @@ struct MuxReport {
     uint32_t frames_emitted = 0;    ///< ST 0601 packets muxed into the output
     uint32_t frames_skipped = 0;    ///< samples that did not decode to a packet
     /// Coverage of the first emitted frame — the mapping is the same for every
-    /// frame of a recording, so one report characterises the conversion.
+    /// frame of a recording, so one report characterizes the conversion.
     CoverageReport coverage;
     /// The video track's sample entry format ('avc1', 'hvc1', …), 0 if none.
     uint32_t video_sample_entry = 0;

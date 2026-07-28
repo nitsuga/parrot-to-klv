@@ -72,7 +72,7 @@ cannot be met, and nowhere else.
 `handler_type`, so the video track's `avc1` / `hvc1` is in hand before the sink
 is built: no new parsing, one lookup and a conditional at the call site.
 
-**Unrecognised codecs take the `Preserve` path too.** The test is "do we know
+**Unrecognized codecs take the `Preserve` path too.** The test is "do we know
 this is H.264", not "do we know this is not". A codec we have never seen
 converts unstamped rather than erroring on a guess, which is the same trade this
 ADR makes for H.265.

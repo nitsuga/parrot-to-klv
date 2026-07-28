@@ -1,7 +1,7 @@
 ---
 type: Decision
 title: ADR 0008 — `--force-emit-attitude` cannot do what it promises
-description: ST 0601 spends the whole int16 range on ±limit, so there is no headroom to encode a value beyond it — the flag emits exactly the clamped value while labelling it out-of-spec
+description: ST 0601 spends the whole int16 range on ±limit, so there is no headroom to encode a value beyond it — the flag emits exactly the clamped value while labeling it out-of-spec
 status: accepted
 fork: 8
 tags: [decision, transform, mapping, misb, 0601, cli]
@@ -46,7 +46,7 @@ field's own terms. Any encoding that did carry 45° would have to use a differen
 scale, which a decoder reading ST 0601 correctly would silently misread as some
 other angle.
 
-So the flag currently delivers the clamp behaviour under a label that says the
+So the flag currently delivers the clamp behavior under a label that says the
 opposite. That is worse than either honest option: a consumer told "out-of-spec,
 use with caution" receives a clamped value and has been given a reason to trust
 it as measured.
@@ -60,7 +60,7 @@ implied a working range that does not exist. Corrected there.
 
 **Remove `--force-emit-attitude`.**
 
-The flag cannot keep its promise, and the two behaviours it could honestly
+The flag cannot keep its promise, and the two behaviors it could honestly
 provide are already covered — spec-compliant `0x8000` by default,
 consumer-friendly clamping behind `--clamp-attitude`. Removing it costs no
 capability, because it has none that clamping does not.
@@ -101,7 +101,7 @@ of a conversion.
 
 # Consequences
 
-- A CLI flag disappears. It is only days old and its behaviour was never
+- A CLI flag disappears. It is only days old and its behavior was never
   distinguishable from `--clamp-attitude`, so no output changes and no consumer
   can be relying on it for what it claimed.
 - `encode_out_of_spec_angle` and the `force_emit` parameter came out of
@@ -109,7 +109,7 @@ of a conversion.
   removing the mutually-exclusive check — and its CTest — along with them.
 - The test asserting the defect went with the flag; the clamp and in-range
   coverage stayed.
-- **The flag is rejected, not ignored.** An unrecognised argument is silently
+- **The flag is rejected, not ignored.** An unrecognized argument is silently
   dropped by the CLI, and this one used to change output, so passing it now
   errors with what it actually did and where to read the true attitude. A script
   still carrying it gets told rather than quietly getting the default.
@@ -125,7 +125,7 @@ of a conversion.
 - Assumes no consumer wants the re-scaled variant with prior agreement about
   the scale. If one ever does, that is a different feature — a private
   convention, negotiated, and not something to reach by way of a flag whose name
-  suggests standard behaviour.
+  suggests standard behavior.
 - Whether Items 90/91 are a sufficient answer for fidelity-seeking consumers is
   untested against a real one, same as fork 5's original assumption.
 

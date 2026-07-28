@@ -108,7 +108,7 @@ void test_scrub_replaces_location() {
         }
 
         // Everything that is not location must come through untouched — that is
-        // the reason to scrub a real file instead of synthesising one.
+        // the reason to scrub a real file instead of synthesizing one.
         check_eq(int{frame->sv_count}, 11, "satellite count preserved");
         check_eq(int{frame->battery_percentage}, 77, "battery preserved");
         check_eq(int{frame->wifi_rssi_dbm}, -47, "rssi preserved");
@@ -258,7 +258,7 @@ void test_warns_about_imagery() {
     const auto report = scrub_file(fixture("parrot_v3.mp4"), temp("warn.mp4"), ScrubOptions{});
     check(report.ok, "scrub succeeds");
     // Without --zero-media the imagery still shows the location; that must be
-    // said, not left for the user to realise.
+    // said, not left for the user to realize.
     bool mentions_imagery = false;
     for (const auto& w : report.warnings) {
         if (w.find("imagery") != std::string::npos) mentions_imagery = true;

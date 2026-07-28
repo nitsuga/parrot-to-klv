@@ -39,7 +39,7 @@ change was made for us, just never recorded by us.
 
 # Decision
 
-**Accept the injection as the tool's behaviour, and correct every claim that
+**Accept the injection as the tool's behavior, and correct every claim that
 says otherwise.**
 
 Keeping it is the easy half: Parrot MP4s carry no SEI timestamps at all — they
@@ -75,7 +75,7 @@ we implement or maintain, but something our output demonstrably contains.
 
 # Alternatives considered
 
-## Keep the behaviour, fix only the docs
+## Keep the behavior, fix only the docs
 
 **Rejected as insufficient, though it is most of the work.** The CLI prints
 "video passed through unchanged" on every successful conversion; leaving that
@@ -101,7 +101,7 @@ while the consumer we do have needs the opposite.
 
 - **The output is not a faithful remux** — anyone comparing output video
   bit-for-bit against the source will find differences, and that is expected
-  behaviour rather than a defect. As of the revision below it *could* be made
+  behavior rather than a defect. As of the revision below it *could* be made
   one, by not asking for generation; we choose not to.
 - Our conformance story is unaffected — those reports cover metadata decode, not
   the video branch. As of the revision below, `mux_test` does check the SEI:
@@ -149,7 +149,7 @@ Three consequences of the upstream change land here:
 - Assumes no consumer needs a bit-faithful remux. One is now available upstream
   (see the revision); if a consumer asks, the work is a CLI flag here, not a
   change upstream.
-- The 200 ms PTS tolerance and the silent no-match behaviour are upstream's
+- The 200 ms PTS tolerance and the silent no-match behavior are upstream's
   choices, unexamined here. Whether real Parrot footage ever trips them is
   unknown — every fixture is synthetic and short.
 - Assumes stripping Picture Timing SEI is harmless for our consumers. Upstream

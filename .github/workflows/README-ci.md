@@ -45,6 +45,6 @@ Delete the deploy key (`gh repo deploy-key list --repo nitsuga/libmisbklv`, then
 
 ## When libmisbklv goes public
 
-Drop the "Authorise the private dependency" step, and switch
+Drop the "Authorize the private dependency" step, and switch
 `GIT_REPOSITORY` in `CMakeLists.txt` from `git@github.com:` to
 `https://github.com/` so the clone needs no credential at all.

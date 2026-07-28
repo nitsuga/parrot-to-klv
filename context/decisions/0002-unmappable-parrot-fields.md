@@ -116,7 +116,7 @@ discarded.
 
 The coverage report this ADR required now exists — `CoverageReport` in
 `src/transform.{hpp,cpp}`, printed by `parrot-to-klv --klv`. It resolves the
-format question left open below in favour of a **human-readable summary**:
+format question left open below in favor of a **human-readable summary**:
 emitted items with values, omitted items each with a reason, and the dropped
 Parrot fields named as their own schema names them. A machine-readable form
 remains unbuilt and unneeded.

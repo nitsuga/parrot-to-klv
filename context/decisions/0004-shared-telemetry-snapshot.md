@@ -41,7 +41,7 @@ map that to ST 0601 once.**
 The snapshot is where per-format knowledge stops:
 
 - It carries **one unit convention** — degrees for angles, m/s for velocity,
-  metres for distance — so the radians/degrees asymmetry is resolved on the way
+  meters for distance — so the radians/degrees asymmetry is resolved on the way
   in and cannot reach the mapping.
 - It carries **common enums** (`CommonPilotingMode`) that both parsers map into
   *by name*, so the numbering divergence is resolved once, at the two places

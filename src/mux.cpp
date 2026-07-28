@@ -148,7 +148,7 @@ MuxReport mux_to_ts(const std::string& input, const std::string& output,
     // an H.265 recording would fail to convert at all. Preserve carries such a
     // source through unstamped instead, which is the whole of fork 7
     // (ADR 0007): degrade the guarantee only where it cannot be met. Anything
-    // unrecognised takes the same path, so a codec we have never seen converts
+    // unrecognized takes the same path, so a codec we have never seen converts
     // rather than erroring on a guess.
     //
     // A failure to open the source surfaces on the first emit(), which is where

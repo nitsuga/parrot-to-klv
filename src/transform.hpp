@@ -111,7 +111,7 @@ struct Klv0601Frame {
 /// Map one telemetry snapshot to an ST 0601 packet.
 ///
 /// Covers Tier 1 of [[field-mapping-analysis]] — the direct field-to-field
-/// mappings. Tier 2 (frame centre, corner points, slant range) needs a
+/// mappings. Tier 2 (frame center, corner points, slant range) needs a
 /// boresight-to-terrain intersection whose fidelity is still an open fork, so
 /// those items are reported as omitted rather than approximated silently.
 ///
@@ -125,7 +125,7 @@ struct Klv0601Frame {
 /// ±20° or roll exceeds ±50°, the spec-mandated 0x8000 "out-of-range" sentinel
 /// is emitted. Some consumers treat this as a missing value and fail.
 /// - `TransformOptions::clamp_attitude`: clamps to spec limits, ensuring numeric
-///   values are always present. The clamped item is labelled as such in the
+///   values are always present. The clamped item is labeled as such in the
 ///   coverage report.
 ///
 /// There is no option to emit the true angle here, and there cannot be: ST 0601

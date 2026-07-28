@@ -205,5 +205,5 @@ cannot validate.
 - [[0001-mp4-extraction-approach]] — the precedent: a narrow hand-written
   parser preferred over a general-purpose framework for a bounded format
 - [[libvideo-metadata]] — Parrot's C reference implementation, read for
-  behaviour but already established as not a build dependency; its
+  behavior but already established as not a build dependency; its
   `proto/vmeta.proto` is the schema this ADR transcribes a subset of

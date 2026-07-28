@@ -147,7 +147,7 @@ std::optional<Mp4MetadataExtractor> Mp4MetadataExtractor::open(const std::string
     // The MIME type names the payload format outright — never infer it.
     const auto format = format_from_mime(described.mime_format);
     if (!format) {
-        std::cerr << "Unrecognised Parrot MIME type: " << described.mime_format << std::endl;
+        std::cerr << "Unrecognized Parrot MIME type: " << described.mime_format << std::endl;
         return std::nullopt;
     }
 

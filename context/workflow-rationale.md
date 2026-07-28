@@ -22,7 +22,7 @@ place by a failure mode:
   that is wrong in between — and agents, reviewers, and your future self all read
   the repo *at a commit*, not at "later". Deferring also means reconstructing what
   changed from memory, so the entry arrives thin or never arrives at all. So the
-  commit that changes behaviour carries its own `log.md` + `PROGRESS.md` update;
+  commit that changes behavior carries its own `log.md` + `PROGRESS.md` update;
   the checklist at the top of `CLAUDE.md` is the gate that enforces it.
 - **No live tallies.** A count ("19 tests", "forks 1–15") is wrong the moment the
   next change lands, and nobody remembers to update prose numbers. Describe the

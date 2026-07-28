@@ -41,10 +41,10 @@ upstream and asking for it elsewhere refuses the conversion outright
 ([ADR 0007](../context/decisions/0007-h265-vs-st0604-generation.md)).
 `MuxReport::st0604_generated` and the CLI both say which happened, and
 `mux_test` asserts both branches. Design, the timeline rule and the failure
-behaviour: [mux stage](../context/mux-stage.md).
+behavior: [mux stage](../context/mux-stage.md).
 
 **Three tools build.** `parrot-to-klv` converts with `-o` (shows progress every
-10%) and summarises without it (`--klv` for the 0601 mapping and its coverage;
+10%) and summarizes without it (`--klv` for the 0601 mapping and its coverage;
 location and device identity are withheld unless `--with-location` /
 `--with-identity`; `--clamp-attitude` overrides the Items 6/7
 out-of-range default per

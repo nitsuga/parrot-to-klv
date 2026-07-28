@@ -32,7 +32,7 @@ void usage(const char* argv0) {
         << "Report files are named using the first 16 characters of the input file's\n"
         << "xxHash, anonymizing sensitive source filenames while uniquely identifying\n"
         << "each recording.\n\n"
-        << "  --scan <dir>      analyse every .mp4/.MP4 in <dir> (e.g. data/)\n"
+        << "  --scan <dir>      analyze every .mp4/.MP4 in <dir> (e.g. data/)\n"
         << "  --reports <dir>   where reports go, named by hash prefix\n"
         << "  --check           regenerate and compare instead of writing; non-zero\n"
         << "                    exit if a report changed. This is the regression test.\n"

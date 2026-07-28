@@ -21,7 +21,7 @@ struct MetadataSample {
 /// Parrot metadata format, as named by the stsd MIME type.
 ///
 /// This selects the payload parser, so it is never guessed: a track whose MIME
-/// type we do not recognise is rejected rather than assumed.
+/// type we do not recognize is rejected rather than assumed.
 enum class ParrotFormat {
     V1,     ///< com.parrot.videometadata1 — Bebop / Bebop 2 (deprecated)
     V2,     ///< com.parrot.videometadata2 — Bebop 2, Disco, Bluegrass

@@ -7,6 +7,23 @@
 
 ## 2026-07-28
 
+* **Spelling normalized to American English repo-wide** — 103 substitutions
+  across 40 files, and the rule written into `CLAUDE.md` § Project preferences so
+  it holds rather than being re-litigated.
+  - **The reason is agreement, not correctness.** The standards this project
+    implements are American-spelled — ST 0601's own item name is "Frame
+    **Center**" — so a doc reading "frame centre" next to a quoted "Frame Center"
+    disagrees with itself on one page.
+  - Covers prose wherever it appears: comments, doc strings, CLI help and error
+    text (`Unrecognized Parrot MIME type`), test messages, Markdown, and the two
+    workflow step names (`Authorize the private dependency`, renamed in
+    `build.yml`/`release.yml` and in the `README-ci.md` line that quotes it).
+  - One identifier moved with the prose: `altitude_or_unknown(double metres)` →
+    `meters`, a file-local parameter.
+  - **`references/` and `external/` deliberately untouched** — immutable input
+    and vendored code. The pass ran over `git ls-files` minus those two, so the
+    exclusion is structural rather than remembered.
+
 * **libmisbklv re-pinned to `4ced331` — the output's PMT listed the KLV before
   the video.** `mpegtsmux` assigns PMT order by sink-pad *request* order, not
   bin-add order, and upstream linked the KLV appsrc before the video demuxer's
@@ -20,7 +37,7 @@
     the audio-bearing one and the H.265 one all flip from `0=klv, 1=video` to
     `0=video, 1=klv`.
   - **`mux_test` now asserts the order**, not just the membership — the property
-    was load-bearing and held only by upstream's behaviour. The old pin's output
+    was load-bearing and held only by upstream's behavior. The old pin's output
     is on record as failing it (ffprobe read `stream 0 = klv` from the before
     files), though the assertion was written after the bump rather than run
     against the old build.
@@ -103,7 +120,7 @@
     their replacement check knew, so on 1.24 the source's SEIs survived beside
     ours — the duplication their ADR 0024 exists to prevent, failing quietly.
     Both forms are handled now, guarded by `GST_CHECK_VERSION`.
-  - **Behaviourally a no-op here**, as the last two pin moves were: on gstreamer
+  - **Behaviorally a no-op here**, as the last two pin moves were: on gstreamer
     1.20 neither fault reproduces. Suites green, 9/9 `-L parrot` and 34/34 bare
     (25 of those libmisbklv's own, matching what upstream reports under 1.24.2).
     CI's 1.24 is the stack that judges this one — the transitive-include lesson
@@ -198,7 +215,7 @@
     binaries. One build, two packagings.
   - **distroless, measured rather than assumed**: `docker save | gzip -9` is
     13.8 MB against `ubuntu:22.04`'s 34.2 MB. Base size matters more here than
-    usual — layer sharing normally amortises it, and `docker save` defeats that,
+    usual — layer sharing normally amortizes it, and `docker save` defeats that,
     so every user downloads the full base every time. The cost is no shell in the
     image; `Dockerfile.debug` is the same contents on a base that has one.
   - **The launcher takes arguments first and prompts only as a fallback**, and
@@ -277,7 +294,7 @@
   implemented the same day. `encode_out_of_spec_angle`, the `force_emit`
   parameter through `to_0601()` and `mux_to_ts()`, the mutual-exclusion check and
   its CTest all go with it; `to_0601()` is back to one boolean.
-  - **The flag errors rather than being ignored.** An unrecognised argument is
+  - **The flag errors rather than being ignored.** An unrecognized argument is
     silently dropped by this CLI, and this one used to change output, so passing
     it now explains what it actually did and points at Items 90/91. A script
     still carrying it gets told instead of quietly getting the default.
@@ -295,7 +312,7 @@
     flag may alter a value that was always emittable), and
     `check_attitude_force_emitted`. Mutual exclusion is argument parsing rather
     than transform, so it is a CTest — `attitude_flags_exclusive`, running the
-    CLI on a fixture it would otherwise summarise cleanly, with `WILL_FAIL`.
+    CLI on a fixture it would otherwise summarize cleanly, with `WILL_FAIL`.
   - **What the first run said:** `Item 6 carries the true pitch when
     force-emitted — expected 45 ±0.01, got 20`. Force-emit produces exactly the
     clamped value, byte for byte, and always: ST 0601 spends the entire int16
@@ -308,7 +325,7 @@
     ceiling was "derived from the encoding, not measured" — which is exactly how
     it went wrong. Deriving from a read of the code invented a working range that
     does not exist.
-  - The failing expectation is now pinned to the real behaviour with a pointer to
+  - The failing expectation is now pinned to the real behavior with a pointer to
     fork 8, so the defect is asserted rather than merely known.
 
 * **Fork 7 decided — ask for ST 0604 only on H.264, carry anything else through
@@ -319,10 +336,10 @@
     video; source carries video/x-h265` → `could not mux frame 0: media pipeline
     failed`. Note that lands on the *first emit* as `Error::Backend`, not at open
     as `Error::Unsupported` — the ADR's first reading of the upstream code was
-    wrong on that detail and has been corrected from the observed behaviour.
+    wrong on that detail and has been corrected from the observed behavior.
   - `mux_to_ts()` reads the video track's sample entry (`scan_mp4_tracks`, on the
     handle already open for session metadata) and asks for `Generate` only on
-    `avc1`/`avc3`. Anything unrecognised takes the `Preserve` path too: the test
+    `avc1`/`avc3`. Anything unrecognized takes the `Preserve` path too: the test
     is "do we know this is H.264", not "do we know it is not".
   - `MuxReport` gained `st0604_generated` and `video_sample_entry`, and the CLI
     prints which path ran. A conditional guarantee that announces itself is
@@ -356,7 +373,7 @@
   change: README described ST 0604 as something "libmisbklv generates" (it now
   generates it because we ask — its default leaves the video alone), in both the
   scope note and the output description; and [[0006-inherited-st0604-sei-injection]]'s
-  frontmatter `description` still summarised the ADR as accepting an
+  frontmatter `description` still summarized the ADR as accepting an
   unconditional upstream rewrite, though its body carries the revision. The
   title stands — the decision is still to accept the injection, and the video
   is still not a pure passthrough.
@@ -420,7 +437,7 @@
   the unpushed history.** A downstream consumer was named outright in four
   places; it is now described by what it does ("a downstream KLV decoder", "the
   consumer's decoder"). No argument changed — what mattered was the
-  `.at()`-on-missing-key behaviour, not whose decoder it was.
+  `.at()`-on-missing-key behavior, not whose decoder it was.
   - The five unpushed commits were rewritten (`filter-branch` over
     `origin/main..HEAD`), so the name never appears in that range at all. The
     rewrite was verified content-neutral: the tip tree hash is identical before
@@ -440,7 +457,7 @@
   - Caveat recorded honestly: a force-push does not retract what was published.
     GitHub keeps unreachable objects addressable by SHA until its own GC runs,
     so this was tidying, not revocation.
-  - **Convention going forward: identify external consumers by behaviour, never
+  - **Convention going forward: identify external consumers by behavior, never
     by product name.**
 * **Fork 6 decided — the video is not a passthrough, and has not been since the
   `b454415` pin.** [ADR 0006](./decisions/0006-inherited-st0604-sei-injection.md):
@@ -466,7 +483,7 @@
     green after the string changes: 9/9 `-L parrot`, 34/34 bare.
 * **libmisbklv pinned to `8c296da`** (doc hygiene pass upstream). `b454415..8c296da`
   touches only `context/`, `planning/`, `README.md` and `CLAUDE.md` — **no source
-  changes**, so this bump is behaviourally a no-op here. Full suite green: 9/9
+  changes**, so this bump is behaviorally a no-op here. Full suite green: 9/9
   `-L parrot` (one skip, `conformance_real_data`, no footage present) and 34/34
   bare, which exercises libmisbklv's own tests as the early warning for a moved
   pin.
@@ -547,7 +564,7 @@
   - **Our tests now carry a `parrot` label and CI runs `ctest -L parrot`.**
     libmisbklv is a subproject, so an unfiltered `ctest` runs its suite too —
     fine locally as early warning when the pin moves, but several of its tests
-    need ~355 MB of git-lfs media. Labelling ours beat enumerating theirs to
+    need ~355 MB of git-lfs media. Labeling ours beat enumerating theirs to
     exclude: the list of ours is a thing this repo already knows.
   - `GIT_LFS_SKIP_SMUDGE=1` at configure time keeps that media as pointers
     (355 MB → 28 KB), since nothing here opens it.
@@ -738,7 +755,7 @@
     `to_text()` now withholds Items 13/14/40/41 unless asked, and the test
     asserts both directions.
   - Sign and range traps handled and tested: Item 51 negated (0601 measures
-    toward zenith, Parrot NED is positive down); Items 6/7 signalled with
+    toward zenith, Parrot NED is positive down); Items 6/7 signaled with
     `0x8000` when out of their ±20°/±50° range rather than clamped, with 90/91
     carrying the true value; Item 112 omitted below 0.5 m/s because course over
     ground is undefined at rest; `asin` clamped so a barely-non-unit v3
@@ -755,7 +772,7 @@
     approximated — its fidelity fork is still open.
 * **Proto parser implemented** — `src/parrot_proto.{hpp,cpp}`, a hand-written
   proto3 wire reader per [[0003-protobuf-dependency]]. `parrot-to-klv` now
-  summarises v3 and proto both, and `test/vmeta_subset.proto` records the
+  summarizes v3 and proto both, and `test/vmeta_subset.proto` records the
   transcribed schema subset (documentation only — nothing compiles it).
   - **Schema traps the transcription surfaced**, each of which would have been a
     silent mis-decode: `Location.altitude_egm96amsl` is field **7**, not 4 (4 is
@@ -1016,7 +1033,7 @@
   (consistent with [ADR 0001](./decisions/0001-mp4-extraction-approach.md)) and
   recovers `tkhd` track IDs, `hdlr` handler types, the `stsd` sample entry, and
   `tref`/`cdsc` links. The MIME type now yields a typed `ParrotFormat`, and an
-  unrecognised one is a hard error listing what was found.
+  unrecognized one is a hard error listing what was found.
 * **Test fixtures are synthetic and committed.** `test/make_fixture.py` builds
   MP4s with Parrot's documented track layout and invented payloads, so extraction
   is testable without committing footage that carries live location data. Covers

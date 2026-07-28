@@ -73,13 +73,13 @@ struct ConformanceReport {
 };
 
 /// Report format version. Bump when fields change so a stale committed report
-/// is recognisable rather than silently compared against a new shape.
+/// is recognizable rather than silently compared against a new shape.
 /// Version 2: Changed the hash from SHA-256 to xxHash XXH3_128 for speed.
 /// Version 3: Renamed that field `input_sha256` -> `input_hash`, which is what
 /// it had held since v2.
 inline constexpr int kReportSchemaVersion = 3;
 
-/// Analyse a recording and build its report. Reads the file; writes nothing.
+/// Analyze a recording and build its report. Reads the file; writes nothing.
 ConformanceReport run_conformance(const std::string& input, const std::string& label);
 
 /// Render deterministically, so regenerating an unchanged input over an

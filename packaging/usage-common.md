@@ -61,7 +61,7 @@ always a bare stem.
 
 ## What is not converted
 
-Items needing a boresight-to-terrain intersection — frame centre, corner points,
+Items needing a boresight-to-terrain intersection — frame center, corner points,
 slant range — are reported as omitted rather than guessed at. So are a handful of
 open mapping questions. `--klv` names every one of them, with the reason.
 

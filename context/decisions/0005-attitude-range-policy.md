@@ -45,7 +45,7 @@ opt-in flags that override it.** Neither is on unless asked for.
 Three properties make this safe enough to ship:
 
 - **The default is unchanged.** Anyone not passing a flag gets the same
-  spec-compliant packet as before, so the tool's out-of-the-box behaviour is
+  spec-compliant packet as before, so the tool's out-of-the-box behavior is
   still the one [[transform-stage]] argued for.
 - **Items 90/91 are never affected.** Whichever flag is set, Sensor Pitch/Roll
   carry the accurate full-range value, so the truthful number is always in the
@@ -69,7 +69,7 @@ Make the consumable thing the default and hide the sentinel behind a flag.
 **Rejected.** It makes the tool's ordinary output non-conformant in substance
 while looking conformant on the wire — the failure mode is silent and lands on
 whoever reads the KLV later, not on whoever chose the flag. The compliant
-behaviour should be what you get for not thinking about it.
+behavior should be what you get for not thinking about it.
 
 ## Emit nothing when out of range
 
@@ -87,7 +87,7 @@ Treat that decoder's `.at()` as the consumer's bug to fix.
 **Rejected as the *only* answer, not as a diagnosis.** It is their bug. But this
 tool does not control that decoder's release cycle, and a converter whose output
 only works against corrected consumers is not much of a converter. The flag is
-the pragmatic bridge; it is not an endorsement of the decoder's behaviour.
+the pragmatic bridge; it is not an endorsement of the decoder's behavior.
 
 # Consequences
 
@@ -116,7 +116,7 @@ the pragmatic bridge; it is not an endorsement of the decoder's behaviour.
 
 `--force-emit-attitude` was removed. It never did what this ADR said it did:
 ST 0601 maps ±limit onto the whole int16 range, so there is no encoding for a
-larger angle, and the flag emitted exactly the clamped value while labelling it
+larger angle, and the flag emitted exactly the clamped value while labeling it
 out-of-spec. Found by the tests this ADR asked for.
 [[0008-force-emit-attitude-cannot-work]] carries the reasoning and the removal.
 
@@ -133,7 +133,7 @@ one of two.
   90/91 still true) and `check_attitude_in_range_is_untouched`. Writing these is
   what found that force-emit never extrapolated — see the correction above and
   [[0008-force-emit-attitude-cannot-work]].
-- Assumes that decoder's behaviour is representative of the consumers that
+- Assumes that decoder's behavior is representative of the consumers that
   matter. It is one reader, and the flag was designed from one failure report;
   if others turn out to mishandle `0x8000` differently, clamping may not be the
   shape of the fix they need either.
@@ -149,4 +149,4 @@ one of two.
 - [[field-mapping-analysis]] — Items 6/7 and 90/91, and the ranges 0601 assigns
   them
 - `src/transform.cpp`, `put_narrow_angle` / `encode_out_of_spec_angle` — the
-  three branches and the saturation behaviour
+  three branches and the saturation behavior

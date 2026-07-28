@@ -116,7 +116,7 @@ public:
     }
 
     /// Advance past a field whose value we do not want. This is what makes the
-    /// reader forward-compatible: an unrecognised field costs a skip, not a
+    /// reader forward-compatible: an unrecognized field costs a skip, not a
     /// parse failure.
     bool skip(uint32_t wire) {
         switch (wire) {

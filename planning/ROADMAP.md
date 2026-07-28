@@ -69,7 +69,7 @@ Status legend: `OPEN` (undiscussed) · `PROPOSED` (Decision concept written,
 `status: proposed`) · `DECIDED` / `DEFERRED` (has an ADR — see the register).
 
 - **Fork 4 — Tier 2 geometry fidelity** `OPEN`: flat-earth intersection vs. a
-  DTED terrain model for frame centre, corner points, and slant/ground range.
+  DTED terrain model for frame center, corner points, and slant/ground range.
   Weighs a data dependency against accuracy on sloped terrain. **Now open** —
   its stated trigger was the transform stage reaching the derived items, which
   it has: Tier 1 is complete and Items 21/22/23/24/25/57/78/82–89 are the
