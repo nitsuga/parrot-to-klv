@@ -1,7 +1,7 @@
 ---
 type: Decision
 title: ADR 0006 — Accept libmisbklv's ST 0604 SEI injection; the video is no longer a pure passthrough
-description: The pinned libmisbklv rewrites the H.264 elementary stream unconditionally — stripping Picture Timing SEI and injecting ST 0604 — so keep it, and stop claiming the video passes through unchanged
+description: Keep the ST 0604 SEI injection libmisbklv arrived with, and stop claiming the video passes through unchanged — since made opt-in upstream, so we now request it explicitly rather than inherit it
 status: accepted
 fork: 6
 tags: [decision, mux, video, h264, sei, misb, 0604, phase-3]

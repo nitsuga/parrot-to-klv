@@ -11,7 +11,8 @@ fields onto MISB ST 0601 tags, and remuxing video + KLV into MPEG-TS.
 The older v2 format (Bebop 2, Disco, Bluegrass) is a possible add-on but is not
 planned; v1 is deprecated by Parrot and out of scope, as are real-time
 streaming, a GUI, an integration API, and KLV standards beyond ST 0601 — except
-ST 0604 SEI, which the output carries because libmisbklv generates it. See
+ST 0604 SEI, which the output carries because we ask libmisbklv to generate it
+(its default leaves the video untouched). See
 [`planning/ROADMAP.md`](planning/ROADMAP.md).
 
 ## Build
@@ -42,9 +43,9 @@ parrot-to-klv flight.mp4 --klv            # inspect: what maps, what doesn't
 
 The output carries the recording's own video elementary stream plus one ST 0601
 packet per metadata sample. The video is never decoded or re-encoded, so there
-is no generation loss — but it is not bit-identical: libmisbklv rewrites the
-timing NALs, replacing Picture Timing SEI with ST 0604 Precision Time Stamps so
-consumers can correlate frames without reading the KLV. Conversion shows
+is no generation loss — but it is not bit-identical: we ask libmisbklv to rewrite
+the timing NALs, replacing Picture Timing SEI with ST 0604 Precision Time Stamps
+so consumers can correlate frames without reading the KLV. Conversion shows
 progress every 10%.
 Without `-o` the tool only reads the file and reports; location and airframe
 identity are withheld from that report unless `--with-location` /

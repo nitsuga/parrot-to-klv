@@ -7,6 +7,15 @@
 
 ## 2026-07-28
 
+* **Lint (drift sweep).** Two stale present-tense claims after the opt-in
+  change: README described ST 0604 as something "libmisbklv generates" (it now
+  generates it because we ask — its default leaves the video alone), in both the
+  scope note and the output description; and [[0006-inherited-st0604-sei-injection]]'s
+  frontmatter `description` still summarised the ADR as accepting an
+  unconditional upstream rewrite, though its body carries the revision. The
+  title stands — the decision is still to accept the injection, and the video
+  is still not a pure passthrough.
+
 * **Re-pinned to libmisbklv `f8cc8c5`** — their fork-22 follow-ons, both of which
   we get for free. `Sei0604::Generate` now *refuses* a non-H.264 source rather
   than silently producing timestamp-free video: irrelevant to us in practice
