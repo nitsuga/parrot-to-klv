@@ -7,6 +7,36 @@
 
 ## 2026-07-28
 
+* **Declared `0.1.2`, and gave the release page real notes.** `CHANGELOG.md` is
+  hand-written and `release.yml` publishes the section matching the tag; the
+  `--generate-notes` fallback stays for a tag with no section, because weaker
+  notes beat a failed publish.
+  - **The commit list was actively misleading for this release.** It contains a
+    change *and its revert*, so a user would have read "video is stream 0:0" as
+    a headline of a release where it is not true. Raw subjects are our churn,
+    not their changes.
+  - The `v0.1.2` section leads with `--infer-image-source`, states the CLI
+    behavior change as the thing to check if you script the tool, and names the
+    KLV-at-`0:0` stream order under *Known limitations* — the trap most likely
+    to cost a user an afternoon.
+  - Extraction verified locally against every heading plus a nonexistent tag: a
+    failing `gh release create` is a bad place to discover an awk bug.
+
+* **CLI hardening: unknown options are refused, and `--version` / `--help`
+  exist.** Small, but the first two are what a user meets in the first minute.
+  - **A mistyped flag used to be silently dropped.** `--klvv` ran to completion
+    and exited 0 having quietly not printed the coverage report — measured, not
+    supposed. `-o` with no path became the *input* filename. Both are errors
+    now, naming the offending argument, as is a second input file.
+  - `--help` was treated as a filename and printed `Failed to open file:
+    --help` — the first thing a new user would try.
+  - `--version` reads `project(VERSION)` through a compile definition.
+    Declarative like the rest: artifacts are named from the git tag, and the
+    release commit moves both together.
+  - Guarded by five one-line `ctest` entries rather than a test binary, because
+    the thing under test is the process's exit status. `WILL_FAIL` on the three
+    rejection cases; all labelled `parrot` so CI runs them.
+
 * **Spelling normalized to American English repo-wide** — 103 substitutions
   across 40 files, and the rule written into `CLAUDE.md` § Project preferences so
   it holds rather than being re-litigated.

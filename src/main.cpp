@@ -23,6 +23,14 @@ using namespace parrot_to_klv;
 
 namespace {
 
+/// Set from `project(VERSION)` at configure time. The release artifacts take
+/// their name from the git tag, so this is the one place the binary itself can
+/// say what it is — and the release procedure bumps the two together.
+#ifndef PARROT_TO_KLV_VERSION
+#define PARROT_TO_KLV_VERSION "unknown"
+#endif
+constexpr const char* kVersion = PARROT_TO_KLV_VERSION;
+
 /// Structural summary of a decoded frame.
 ///
 /// Deliberately omits latitude/longitude: this is meant to be safe to paste
@@ -158,6 +166,39 @@ int decode_all(Mp4MetadataExtractor& extractor, const SessionMetadata& session,
     return failed > 0 ? 1 : 0;
 }
 
+/// The usage text, shared by `--help` and the no-arguments path so the two can
+/// never drift. `--help` sends it to stdout and succeeds; a missing argument
+/// sends it to stderr and fails.
+void print_usage(std::ostream& out, const char* program) {
+    out << "Usage: " << program << " <input.mp4> [-o <output.ts>] [options]\n\n"
+        << "  -o/--output converts: writes an MPEG-TS carrying the source's\n"
+        << "  video plus an ST 0601 KLV stream. The video is never decoded or\n"
+        << "  re-encoded, but its timing NALs are rewritten: ST 0604 SEI is\n"
+        << "  added for frame-accurate time. Without -o the tool only reads\n"
+        << "  the file and reports what it found.\n"
+        << "  Location is withheld by default so the output is safe to share;\n"
+        << "  --with-location prints latitude/longitude from the flight.\n"
+        << "  --klv maps each frame to ST 0601 and prints the conversion\n"
+        << "  coverage report — what was carried, omitted, and dropped.\n"
+        << "  --with-identity prints the airframe serial and geotag from the\n"
+        << "  session metadata, which are withheld by default.\n"
+        << "  -h/--help prints this; --version prints the version.\n\n"
+        << "Attitude handling (Items 6/7):\n"
+        << "  --clamp-attitude clamps pitch/roll to spec ranges (±20°, ±50°)\n"
+        << "  instead of emitting 0x8000 when out of range. Use for consumers\n"
+        << "  that can't handle missing values gracefully. Items 90/91 always\n"
+        << "  carry the true full-range attitude either way.\n\n"
+        << "Image Source Sensor (Item 11):\n"
+        << "  --infer-image-source names the sensor EO or IR for a recording\n"
+        << "  whose format states no spectrum (every v3 recording), inferring\n"
+        << "  it from whether the frame carried thermal metadata. This is a\n"
+        << "  guess from a proxy, not a converted field: a thermal recording\n"
+        << "  that wrote no thermal metadata would be named EO. Off by default,\n"
+        << "  and the coverage report marks the item (inferred).\n\n"
+        << "Output streams: the KLV is announced first, so 0:0 is the metadata\n"
+        << "  and 0:1 the video. Select by type (ffmpeg -map 0:v), not by index.\n";
+}
+
 }  // namespace
 
 int main(int argc, char* argv[]) {
@@ -190,38 +231,39 @@ int main(int argc, char* argv[]) {
                          "produces. Use --clamp-attitude, or read Items 90/91, which always\n"
                          "carry the true full-range attitude.\n";
             return 1;
-        } else if ((arg == "-o" || arg == "--output") && i + 1 < argc) {
+        } else if (arg == "-h" || arg == "--help") {
+            print_usage(std::cout, argv[0]);
+            return 0;
+        } else if (arg == "--version") {
+            std::cout << "parrot-to-klv " << kVersion << "\n";
+            return 0;
+        } else if (arg == "-o" || arg == "--output") {
+            // Checked separately from the value so a trailing "-o" is an error
+            // rather than falling through and being taken as the input path.
+            if (i + 1 >= argc) {
+                std::cerr << "Error: " << arg << " needs a path.\n";
+                return 1;
+            }
             output = argv[++i];
+        } else if (!arg.empty() && arg[0] == '-') {
+            // Unrecognised *flags* are refused, never ignored. A silently
+            // dropped "--klvv" runs to completion, exits 0, and produces output
+            // missing what the caller asked for — the same reasoning that made
+            // the removed --force-emit-attitude an error rather than a no-op.
+            std::cerr << "Error: unknown option '" << arg << "'.\n"
+                      << "Run " << argv[0] << " --help for the options.\n";
+            return 1;
         } else if (input.empty()) {
             input = arg;
+        } else {
+            std::cerr << "Error: more than one input file given ('" << input
+                      << "' and '" << arg << "').\n";
+            return 1;
         }
     }
 
     if (input.empty()) {
-        std::cerr << "Usage: " << argv[0] << " <input.mp4> [-o <output.ts>] [options]\n\n"
-                  << "  -o/--output converts: writes an MPEG-TS carrying the source's\n"
-                  << "  video plus an ST 0601 KLV stream. The video is never decoded or\n"
-                  << "  re-encoded, but its timing NALs are rewritten: ST 0604 SEI is\n"
-                  << "  added for frame-accurate time. Without -o the tool only reads\n"
-                  << "  the file and reports what it found.\n"
-                  << "  Location is withheld by default so the output is safe to share;\n"
-                  << "  --with-location prints latitude/longitude from the flight.\n"
-                  << "  --klv maps each frame to ST 0601 and prints the conversion\n"
-                  << "  coverage report — what was carried, omitted, and dropped.\n"
-                  << "  --with-identity prints the airframe serial and geotag from the\n"
-                  << "  session metadata, which are withheld by default.\n\n"
-                  << "Attitude handling (Items 6/7):\n"
-                  << "  --clamp-attitude clamps pitch/roll to spec ranges (±20°, ±50°)\n"
-                  << "  instead of emitting 0x8000 when out of range. Use for consumers\n"
-                  << "  that can't handle missing values gracefully. Items 90/91 always\n"
-                  << "  carry the true full-range attitude either way.\n\n"
-                  << "Image Source Sensor (Item 11):\n"
-                  << "  --infer-image-source names the sensor EO or IR for a recording\n"
-                  << "  whose format states no spectrum (every v3 recording), inferring\n"
-                  << "  it from whether the frame carried thermal metadata. This is a\n"
-                  << "  guess from a proxy, not a converted field: a thermal recording\n"
-                  << "  that wrote no thermal metadata would be named EO. Off by default,\n"
-                  << "  and the coverage report marks the item (inferred).\n";
+        print_usage(std::cerr, argv[0]);
         return 1;
     }
 

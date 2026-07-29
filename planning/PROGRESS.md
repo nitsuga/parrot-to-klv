@@ -44,7 +44,8 @@ upstream and asking for it elsewhere refuses the conversion outright
 behavior: [mux stage](../context/mux-stage.md).
 
 **Three tools build.** `parrot-to-klv` converts with `-o` (shows progress every
-10%) and summarizes without it (`--klv` for the 0601 mapping and its coverage;
+10%), answers `--version` / `--help`, **refuses an unknown option rather than
+ignoring it**, and summarizes without `-o` (`--klv` for the 0601 mapping and its coverage;
 location and device identity are withheld unless `--with-location` /
 `--with-identity`; `--clamp-attitude` overrides the Items 6/7
 out-of-range default per
@@ -76,11 +77,12 @@ uses `data/` skips cleanly without it.
 
 ## In progress
 
-- Nothing mid-flight. `v0.1.1` is published with both deliverables; `main` is
-  ahead of it by the Item 11 inference and a repo-wide spelling normalization.
-  The libmisbklv pin also moved, but only across a revert — the library's source
-  is identical to what `v0.1.1` shipped, so a release built today would carry the
-  same binary.
+- **`0.1.2` is declared and `main` is ready to tag.** Carries the Item 11
+  inference, the CLI hardening (unknown options refused, `--version`, `--help`),
+  a repo-wide spelling normalization, and a hand-written `CHANGELOG.md` that the
+  release workflow now publishes in place of raw commit subjects. The libmisbklv
+  pin moved only across a revert, so the library source is identical to what
+  `v0.1.1` shipped.
 
 ## Next
 

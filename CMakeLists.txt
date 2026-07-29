@@ -57,6 +57,12 @@ target_link_libraries(parrot-conform PRIVATE parrot_extract)
 
 target_link_libraries(parrot-to-klv PRIVATE parrot_mux)
 
+# So `--version` can answer. Declarative like project(VERSION) itself — the
+# release artifacts are named from the git tag, and the release commit bumps
+# both together so the binary and the tag agree.
+target_compile_definitions(parrot-to-klv
+  PRIVATE PARROT_TO_KLV_VERSION="${PROJECT_VERSION}")
+
 # Release bundling (packaging/make-bundle.sh). Off for ordinary builds — this
 # only makes sense for the artifact that ships.
 #
@@ -161,6 +167,23 @@ add_test(NAME conformance
 # Replays the committed conformance reports against whatever real recordings sit
 # in data/ (gitignored). Skips cleanly where there is no footage, so it is a
 # no-op in CI and on machines that have never held a recording.
+# The CLI's argument handling, which now rejects rather than ignores. These are
+# one-line ctest entries rather than a test binary because the thing under test
+# *is* the process: its exit status and nothing else.
+#
+# The rejection cases matter most. An unknown flag used to be silently dropped,
+# so `--klvv` ran to completion and exited 0 having quietly not done what was
+# asked; that is the regression these pin.
+add_test(NAME cli_version COMMAND parrot-to-klv --version)
+add_test(NAME cli_help COMMAND parrot-to-klv --help)
+add_test(NAME cli_rejects_unknown_option COMMAND parrot-to-klv --not-an-option)
+set_tests_properties(cli_rejects_unknown_option PROPERTIES WILL_FAIL TRUE)
+add_test(NAME cli_rejects_output_without_path
+         COMMAND parrot-to-klv ${CMAKE_SOURCE_DIR}/test/fixtures/parrot_v3.mp4 -o)
+set_tests_properties(cli_rejects_output_without_path PROPERTIES WILL_FAIL TRUE)
+add_test(NAME cli_rejects_two_inputs COMMAND parrot-to-klv one.mp4 two.mp4)
+set_tests_properties(cli_rejects_two_inputs PROPERTIES WILL_FAIL TRUE)
+
 add_test(NAME conformance_real_data
          COMMAND parrot-conform --scan ${CMAKE_SOURCE_DIR}/data
                                 --reports ${CMAKE_SOURCE_DIR}/test/conformance
@@ -178,4 +201,6 @@ set_tests_properties(conformance_real_data PROPERTIES SKIP_RETURN_CODE 77)
 set_tests_properties(
   mp4_extraction parrot_v3 parrot_proto session_metadata transform mux
   parrot_scrub conformance conformance_real_data
+  cli_version cli_help cli_rejects_unknown_option
+  cli_rejects_output_without_path cli_rejects_two_inputs
   PROPERTIES LABELS parrot)
