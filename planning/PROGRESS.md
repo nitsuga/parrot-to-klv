@@ -76,8 +76,11 @@ uses `data/` skips cleanly without it.
 
 ## In progress
 
-- Nothing mid-flight. `v0.1.1` is published with both deliverables; `main` now
-  carries the Item 11 inference ahead of it.
+- Nothing mid-flight. `v0.1.1` is published with both deliverables; `main` is
+  ahead of it by the Item 11 inference and a repo-wide spelling normalization.
+  The libmisbklv pin also moved, but only across a revert — the library's source
+  is identical to what `v0.1.1` shipped, so a release built today would carry the
+  same binary.
 
 ## Next
 

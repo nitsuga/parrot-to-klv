@@ -46,6 +46,10 @@
     broken the output once, so it should never move silently again.
   - Suites green on the new pin: 9/9 `-L parrot`, 34/34 bare, and 0/30 under the
     load that used to reproduce the failure.
+  - **The shipped usage doc now warns that `0:0` is the KLV**, as does the
+    README — the limitation is upstream's, but the surprise lands on whoever
+    runs `ffmpeg -map 0:0` against our output, and `packaging/usage-common.md`
+    goes inside the release bundle.
 
 * **libmisbklv re-pinned to `4ced331` — the output's PMT listed the KLV before
   the video.** `mpegtsmux` assigns PMT order by sink-pad *request* order, not

@@ -67,6 +67,10 @@ Without `-o` the tool only reads the file and reports; location and airframe
 identity are withheld from that report unless `--with-location` /
 `--with-identity` ask for them.
 
+**Select output streams by type, not index** — the KLV is announced first, so
+`0:0` is the metadata and `0:1` the video (`ffmpeg -map 0:v`). See
+[mux stage](context/mux-stage.md) for why the order stands.
+
 **Attitude handling:** Items 6/7 (Platform Pitch/Roll) have narrow spec ranges
 (±20°, ±50°) which quadcopters routinely exceed. By default the spec-mandated
 `0x8000` "out-of-range" sentinel is emitted; `--clamp-attitude` emits the spec
