@@ -244,15 +244,17 @@ void check_conversion(const std::string& name, const std::string& mp4,
     check(has_video, name + ": no video elementary stream in the output");
     check(has_klv, name + ": no KLV (0x06 + KLVA) elementary stream in the output");
 
-    // …and video is listed first. Not cosmetic: consumers that address streams
-    // positionally take 0:0 as the video, and this output announced the KLV
-    // there until the pin moved to libmisbklv 4ced331. `read_pmt` preserves PMT
-    // order, so the first entry is what a consumer sees as stream 0.
+    // …and the KLV is listed *first*, video second. Upstream's muxer orders the
+    // PMT by pad-request order and cannot request the video pad first without
+    // costing either the KLV stream or ST 0604 timing, so this is a documented
+    // limitation (libmisbklv ADR 0020 § Stream order), not a defect to fix here.
+    // Pinned because a consumer selecting by index gets the metadata stream at
+    // 0:0 — anyone reading this output must select by stream type instead.
+    // `read_pmt` preserves PMT order, so entry 0 is what such a consumer sees.
     if (streams.size() == 2) {
-        const bool video_first =
-            streams[0].stream_type == 0x1B || streams[0].stream_type == 0x24;
-        check(video_first, name + ": PMT lists the KLV before the video — a consumer "
-                                  "addressing 0:0 as video gets the metadata stream");
+        check(streams[0].stream_type == 0x06 && streams[0].klva,
+              name + ": PMT no longer lists the KLV first — upstream's stream "
+                     "order changed, which has broken the KLV stream before");
     }
 
     // 2 and 3. Read the KLV back as a consumer would — bytes and timing both.

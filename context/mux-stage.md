@@ -126,12 +126,15 @@ a flight should cost that frame's telemetry, nothing more. A run that converts
 `mux_test` checks three properties, for both supported formats:
 
 1. the output's PMT lists **two** elementary streams — H.264 and KLV (stream
-   type 0x06 with a "KLVA" registration descriptor) — **with video first**. A
+   type 0x06 with a "KLVA" registration descriptor) — **with the KLV first**. A
    KLV-only output is the failure mode the video branch exists to prevent, so it
-   is asserted rather than assumed; the order is asserted because `mpegtsmux`
-   assigns it by sink-pad request order, which put the KLV at 0:0 until the pin
-   moved to libmisbklv `4ced331`, and a consumer addressing streams positionally
-   gets the wrong one.
+   is asserted rather than assumed. The *order* is asserted for the opposite
+   reason: `mpegtsmux` assigns it by sink-pad request order and puts the KLV at
+   `0:0`, which is the wrong way round for a consumer selecting by index — but
+   upstream cannot reverse it without dropping the KLV stream or breaking ST 0604
+   timing (libmisbklv ADR 0020 § Stream order). So the order is pinned as a
+   known limitation, and because changing it has broken the output before.
+   **Select the video by stream type, not by index.**
 2. every KLV packet read back is byte-identical to what `to_0601()` produced for
    that sample, in sample order.
 3. each packet comes back at its own sample's presentation time — the same

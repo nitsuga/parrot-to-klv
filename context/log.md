@@ -24,6 +24,29 @@
     and vendored code. The pass ran over `git ls-files` minus those two, so the
     exclusion is structural rather than remembered.
 
+* **Re-pinned to libmisbklv `e33f2fb`, which reverts the stream-order change
+  below — it was dropping our KLV stream.** The PMT is back to KLV at `0:0`,
+  video at `0:1`: cosmetically wrong, and now a documented limitation rather than
+  something to fix. Upstream's reasoning, both failed approaches and the
+  measurements: libmisbklv ADR 0020 § Stream order.
+  - **Found here, not upstream.** `mux_test` began failing about 1 run in 3 after
+    the bump. The output was a playable TS with the video intact and **no KLV at
+    all** — exit 0, no warning. Deferring upstream's appsrc link fixed the pad
+    *order* but left the pad *set* racy against preroll.
+  - **A/B'd against the old pin to place the blame before acting**: 4/60 failures
+    under load on `4ced331`, 0/52 on `8e866e1`. Upstream's own
+    `gst_video_insert_test` caught it too, at 2/20 — it had the right assertion
+    all along and still shipped, because a single green run of a load-dependent
+    race is not evidence.
+  - Upstream also proved a **second** regression the same change caused, in ST
+    0604 SEI timing, which a fix for the race did not touch. That is what settled
+    reverting over repairing.
+  - **`mux_test` still asserts the order** — now pinning KLV-first as the known
+    state. The point is unchanged: this is a user-visible property that has
+    broken the output once, so it should never move silently again.
+  - Suites green on the new pin: 9/9 `-L parrot`, 34/34 bare, and 0/30 under the
+    load that used to reproduce the failure.
+
 * **libmisbklv re-pinned to `4ced331` — the output's PMT listed the KLV before
   the video.** `mpegtsmux` assigns PMT order by sink-pad *request* order, not
   bin-add order, and upstream linked the KLV appsrc before the video demuxer's

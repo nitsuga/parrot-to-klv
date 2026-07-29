@@ -100,6 +100,12 @@ uses `data/` skips cleanly without it.
   glibc floor — a sound argument, not a test. It also pins a build-time
   GStreamer: host security updates do not reach it, a rebuild does
   ([ADR 0009](../context/decisions/0009-release-bundle.md) § Consequences).
+- **The output TS announces the KLV as stream 0 and the video as stream 1**, so
+  a consumer selecting by index (`ffmpeg -map 0:0`) gets the metadata stream.
+  Upstream's muxer orders the PMT by pad-request order and cannot reverse it
+  without dropping the KLV or breaking ST 0604 timing (libmisbklv ADR 0020
+  § Stream order), so this stands. **Select by stream type.** `mux_test` pins it,
+  because an attempt to change it silently emptied our output once.
 - **The `IR` half of `--infer-image-source` has never met a thermal recording.**
   The `EO` half is exercised by fixtures and by real EO flights; that thermal
   imagery always writes the thermal extension is reasoning about the format, not
