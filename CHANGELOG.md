@@ -41,7 +41,7 @@ must be exactly `## vX.Y.Z`.
   been quietly passing a typo will now fail instead of silently doing the wrong
   thing.
 
-- Spelling normalised to American English throughout, which touches two strings
+- Spelling normalized to American English throughout, which touches two strings
   you might match on: the error `Unrecognised Parrot MIME type` is now
   `Unrecognized …`, and `parrot-conform --help` says `analyze` rather than
   `analyse`.

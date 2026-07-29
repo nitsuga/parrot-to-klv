@@ -82,7 +82,8 @@ uses `data/` skips cleanly without it.
   a repo-wide spelling normalization, and a hand-written `CHANGELOG.md` that the
   release workflow now publishes in place of raw commit subjects. The libmisbklv
   pin moved only across a revert, so the library source is identical to what
-  `v0.1.1` shipped.
+  `v0.1.1` shipped. The publish path has been reviewed since: both ways it could
+  have shipped a release with the notes silently missing are closed.
 
 ## Next
 

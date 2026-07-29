@@ -246,7 +246,7 @@ int main(int argc, char* argv[]) {
             }
             output = argv[++i];
         } else if (!arg.empty() && arg[0] == '-') {
-            // Unrecognised *flags* are refused, never ignored. A silently
+            // Unrecognized *flags* are refused, never ignored. A silently
             // dropped "--klvv" runs to completion, exits 0, and produces output
             // missing what the caller asked for — the same reasoning that made
             // the removed --force-emit-attitude an error rather than a no-op.

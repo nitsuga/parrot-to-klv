@@ -7,6 +7,27 @@
 
 ## 2026-07-28
 
+* **Hardened the release-notes publish path, and simplified it.** Review of the
+  two commits below found the notes could be silently dropped on two paths that
+  both report success — worth fixing before the first tag that relies on them.
+  - **A section heading with no body yet extracted as a lone newline, which
+    `-s` calls content.** The publish would then set an *empty* release body
+    instead of falling back to generated notes. The test is now "has a non-blank
+    line" (`grep -q '[^[:space:]]'`).
+  - **The `gh release create || gh release upload --clobber` fallback set no
+    notes at all.** That path is reached when the release already exists — a
+    re-run after a partial failure, or a hand-made release — so the job would
+    re-upload assets, exit 0, and leave the body untouched. It now runs
+    `gh release edit --notes-file` on that path. `gh release edit` has no
+    `--generate-notes`, so the fallback can only restore hand-written notes;
+    that is exactly the case that was being lost.
+  - Dropped the `have_notes` step output. `notes.md` is in the workspace and
+    both steps can test it directly, so the `$GITHUB_OUTPUT` write and `env:`
+    mapping were carrying one bit the filesystem already held — and were a
+    second source of truth free to disagree with the file.
+  - Extraction re-verified against every heading, a nonexistent tag, and a
+    whitespace-only section; the last is the case the old test got wrong.
+
 * **CI actions moved to their current majors** — `checkout@v5→v7`,
   `upload-artifact@v4→v7`, `download-artifact@v4→v8`, across all three
   workflows.

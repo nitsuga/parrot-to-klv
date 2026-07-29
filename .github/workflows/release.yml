@@ -235,31 +235,40 @@ jobs:
       # Falls back to generated notes if the tag has no section, rather than
       # failing the publish: a release with weaker notes beats no release.
       - name: Extract the changelog section for this tag
-        id: notes
         run: |
-          if awk -v tag="## $GITHUB_REF_NAME" '
+          awk -v tag="## $GITHUB_REF_NAME" '
                 $0 == tag {found=1; next}
                 found && /^## v/ {exit}
-                found {print}
-              ' CHANGELOG.md > notes.md && [ -s notes.md ]; then
-            echo "have_notes=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "have_notes=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::no CHANGELOG.md section for $GITHUB_REF_NAME, falling back to generated notes"
-          fi
+                found
+              ' CHANGELOG.md > notes.md
+          grep -q '[^[:space:]]' notes.md \
+            || echo "::warning::no CHANGELOG.md section for $GITHUB_REF_NAME, falling back to generated notes"
 
+      # notes.md is the one source of truth for which path we take — it is right
+      # there in the workspace, so there is nothing to carry between the steps.
+      # The test is "has a non-blank line", not -s: a heading added ahead of its
+      # body extracts as a lone newline, which -s calls content and would
+      # publish as an empty release page.
       - name: Attach to the release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          HAVE_NOTES: ${{ steps.notes.outputs.have_notes }}
         run: |
-          if [ "$HAVE_NOTES" = "true" ]; then
+          if grep -q '[^[:space:]]' notes.md; then
             notes_args=(--notes-file notes.md)
           else
             notes_args=(--generate-notes)
           fi
+          # The fallback is for a release that already exists — a re-run, or a
+          # tag released by hand. Uploading the assets is not enough there: the
+          # notes are the point of this job, so set them on that path too, or a
+          # re-run "succeeds" having silently left the old body in place.
           gh release create "$GITHUB_REF_NAME" dl/* \
             --repo "$GITHUB_REPOSITORY" \
             --title "$GITHUB_REF_NAME" \
             "${notes_args[@]}" \
-            || gh release upload "$GITHUB_REF_NAME" dl/* --repo "$GITHUB_REPOSITORY" --clobber
+          || {
+            gh release upload "$GITHUB_REF_NAME" dl/* --repo "$GITHUB_REPOSITORY" --clobber
+            if grep -q '[^[:space:]]' notes.md; then
+              gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --notes-file notes.md
+            fi
+          }
