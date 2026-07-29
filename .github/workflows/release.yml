@@ -23,7 +23,7 @@ jobs:
     # 22.04. Moving this to a newer image silently drops 22.04 support.
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Install build dependencies
         run: |
@@ -100,7 +100,11 @@ jobs:
           tar -C staging -czf "$name.tar.gz" "$name"
           sha256sum "$name.tar.gz" | tee "$name.tar.gz.sha256"
 
-      - uses: actions/upload-artifact@v4
+      # artifact actions on their current majors. These run on node24 and need a
+      # runner >= 2.327.1 — fine on GitHub-hosted runners, worth knowing if this
+      # ever moves to a self-hosted one. The v4 line still works but runs on
+      # node20, which is what produces the runtime deprecation warnings.
+      - uses: actions/upload-artifact@v7
         with:
           name: bundle
           path: |
@@ -112,7 +116,7 @@ jobs:
 
       # Carried separately so the smoke job needs no checkout: a bare container
       # has no git, and the point of that job is to add as little as possible.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: smoke-fixtures
           path: test/fixtures/parrot_v3_video_audio.mp4
@@ -127,9 +131,9 @@ jobs:
     runs-on: ubuntu-latest
     container: ubuntu:24.04
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with: {name: bundle, path: dl}
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with: {name: smoke-fixtures, path: fixtures}
 
       # Prove the negative before relying on it. If a base image ever starts
@@ -171,9 +175,9 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with: {name: bundle, path: dl}
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with: {name: smoke-fixtures, path: fixtures}
 
       - name: Load and convert through the launcher
@@ -218,14 +222,44 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v7   # for CHANGELOG.md
+      - uses: actions/download-artifact@v8
         with: {name: bundle, path: dl}
+
+      # The release page gets the hand-written section from CHANGELOG.md, not
+      # just the commit list. --generate-notes alone would publish raw commit
+      # subjects, which for a release containing a change *and its revert* reads
+      # as two contradictory claims — one of them a headline that is no longer
+      # true. A user should be told what changed for them, not shown our churn.
+      #
+      # Falls back to generated notes if the tag has no section, rather than
+      # failing the publish: a release with weaker notes beats no release.
+      - name: Extract the changelog section for this tag
+        id: notes
+        run: |
+          if awk -v tag="## $GITHUB_REF_NAME" '
+                $0 == tag {found=1; next}
+                found && /^## v/ {exit}
+                found {print}
+              ' CHANGELOG.md > notes.md && [ -s notes.md ]; then
+            echo "have_notes=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "have_notes=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::no CHANGELOG.md section for $GITHUB_REF_NAME, falling back to generated notes"
+          fi
+
       - name: Attach to the release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HAVE_NOTES: ${{ steps.notes.outputs.have_notes }}
         run: |
+          if [ "$HAVE_NOTES" = "true" ]; then
+            notes_args=(--notes-file notes.md)
+          else
+            notes_args=(--generate-notes)
+          fi
           gh release create "$GITHUB_REF_NAME" dl/* \
             --repo "$GITHUB_REPOSITORY" \
             --title "$GITHUB_REF_NAME" \
-            --generate-notes \
+            "${notes_args[@]}" \
             || gh release upload "$GITHUB_REF_NAME" dl/* --repo "$GITHUB_REPOSITORY" --clobber

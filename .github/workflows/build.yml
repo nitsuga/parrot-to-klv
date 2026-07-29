@@ -17,7 +17,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       # -dev packages for the build (libmisbklv's gstreamer backend links
       # gstreamer-1.0, gstreamer-app-1.0 and gstreamer-codecparsers-1.0); the

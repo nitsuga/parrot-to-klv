@@ -7,6 +7,20 @@
 
 ## 2026-07-28
 
+* **CI actions moved to their current majors** — `checkout@v5→v7`,
+  `upload-artifact@v4→v7`, `download-artifact@v4→v8`, across all three
+  workflows.
+  - **v4 is not deprecated; its *runtime* is.** The deprecation warnings come
+    from node20, which the v4 line runs on; v5 onward moved to node24. Worth
+    recording because "bump the action" and "the action is deprecated" are
+    different claims and only the first one was true here.
+  - The current majors need an Actions runner >= 2.327.1. GitHub-hosted runners
+    are well past it; noted in `release.yml` for the day this meets a
+    self-hosted one. `download-artifact@v8` also makes a hash mismatch an error
+    by default, which is a guarantee gained, not a risk taken.
+  - Versions were read from the API rather than assumed — v5 was two to three
+    majors stale by the time we looked.
+
 * **Declared `0.1.2`, and gave the release page real notes.** `CHANGELOG.md` is
   hand-written and `release.yml` publishes the section matching the tag; the
   `--generate-notes` fallback stays for a tag with no section, because weaker
