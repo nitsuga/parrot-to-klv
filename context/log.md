@@ -7,9 +7,11 @@
 
 ## 2026-07-28
 
-* **Hardened the release-notes publish path, and simplified it.** Review of the
-  two commits below found the notes could be silently dropped on two paths that
-  both report success — worth fixing before the first tag that relies on them.
+* **Hardened the release-notes publish path, and simplified it.** Review found
+  the notes could be silently dropped on two paths that both report success.
+  `v0.1.2` took neither — it published correct notes on the happy path — so
+  this is the failure modes *around* a run that worked, fixed after the fact
+  and landing in the next tag rather than that one.
   - **A section heading with no body yet extracted as a lone newline, which
     `-s` calls content.** The publish would then set an *empty* release body
     instead of falling back to generated notes. The test is now "has a non-blank
@@ -27,6 +29,17 @@
     second source of truth free to disagree with the file.
   - Extraction re-verified against every heading, a nonexistent tag, and a
     whitespace-only section; the last is the case the old test got wrong.
+
+* **`v0.1.2` published.** Tagged at `4c0d804`; both deliverables and their
+  checksums attached, after the bundle converted a fixture inside a bare
+  `ubuntu:24.04` container as usual.
+  - **The changelog-as-release-notes mechanism worked on its first real run.**
+    The release page carries the hand-written `## v0.1.2` section, not commit
+    subjects — which for this release was the point, since the subjects carry a
+    change and its revert.
+  - Carries the Item 11 inference, the CLI hardening, and the spelling
+    normalization. The libmisbklv pin moved only across a revert, so the
+    library source is identical to what `v0.1.1` shipped.
 
 * **CI actions moved to their current majors** — `checkout@v5→v7`,
   `upload-artifact@v4→v7`, `download-artifact@v4→v8`, across all three

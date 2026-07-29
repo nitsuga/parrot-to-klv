@@ -75,15 +75,19 @@ compressed. `release.yml` builds it on tag, then converts a fixture inside a bar
 **The whole suite passes with no drone footage present**, and the one test that
 uses `data/` skips cleanly without it.
 
+**`v0.1.2` is the current release**, carrying the Item 11 inference, the CLI
+hardening (unknown options refused, `--version`, `--help`), and a repo-wide
+spelling normalization. Its release page carries the hand-written `CHANGELOG.md`
+section rather than commit subjects. The libmisbklv pin moved only across a
+revert, so the library source is identical to what `v0.1.1` shipped.
+
 ## In progress
 
-- **`0.1.2` is declared and `main` is ready to tag.** Carries the Item 11
-  inference, the CLI hardening (unknown options refused, `--version`, `--help`),
-  a repo-wide spelling normalization, and a hand-written `CHANGELOG.md` that the
-  release workflow now publishes in place of raw commit subjects. The libmisbklv
-  pin moved only across a revert, so the library source is identical to what
-  `v0.1.1` shipped. The publish path has been reviewed since: both ways it could
-  have shipped a release with the notes silently missing are closed.
+- **A release-notes publish fix sits on `main`, unpushed and untagged.** Two
+  paths could have published a release with the notes silently missing — a
+  section heading with no body yet, and the "release already exists" fallback.
+  `v0.1.2` hit neither, so its notes are correct; the fix reaches users at the
+  next tag.
 
 ## Next
 
