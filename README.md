@@ -93,6 +93,8 @@ The tests run against synthetic fixtures in `test/fixtures/`, so `ctest` needs n
 drone footage. Real test inputs live in `data/`, which is **gitignored** — it
 holds footage with live location data and must never be committed.
 
+Release notes for each version are in [`CHANGELOG.md`](CHANGELOG.md).
+
 ## Project status
 
 This README describes what the project *is*. For what's happening right now, read
@@ -123,6 +125,7 @@ dependency — setup in [`.github/workflows/README-ci.md`](.github/workflows/REA
 
 ```
 CLAUDE.md              how-to-work instructions (agent auto-loads)
+CHANGELOG.md           hand-written release notes (release.yml publishes these)
 CMakeLists.txt         build (FetchContent pulls libmisbklv at a pinned commit)
 .github/workflows/
   build.yml            CI — builds and runs the suite on Ubuntu
