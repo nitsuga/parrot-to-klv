@@ -5,6 +5,22 @@
      a fuller entry per significant implementation. Routine ingests/lint go here
      too. This is the ONLY home for history — PROGRESS.md is present-tense only. -->
 
+## 2026-07-30
+
+* **Backported the planning-hygiene hardening from `okf-project-template`.** New
+  rule: "Now" is where the *work* is, not a feature inventory — if a sentence
+  would still be true after a month of no work it is durable knowledge and
+  belongs in a `context/` concept or an ADR. The rule is in `CLAUDE.md`, its
+  reasoning in [`workflow-rationale.md`](./workflow-rationale.md), which now also
+  marks a rule *observed* where a real incident produced it and asks future
+  sessions to append their own. This repo's own "Now" does not yet comply —
+  recorded under PROGRESS § Known gaps.
+* **Tightened two conventions** ([`CONVENTIONS.md`](./CONVENTIONS.md)): citations
+  are anchored by section/message name, never by line number of a file under
+  `../references/` (a positional citation silently repoints when a source is
+  re-fetched); and a fork gets a *second* log line only across a genuine session
+  gap, not for a same-session propose→accept.
+
 ## 2026-07-28
 
 * **Hardened the release-notes publish path, and simplified it.** Review found

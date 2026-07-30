@@ -73,9 +73,11 @@ forks to the register.
 
 Record the decision in [`log.md`](./log.md) as a **single thin line** —
 chronology + a link to the ADR. The ADR owns the rationale, so do **not** restate
-the decision or its alternatives in the log (that puts the same content in three
-places). Add a second log line for a fork only on a genuine cross-session gap or
-a revision / supersede.
+the decision or its rejected alternatives in the log (that puts the same content
+in three places). Add a *second* log line for one fork only on a genuine
+cross-session gap (proposed in one session, accepted in a later one) or a
+revision / supersede — **not** for a same-session propose→accept, which is one
+event and gets one line.
 
 ## ADR format
 
@@ -92,6 +94,19 @@ a revision / supersede.
   carries proposed/accepted, so no header churn on accept.
 - **Register:** [`./decisions/index.md`](./decisions/index.md) lists
   `Fork | ADR | Status`; updated on every status change.
+
+# Citations
+
+A `# Citations` entry says *why* that source mattered to this doc, not merely
+that it was consulted — the annotation is the part worth keeping, and it is what
+lets a later reader tell a load-bearing source from a passing mention.
+
+**Cite by stable anchor, not by position.** Name the section, clause, message, or
+heading (`ST 0601 §6.3`, `vmeta.proto` § `TimedMetadata`) — never a line number
+of a file under `../references/`, and never a page of an extract. Those files get
+re-fetched and revised, and a positional citation then silently points at the
+wrong text: worse than a broken link, because it still resolves and still looks
+right.
 
 # Subdirectories
 

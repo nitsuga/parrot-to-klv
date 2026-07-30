@@ -96,6 +96,11 @@ revert, so the library source is identical to what `v0.1.1` shipped.
 
 ## Known gaps
 
+- **"Now" above is still a feature inventory**, which the rule added on
+  2026-07-30 says it shouldn't be: most of its paragraphs describe what the tool
+  *does* — durable knowledge owned by a `context/` concept or an ADR — rather
+  than where the work is. Each already links the concept that owns it, so
+  migrating them is mostly deletion; pending.
 - **Non-H.264 output carries no ST 0604.** Generation is H.264-only upstream, so
   an H.265 source converts but is unstamped
   ([ADR 0007](../context/decisions/0007-h265-vs-st0604-generation.md)). Moot for
