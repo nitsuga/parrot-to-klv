@@ -15,6 +15,11 @@
   marks a rule *observed* where a real incident produced it and asks future
   sessions to append their own. This repo's own "Now" does not yet comply —
   recorded under PROGRESS § Known gaps.
+* **Fixed the link-check CI's blind spot.** It silently remapped root-absolute
+  links onto `context/` before checking existence, so the one form
+  [`CONVENTIONS.md`](./CONVENTIONS.md) § Linking bans was the one form it
+  repaired. It now flags them. (No occurrences here — this closes the hole that
+  let ~68 accumulate in libmisbklv under green CI.)
 * **Tightened two conventions** ([`CONVENTIONS.md`](./CONVENTIONS.md)): citations
   are anchored by section/message name, never by line number of a file under
   `../references/` (a positional citation silently repoints when a source is
