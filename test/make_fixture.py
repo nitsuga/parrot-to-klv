@@ -247,9 +247,9 @@ def build(mime: str, samples: list[bytes], video_samples: list[bytes],
 #
 # The other fixtures carry five bytes of 0xDEADBEEF per "frame", which is all the
 # metadata extractor ever needs -- it reads the *other* track. The mux stage does
-# not have that luxury: it hands the video elementary stream to gstreamer's
-# parsebin, which rejects anything that is not really H.264. So this fixture
-# carries a genuine encode.
+# not have that luxury: libmisbklv hands the video elementary stream to a
+# GStreamer codec parser, which rejects anything that is not really H.264. So
+# this fixture carries a genuine encode.
 #
 # ffmpeg is needed to *regenerate* the fixture, never to use it: the committed
 # .mp4 is what the suite reads, so a machine with no encoder still runs every

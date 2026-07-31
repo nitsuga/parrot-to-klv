@@ -5,6 +5,10 @@
 # Test data (contains sensitive videos - never commit)
 /data/
 
+# Python bytecode
+__pycache__/
+*.py[cod]
+
 # Environment and secrets
 .env
 *.pem

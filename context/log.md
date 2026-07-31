@@ -7,6 +7,10 @@
 
 ## 2026-07-31
 
+* **Removed tracked Python bytecode and aligned runtime-plugin rationale.**
+  Python cache artifacts are ignored, and CI and fixture comments now match the
+  explicit-demuxer plugin set packaged by the release bundle.
+
 * **Bundle and image staging now refuse unsafe reset targets before deletion.**
   Both paths share one canonical-path guard: broad paths, the current directory,
   the home directory, the repository outside its normal staging area, and paths

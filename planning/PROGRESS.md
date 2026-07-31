@@ -23,12 +23,11 @@ surface — flags, output, the scrub and conform workflows — is in
 **`v0.1.2` is the current release.**
 
 The one substantive feature piece left is **fork 4, Tier 2 geometry fidelity**
-— see [ROADMAP](./ROADMAP.md) § Open forks. Review-driven hardening is proceeding
-separately below.
+— see [ROADMAP](./ROADMAP.md) § Open forks.
 
 ## In progress
 
-- **Mechanical cleanup.** Remove tracked bytecode and correct stale CI wording.
+- Nothing mid-flight.
 
 ## Next
 
