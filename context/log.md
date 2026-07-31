@@ -5,6 +5,18 @@
      a fuller entry per significant implementation. Routine ingests/lint go here
      too. This is the ONLY home for history — PROGRESS.md is present-tense only. -->
 
+## 2026-07-31
+
+* **Muxing and scrubbing now reject input/output aliases by file identity before
+  touching output.** This applies the existing no-in-place-scrub policy to
+  relative paths, symlinks, and hard links rather than trusting path spelling.
+  For muxing it closes a confirmed data-loss path: opening an aliased output
+  truncated the still-needed source to zero bytes. Scrubbing reads its source
+  into memory before opening output, so its alias case was an unintended
+  in-place rewrite with partial-write risk rather than that read/truncate race.
+  The respective behavior and the separate pre-existing-output limitation are
+  recorded in [[mux-stage]] and [[mp4-extraction]].
+
 ## 2026-07-30
 
 * **Backported the planning-hygiene hardening from `okf-project-template`.** New

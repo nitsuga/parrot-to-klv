@@ -90,6 +90,7 @@ target_link_libraries(parrot_mux PUBLIC
 
 # Extraction sources, shared by the tool and its tests.
 add_library(parrot_extract STATIC
+  src/file_identity.cpp
   src/mp4_box_scan.cpp
   src/mp4_metadata_extractor.cpp
   src/parrot_v3.cpp

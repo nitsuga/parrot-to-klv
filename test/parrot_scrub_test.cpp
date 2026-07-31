@@ -13,6 +13,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <iterator>
@@ -54,11 +55,110 @@ std::vector<uint8_t> read_file(const std::string& path) {
     return {std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()};
 }
 
+std::vector<uint8_t> read_file(const std::filesystem::path& path) {
+    return read_file(path.string());
+}
+
+bool refusal_names_the_alias(const std::string& error) {
+    return error.find("input") != std::string::npos &&
+           error.find("output") != std::string::npos &&
+           (error.find("same") != std::string::npos ||
+            error.find("distinct") != std::string::npos);
+}
+
 std::string g_dir;
 std::string g_tmp;
 
 std::string fixture(const char* name) { return g_dir + "/" + name; }
 std::string temp(const char* name) { return g_tmp + "/" + name; }
+
+/// `scrub_file` must refuse aliases before it can overwrite the recording.
+/// All inputs here are disposable copies: a regression must not modify a
+/// committed fixture while demonstrating the safety property.
+void test_refuses_input_output_aliases() {
+    namespace fs = std::filesystem;
+    const fs::path root = fs::path(g_tmp) / "scrub_input_output_aliases";
+    std::error_code ec;
+    fs::remove_all(root, ec);
+    check(!ec, "scrub alias test setup removes its old disposable directory");
+    if (ec) return;
+    fs::create_directories(root / "lexical", ec);
+    check(!ec, "scrub alias test setup creates its disposable directory");
+    if (ec) return;
+
+    const fs::path source = fixture("parrot_v3_extensions.mp4");
+    const auto exercise = [&](const char* label, const fs::path& output) {
+        const fs::path input = root / (std::string(label) + ".mp4");
+        ec.clear();
+        fs::copy_file(source, input, fs::copy_options::overwrite_existing, ec);
+        check(!ec, std::string("scrub ") + label + ": creates disposable input copy");
+        if (ec) return;
+
+        const auto before = read_file(input);
+        const auto report = scrub_file(input.string(), output.string(), ScrubOptions{});
+        check(!report.ok, std::string("scrub ") + label + ": refuses aliased output");
+        check(refusal_names_the_alias(report.error),
+              std::string("scrub ") + label + ": refusal explains input/output aliasing");
+        check(read_file(input) == before,
+              std::string("scrub ") + label + ": input bytes are unchanged after refusal");
+    };
+
+    const fs::path exact = root / "exact.mp4";
+    exercise("exact", exact);
+    exercise("lexical", root / "lexical" / ".." / "lexical.mp4");
+
+    const fs::path symlink_input = root / "symlink.mp4";
+    fs::copy_file(source, symlink_input, fs::copy_options::overwrite_existing, ec);
+    check(!ec, "scrub symlink: creates disposable input copy");
+    if (!ec) {
+        const fs::path symlink_output = root / "symlink-output.mp4";
+        fs::create_symlink(symlink_input.filename(), symlink_output, ec);
+#ifdef _WIN32
+        if (ec) {
+            std::cout << "SKIP: scrub symlink alias test unavailable: " << ec.message() << "\n";
+        } else
+#endif
+        {
+            check(!ec, "scrub symlink: creates alias (required on this platform)");
+            if (!ec) {
+                const auto before = read_file(symlink_input);
+                const auto report = scrub_file(symlink_input.string(), symlink_output.string(),
+                                               ScrubOptions{});
+                check(!report.ok, "scrub symlink: refuses aliased output");
+                check(refusal_names_the_alias(report.error),
+                      "scrub symlink: refusal explains input/output aliasing");
+                check(read_file(symlink_input) == before,
+                      "scrub symlink: input bytes are unchanged after refusal");
+            }
+        }
+    }
+
+    const fs::path hardlink_input = root / "hardlink.mp4";
+    fs::copy_file(source, hardlink_input, fs::copy_options::overwrite_existing, ec);
+    check(!ec, "scrub hard-link: creates disposable input copy");
+    if (!ec) {
+        const fs::path hardlink_output = root / "hardlink-output.mp4";
+        fs::create_hard_link(hardlink_input, hardlink_output, ec);
+#ifdef _WIN32
+        if (ec) {
+            std::cout << "SKIP: scrub hard-link alias test unavailable: " << ec.message() << "\n";
+        } else
+#endif
+        {
+            check(!ec, "scrub hard-link: creates alias (required on this platform)");
+            if (!ec) {
+                const auto before = read_file(hardlink_input);
+                const auto report = scrub_file(hardlink_input.string(), hardlink_output.string(),
+                                               ScrubOptions{});
+                check(!report.ok, "scrub hard-link: refuses aliased output");
+                check(refusal_names_the_alias(report.error),
+                      "scrub hard-link: refusal explains input/output aliasing");
+                check(read_file(hardlink_input) == before,
+                      "scrub hard-link: input bytes are unchanged after refusal");
+            }
+        }
+    }
+}
 
 /// The coordinates make_fixture.py encodes, which must not survive a scrub.
 constexpr double kOriginalLat = 48.858370;
@@ -276,6 +376,7 @@ int main(int argc, char* argv[]) {
     g_dir = argv[1];
     g_tmp = argv[2];
 
+    test_refuses_input_output_aliases();
     test_scrub_replaces_location();
     test_original_coordinates_absent();
     test_zero_media();

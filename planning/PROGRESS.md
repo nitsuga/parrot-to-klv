@@ -20,23 +20,25 @@ here: [MP4 metadata extraction](../context/mp4-extraction.md),
 surface — flags, output, the scrub and conform workflows — is in
 [`README.md`](../README.md).
 
-**`v0.1.2` is the current release.** The libmisbklv pin moved only across a
-revert, so the library source is identical to what `v0.1.1` shipped.
+**`v0.1.2` is the current release.**
 
-The one substantive piece of work left is **fork 4, Tier 2 geometry fidelity** —
-see [ROADMAP](./ROADMAP.md) § Open forks.
+The one substantive feature piece left is **fork 4, Tier 2 geometry fidelity**
+— see [ROADMAP](./ROADMAP.md) § Open forks. Review-driven hardening is proceeding
+separately below.
 
 ## In progress
 
-- **A release-notes publish fix is on `main`, untagged.** Two paths could have
-  published a release with the notes silently missing — a section heading with
-  no body yet, and the "release already exists" fallback. `v0.1.2` hit neither,
-  so its notes are correct; the fix reaches users at the next tag.
+- **Preparing the warning baseline and libmisbklv integration.** The next
+  dependency revision adds error cases that the client's user-facing rendering
+  must handle; establish fatal warnings first so the integration stays
+  build-clean and reviewable.
 
 ## Next
 
-1. Resolve fork 4, Tier 2 geometry fidelity, in [ROADMAP](./ROADMAP.md), then
-   derive Items 21/22/23/24/25/57/78/82–89
+1. Add the agreed warning-as-error baseline.
+2. Update the libmisbklv FetchContent pin to `1732e0c`, handling its new error
+   cases with coverage and keeping the integration green.
+3. Return to fork 4, Tier 2 geometry fidelity, in [ROADMAP](./ROADMAP.md).
 
 ## Known gaps
 

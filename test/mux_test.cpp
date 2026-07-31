@@ -28,6 +28,7 @@
 #include <cstdio>
 #include <cstring>
 #include <cstdlib>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <optional>
@@ -57,6 +58,106 @@ void check(bool condition, const std::string& what) {
     if (!condition) {
         std::cerr << "FAIL: " << what << "\n";
         ++g_failures;
+    }
+}
+
+std::vector<uint8_t> read_file(const std::filesystem::path& path) {
+    std::ifstream in(path, std::ios::binary);
+    return {std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()};
+}
+
+bool refusal_names_the_alias(const std::string& error) {
+    return error.find("input") != std::string::npos &&
+           error.find("output") != std::string::npos &&
+           (error.find("same") != std::string::npos ||
+            error.find("distinct") != std::string::npos);
+}
+
+/// Exercise the public mux API against every practical spelling of one file.
+///
+/// Each input is a copy in the build directory: this test must never point an
+/// output alias at a committed fixture, because an alias regression destroys
+/// exactly the file the call is meant to protect.
+void test_refuses_input_output_aliases(const std::string& fixtures, const std::string& temp) {
+    namespace fs = std::filesystem;
+    const fs::path root = fs::path(temp) / "mux_input_output_aliases";
+    std::error_code ec;
+    fs::remove_all(root, ec);
+    check(!ec, "mux alias test setup removes its old disposable directory");
+    if (ec) return;
+    fs::create_directories(root / "lexical", ec);
+    check(!ec, "mux alias test setup creates its disposable directory");
+    if (ec) return;
+
+    const fs::path source = fs::path(fixtures) / "parrot_v3_video.mp4";
+    const auto exercise = [&](const char* label, const fs::path& output) {
+        const fs::path input = root / (std::string(label) + ".mp4");
+        ec.clear();
+        fs::copy_file(source, input, fs::copy_options::overwrite_existing, ec);
+        check(!ec, std::string("mux ") + label + ": creates disposable input copy");
+        if (ec) return;
+
+        const auto before = read_file(input);
+        const auto report = mux_to_ts(input.string(), output.string());
+        check(!report.error.empty(), std::string("mux ") + label + ": refuses aliased output");
+        check(refusal_names_the_alias(report.error),
+              std::string("mux ") + label + ": refusal explains input/output aliasing");
+        check(read_file(input) == before,
+              std::string("mux ") + label + ": input bytes are unchanged after refusal");
+    };
+
+    const fs::path exact = root / "exact.mp4";
+    exercise("exact", exact);
+    exercise("lexical", root / "lexical" / ".." / "lexical.mp4");
+
+    const fs::path symlink_input = root / "symlink.mp4";
+    fs::copy_file(source, symlink_input, fs::copy_options::overwrite_existing, ec);
+    check(!ec, "mux symlink: creates disposable input copy");
+    if (!ec) {
+        const fs::path symlink_output = root / "symlink-output.ts";
+        fs::create_symlink(symlink_input.filename(), symlink_output, ec);
+#ifdef _WIN32
+        if (ec) {
+            std::cout << "SKIP: mux symlink alias test unavailable: " << ec.message() << "\n";
+        } else
+#endif
+        {
+            check(!ec, "mux symlink: creates alias (required on this platform)");
+            if (!ec) {
+                const auto before = read_file(symlink_input);
+                const auto report = mux_to_ts(symlink_input.string(), symlink_output.string());
+                check(!report.error.empty(), "mux symlink: refuses aliased output");
+                check(refusal_names_the_alias(report.error),
+                      "mux symlink: refusal explains input/output aliasing");
+                check(read_file(symlink_input) == before,
+                      "mux symlink: input bytes are unchanged after refusal");
+            }
+        }
+    }
+
+    const fs::path hardlink_input = root / "hardlink.mp4";
+    fs::copy_file(source, hardlink_input, fs::copy_options::overwrite_existing, ec);
+    check(!ec, "mux hard-link: creates disposable input copy");
+    if (!ec) {
+        const fs::path hardlink_output = root / "hardlink-output.ts";
+        fs::create_hard_link(hardlink_input, hardlink_output, ec);
+#ifdef _WIN32
+        if (ec) {
+            std::cout << "SKIP: mux hard-link alias test unavailable: " << ec.message() << "\n";
+        } else
+#endif
+        {
+            check(!ec, "mux hard-link: creates alias (required on this platform)");
+            if (!ec) {
+                const auto before = read_file(hardlink_input);
+                const auto report = mux_to_ts(hardlink_input.string(), hardlink_output.string());
+                check(!report.error.empty(), "mux hard-link: refuses aliased output");
+                check(refusal_names_the_alias(report.error),
+                      "mux hard-link: refusal explains input/output aliasing");
+                check(read_file(hardlink_input) == before,
+                      "mux hard-link: input bytes are unchanged after refusal");
+            }
+        }
     }
 }
 
@@ -350,6 +451,8 @@ int main(int argc, char* argv[]) {
     }
     const std::string fixtures = argv[1];
     const std::string temp = argv[2];
+
+    test_refuses_input_output_aliases(fixtures, temp);
 
     check_conversion(
         "v3", fixtures + "/parrot_v3_video.mp4", temp + "/mux_v3.ts",

@@ -61,11 +61,6 @@ int main(int argc, char* argv[]) {
         usage(argv[0]);
         return 2;
     }
-    if (input == output) {
-        std::cerr << "Refusing to scrub in place — give a distinct output path.\n";
-        return 2;
-    }
-
     const auto report = scrub_file(input, output, options);
 
     if (!report.ok) {

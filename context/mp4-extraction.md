@@ -3,7 +3,7 @@ type: Component
 title: MP4 metadata extraction and Phase 1 tooling
 description: How the Parrot metadata track is located, read, scrubbed, and evidenced — the minimp4 / box-scan division of labour, minimp4's traps, and the two tools that let real footage inform the repo without entering it
 tags: [mp4, extraction, minimp4, phase-1]
-timestamp: 2026-07-25T22:30:00Z
+timestamp: 2026-07-31T00:00:00Z
 ---
 
 # MP4 metadata extraction
@@ -145,6 +145,21 @@ actual encoder, with real attitude, timing, and extension mix.
 It copies the file byte for byte and patches fields **in place**. Sample sizes
 never change, so every box, sample table and chunk offset stays valid, and the
 output is the original file in all respects but the coordinates.
+
+`scrub_file()` rejects an input/output alias by **file identity** before it
+touches the output. This enforces the tool's no-in-place-scrub policy for every
+spelling of one file, including relative paths, symlinks, and hard links; string
+comparison alone cannot do that. The guard belongs in the operation rather than
+only its CLI, so library callers cannot bypass it.
+
+The immediate failure mode differs from muxing's: scrub reads the complete
+input into memory and closes it before opening the output, so an alias did not
+race the reader and was not confirmed to truncate the input at startup. It was
+still an unintended in-place rewrite, and a failure or interruption after the
+output is opened can leave that original only partially written. Rejecting
+aliases fixes the stated no-in-place policy. A distinct pre-existing output is
+still opened with truncation; preserving it until the scrubbed replacement is
+complete requires a separate transactional write policy.
 
 Two location channels have to be handled, and missing either defeats the
 exercise:

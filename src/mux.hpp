@@ -52,6 +52,11 @@ struct MuxReport {
 /// conversion: one corrupt sample in a flight should cost that frame's
 /// telemetry, not the file.
 ///
+/// Refuses the operation if `input` and `output` identify the same file,
+/// including through normalized paths, symbolic links, or hard links. The
+/// check happens before the output is opened, so the source cannot be truncated
+/// while the video branch still needs it.
+///
 /// `options` is passed through to `to_0601` for every frame — the mapping
 /// relaxations are a property of the conversion, not of the muxing.
 MuxReport mux_to_ts(const std::string& input, const std::string& output,

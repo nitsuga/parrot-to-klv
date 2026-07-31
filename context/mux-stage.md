@@ -3,7 +3,7 @@ type: Component
 title: Mux stage — MP4 in, MPEG-TS with video + KLV out
 description: How a Parrot MP4 becomes an MPEG-TS carrying its own video — never decoded, but with its timing NALs rewritten to carry ST 0604 — plus a synchronous ST 0601 KLV stream; the one timeline both branches share, and what a failed conversion must not leave behind
 tags: [mux, mpegts, klv, gstreamer, libmisbklv, phase-3]
-timestamp: 2026-07-26T06:00:00Z
+timestamp: 2026-07-31T00:00:00Z
 ---
 
 # Mux stage
@@ -99,6 +99,20 @@ walk samples in order, emit each — the correct one, and rules out the tempting
 alternative of converting everything up front and then draining it into the
 sink.
 
+## Input and output must be different files
+
+`mux_to_ts()` rejects an input/output alias by **file identity** before it opens
+or otherwise touches the output. Textual path comparison is not enough: a
+relative spelling, a symlink, or a hard link can all name the same file. This
+is the public-operation boundary, not merely a CLI check, so a future library
+caller receives the same protection.
+
+This is a confirmed data-loss guard for muxing. The sink opens its output while
+the video branch still reads the input; if both names identify the same file,
+opening the output truncates the source before the pipeline can consume it.
+The operation fails, but the recording is already zero bytes. Refuse the alias
+before creating the sink instead.
+
 ## An error must leave no output file
 
 A conversion that fails has to leave nothing behind, because a zero-byte `.ts`
@@ -113,6 +127,13 @@ whose video track is declared but does not actually parse (our own pre-mux
 fixtures, whose "video" is five bytes of `0xDEADBEEF`) opens fine and fails at
 EOS. `mux_test` still asserts the property from this side, since it is this
 tool's promise to its user whoever implements it.
+
+The guarantee is deliberately limited to a file this run created. If the output
+already existed, the sink must not delete somebody else's file; a failed run may
+therefore leave that pre-existing output truncated or partial. The same-file
+guard protects the input recording, not an old distinct output. Preserving an
+old output until its replacement is complete requires a separate transactional
+write policy.
 
 ## A skipped sample costs a frame, not the file
 

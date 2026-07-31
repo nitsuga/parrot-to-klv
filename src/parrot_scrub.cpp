@@ -3,6 +3,7 @@
 
 #include "parrot_scrub.hpp"
 
+#include "file_identity.hpp"
 #include "mp4_box_scan.hpp"
 #include "mp4_metadata_extractor.hpp"
 #include "parrot_v3.hpp"
@@ -190,6 +191,11 @@ void scrub_geotag(std::vector<uint8_t>& file, ScrubReport& report) {
 ScrubReport scrub_file(const std::string& input, const std::string& output,
                        const ScrubOptions& options) {
     ScrubReport report;
+
+    if (paths_alias(input, output)) {
+        report.error = "input and output refer to the same file";
+        return report;
+    }
 
     // Identify the track and format before touching anything.
     auto extractor = Mp4MetadataExtractor::open(input);

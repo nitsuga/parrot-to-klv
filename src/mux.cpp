@@ -15,6 +15,7 @@
 #include "misbklv/message.hpp"
 #include "misbklv/stream.hpp"
 
+#include "file_identity.hpp"
 #include "mp4_box_scan.hpp"
 #include "mp4_metadata_extractor.hpp"
 #include "parrot_proto.hpp"
@@ -106,6 +107,11 @@ void convert_all(Mp4MetadataExtractor& extractor, const SessionMetadata& session
 MuxReport mux_to_ts(const std::string& input, const std::string& output,
                     const TransformOptions& options) {
     MuxReport report;
+
+    if (paths_alias(input, output)) {
+        report.error = "input and output refer to the same file";
+        return report;
+    }
 
     auto extractor = Mp4MetadataExtractor::open(input);
     if (!extractor) {

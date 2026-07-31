@@ -66,6 +66,10 @@ struct ScrubReport {
 /// output a faithful specimen of the original encoder, which is the whole point
 /// of scrubbing a real recording rather than synthesizing one.
 ///
+/// Refuses the operation if `input` and `output` identify the same file,
+/// including through normalized paths, symbolic links, or hard links. Scrubbing
+/// in place is not supported.
+///
 /// Refuses any format it cannot scrub. A file that this tool cannot fully handle
 /// must not leave here looking safe.
 ScrubReport scrub_file(const std::string& input, const std::string& output,
