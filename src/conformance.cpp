@@ -7,7 +7,7 @@
 #include "parrot_v3.hpp"
 
 #define XXH_INLINE_ALL
-#include "../external/xxhash.h"
+#include <xxhash.h>
 
 #include <algorithm>
 #include <array>

@@ -28,17 +28,16 @@ separately below.
 
 ## In progress
 
-- **Preparing the warning baseline and libmisbklv integration.** The next
-  dependency revision adds error cases that the client's user-facing rendering
-  must handle; establish fatal warnings first so the integration stays
-  build-clean and reviewable.
+- **Integrating libmisbklv `1732e0c`.** Project-owned targets now compile with
+  a portable fatal-warning baseline; fetched and vendored code is outside that
+  warning liability. Handle the dependency's new error cases in the client's
+  user-facing rendering, with coverage, while keeping the integration green.
 
 ## Next
 
-1. Add the agreed warning-as-error baseline.
-2. Update the libmisbklv FetchContent pin to `1732e0c`, handling its new error
-   cases with coverage and keeping the integration green.
-3. Return to fork 4, Tier 2 geometry fidelity, in [ROADMAP](./ROADMAP.md).
+1. Complete the libmisbklv `1732e0c` integration, handling its new error cases
+   with coverage and keeping it green.
+2. Return to fork 4, Tier 2 geometry fidelity, in [ROADMAP](./ROADMAP.md).
 
 ## Known gaps
 

@@ -25,6 +25,14 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(misbklv)
 
+# The project warning baseline applies to our translation units, not warnings
+# emitted from libmisbklv's public headers when those units include them.
+get_target_property(_misbklv_public_include_directories
+  misbklv INTERFACE_INCLUDE_DIRECTORIES)
+target_include_directories(misbklv SYSTEM INTERFACE
+  ${_misbklv_public_include_directories})
+unset(_misbklv_public_include_directories)
+
 # libmisbklv treats its gstreamer backend as optional: if pkg-config cannot find
 # the modules it needs, it prints one status line and carries on without
 # defining `misbklv::gst`. The mux stage cannot be built without that target, so
@@ -42,6 +50,17 @@ if(NOT TARGET misbklv::gst)
     "libgstreamer-plugins-base1.0-dev libgstreamer-plugins-bad1.0-dev\n"
     "codecparsers ships in the plugins-bad *-dev* package; installing only the "
     "runtime gstreamer1.0-plugins-bad is the usual reason this fires.")
+endif()
+
+# Keep the project's warning policy separate from fetched and vendored code.
+# Linking this target through parrot_extract reaches every project executable and
+# test, while libmisbklv remains outside the policy.
+add_library(parrot_project_warnings INTERFACE)
+if(MSVC)
+  target_compile_options(parrot_project_warnings INTERFACE /W4 /WX)
+elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
+  target_compile_options(parrot_project_warnings INTERFACE
+    -Wall -Wextra -Wpedantic -Werror)
 endif()
 
 # Project source files
@@ -103,11 +122,18 @@ add_library(parrot_extract STATIC
 )
 
 # The transform stage encodes ST 0601 through libmisbklv's registry codec.
-target_link_libraries(parrot_extract PUBLIC misbklv::misbklv)
+target_link_libraries(parrot_extract PUBLIC
+  misbklv::misbklv
+  parrot_project_warnings
+)
 
-target_include_directories(parrot_extract PUBLIC
-  ${CMAKE_SOURCE_DIR}/src
-  ${CMAKE_SOURCE_DIR}/external/minimp4  # Vendored single-header MP4 parser
+target_include_directories(parrot_extract PUBLIC ${CMAKE_SOURCE_DIR}/src)
+
+# Vendored headers are consumed by project sources, but are not subject to the
+# project's warning baseline.
+target_include_directories(parrot_extract SYSTEM
+  PUBLIC ${CMAKE_SOURCE_DIR}/external/minimp4  # Vendored single-header MP4 parser
+  PRIVATE ${CMAKE_SOURCE_DIR}/external         # Vendored single-header xxHash
 )
 
 # Enable testing

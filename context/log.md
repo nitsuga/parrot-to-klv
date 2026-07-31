@@ -7,6 +7,12 @@
 
 ## 2026-07-31
 
+* **Project-owned targets now compile with a portable fatal-warning baseline.**
+  The baseline is deliberately scoped to this project's code and tests: fetched
+  libmisbklv and vendored dependencies are not made this project's warning
+  liability. This establishes a clean, portable gate before the pending
+  libmisbklv `1732e0c` integration; the pin work itself remains in progress.
+
 * **Muxing and scrubbing now reject input/output aliases by file identity before
   touching output.** This applies the existing no-in-place-scrub policy to
   relative paths, symlinks, and hard links rather than trusting path spelling.
