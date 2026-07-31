@@ -7,6 +7,12 @@
 
 ## 2026-07-31
 
+* **`v0.1.3` published.** Tagged at `67c25d2` after ordinary CI and a tagless
+  release workflow both passed. The tag workflow rebuilt on the 22.04 ABI floor,
+  repeated the bare-24.04 bundle and container-image smoke tests, and attached
+  both deliverables with checksums. The release page carries the hand-written
+  `## v0.1.3` changelog section.
+
 * **Declared `0.1.3` and wrote its human-facing release notes.** The patch
   release leads with input-preservation and truthful-telemetry fixes, names the
   improved media failure reporting, and documents the stricter manual packaging
