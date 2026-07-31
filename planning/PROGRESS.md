@@ -28,13 +28,11 @@ separately below.
 
 ## In progress
 
-- **Guarding bundle output paths.** Keep the release deliverable from writing
-  into an unsafe or unintended output location.
+- **Mechanical cleanup.** Remove tracked bytecode and correct stale CI wording.
 
 ## Next
 
-1. Remove tracked bytecode and correct stale CI wording.
-2. Return to fork 4, Tier 2 geometry fidelity, in [ROADMAP](./ROADMAP.md).
+1. Return to fork 4, Tier 2 geometry fidelity, in [ROADMAP](./ROADMAP.md).
 
 ## Known gaps
 

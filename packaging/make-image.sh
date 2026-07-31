@@ -17,6 +17,8 @@ VERSION=${2:?usage: make-image.sh <bundle-dir> <version> <staging-dir>}
 OUT=${3:?usage: make-image.sh <bundle-dir> <version> <staging-dir>}
 
 here=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+source "$here/staging-output-guard.sh"
+staging_output_guard_validate "$OUT" "$BUNDLE"
 engine=$(command -v docker || command -v podman) || {
   echo "neither docker nor podman on PATH" >&2; exit 1; }
 
@@ -26,12 +28,12 @@ image_file="parrot-to-klv-$VERSION-image.tar.gz"
 # Build in a scratch context so the Dockerfile's COPY finds the bundle at a
 # fixed path regardless of where the caller staged it.
 ctx=$(mktemp -d)
-trap 'rm -rf "$ctx"' EXIT
+trap 'rm -rf -- "$ctx"' EXIT
 cp -r "$BUNDLE" "$ctx/bundle"
 cp "$here/Dockerfile" "$ctx/Dockerfile"
 "$engine" build -t "$tag" -f "$ctx/Dockerfile" "$ctx"
 
-rm -rf "$OUT"; mkdir -p "$OUT"
+staging_output_guard_reset "$OUT" "$BUNDLE"
 
 # -9 because this is a file people download by hand, and the extra seconds here
 # are paid once against everyone's bandwidth.

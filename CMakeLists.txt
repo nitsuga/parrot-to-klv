@@ -243,6 +243,13 @@ add_test(NAME conformance_real_data
                                 --check)
 set_tests_properties(conformance_real_data PROPERTIES SKIP_RETURN_CODE 77)
 
+# Packaging refuses to clear paths that could erase a checkout, an input, or a
+# broad system location. The script uses one disposable tree and does not need
+# GStreamer, Docker, or a release build to exercise those early guards.
+add_test(NAME packaging_output_guard
+         COMMAND ${CMAKE_SOURCE_DIR}/test/packaging_output_guard_test.sh
+                 ${CMAKE_SOURCE_DIR})
+
 # libmisbklv is a subproject, so `ctest` here runs its suite too — useful
 # locally as an early warning when the pin moves, but several of its tests need
 # hundreds of megabytes of git-lfs media that this project has no reason to
@@ -259,4 +266,5 @@ set_tests_properties(
   mux conformance_real_data
   cli_version cli_help cli_rejects_unknown_option
   cli_rejects_output_without_path cli_rejects_two_inputs
+  packaging_output_guard
   PROPERTIES LABELS parrot)

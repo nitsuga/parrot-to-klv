@@ -20,6 +20,10 @@ set -euo pipefail
 BUILD_DIR=${1:?usage: make-bundle.sh <build-dir> <staging-dir>}
 OUT=${2:?usage: make-bundle.sh <build-dir> <staging-dir>}
 
+here=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+source "$here/staging-output-guard.sh"
+staging_output_guard_validate "$OUT" "$BUILD_DIR"
+
 # The plugins a conversion actually loads. Deliberately a list rather than "copy
 # plugins-bad": that package carries patent-encumbered and oddly-licensed
 # elements this tool has no use for, and shipping them would be someone else's
@@ -74,8 +78,8 @@ fi
   echo "gst-plugin-scanner not found; is libgstreamer1.0-0 installed?" >&2; exit 1; }
 echo "scanner: $scanner"
 
-rm -rf "$OUT"
-mkdir -p "$OUT/bin" "$OUT/lib/gstreamer-1.0" "$OUT/libexec/gstreamer-1.0"
+staging_output_guard_reset "$OUT" "$BUILD_DIR"
+mkdir -p -- "$OUT/bin" "$OUT/lib/gstreamer-1.0" "$OUT/libexec/gstreamer-1.0"
 
 cp "$BUILD_DIR/parrot-to-klv" "$OUT/bin/"
 cp "$scanner" "$OUT/libexec/gstreamer-1.0/"
@@ -103,7 +107,7 @@ while read -r lib; do
   soname=$(objdump -p "$lib" 2>/dev/null | awk '/SONAME/ {print $2; exit}')
   cp -L "$lib" "$OUT/lib/${soname:-$(basename "$lib")}"
 done < "$OUT/.closure"
-rm -f "$OUT/.closure"
+rm -f -- "$OUT/.closure"
 
 chmod -R u+w "$OUT/lib" "$OUT/libexec"
 # NO_STRIP=1 keeps symbols, for when a bundle misbehaves and the stripping is
@@ -158,7 +162,6 @@ chmod +x "$OUT/parrot-to-klv"
 
 # Usage, assembled from the shared body plus this deliverable's invocation
 # section — so the substance cannot drift between the tarball and the image.
-here=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 cat "$here/usage-head-bundle.md" > "$OUT/USAGE.md"
 printf '\n' >> "$OUT/USAGE.md"
 cat "$here/usage-common.md" >> "$OUT/USAGE.md"

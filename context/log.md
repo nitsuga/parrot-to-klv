@@ -7,6 +7,13 @@
 
 ## 2026-07-31
 
+* **Bundle and image staging now refuse unsafe reset targets before deletion.**
+  Both paths share one canonical-path guard: broad paths, the current directory,
+  the home directory, the repository outside its normal staging area, and paths
+  overlapping the input are refused. Normal repository staging destinations and
+  nested directories under `/tmp` remain valid. Disposable tests verify that a
+  refused target preserves its contents.
+
 * **Added a dedicated `parrot-sanitize` CI contract for the project-owned,
   GStreamer-free core.** ASan+UBSan cover the parser, normalization,
   transform, scrub, and conformance subset under an explicit label; the
