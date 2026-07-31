@@ -3,7 +3,7 @@ type: Component
 title: Transform stage — Parrot telemetry to MISB ST 0601
 description: How a decoded Parrot frame becomes an ST 0601 packet — the format-neutral snapshot, the Tier 1 mapping and its sign/range traps, and the conversion coverage report
 tags: [transform, mapping, misb, 0601, phase-2]
-timestamp: 2026-07-26T02:40:00Z
+timestamp: 2026-07-31T16:36:53Z
 ---
 
 # Transform stage
@@ -86,6 +86,27 @@ values are checked as a consumer sees them rather than as we staged them.
 - **`asin` is clamped** before computing pitch. A v3 quaternion that is barely
   non-unit from fixed-point rounding can push the argument past 1 and yield NaN.
 
+## Invalid values are omissions, not approximations
+
+The transform treats a non-finite source value as invalid and omits every item
+that depends on it. In particular, it rejects non-finite north/east velocity
+before deriving ground speed or course. Horizontal components remain independent:
+a bad north component does not discard a valid east component (or vice versa),
+but a derived value requiring both is absent. Course at rest remains explicitly
+undefined, rather than an arbitrary `atan2(0, 0)` direction.
+
+Finite values can still be outside a target codec's representable range. That is
+an encode rejection, not a missing source field: the coverage report says the
+item is not encodable and omits it rather than saturating it. Item 56 therefore
+does not turn a ground speed above 255 m/s into a false 255 m/s measurement;
+Items 8 and 123 apply the same rule to airspeed and satellite count. The only
+output clamp is the documented attitude opt-in above, which labels the altered
+value and preserves the truthful full-range value alongside it.
+
+This extends the same truthfulness rule already used for unavailable inputs and
+does not alter Item 2's existing mandatory-item handling: where its time source
+is unavailable or invalid, it remains absent with its own reported reason.
+
 ## Item 2 is mandatory, and sometimes absent anyway
 
 ST 0601 requires the Precision Time Stamp. A v3 recording carries only a
@@ -117,8 +138,8 @@ per frame:
   indexes an item and how these docs refer to it
 - **omitted** — items the mapping knows about but did not emit, each with a
   reason: the format does not carry it, this frame did not, it needs terrain
-  intersection, it needs session metadata, or the mapping itself is an open
-  question
+  intersection, it needs session metadata, the source value is invalid, the
+  finite value is not encodable, or the mapping itself is an open question
 - **dropped** — Parrot fields with no 0601 item at all (battery, link telemetry,
   exposure, thermal), listed only when the frame actually carried them, so the
   report describes the recording rather than reciting the schema

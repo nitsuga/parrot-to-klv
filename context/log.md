@@ -7,6 +7,14 @@
 
 ## 2026-07-31
 
+* **Transform rejection now preserves measurement truthfulness.** Non-finite
+  source values are omitted as invalid, finite values a codec cannot represent
+  are reported as not encodable, and Item 56 is omitted rather than saturated
+  above 255 m/s. Airspeed and satellite count likewise no longer saturate
+  malformed values. Horizontal velocity components remain independently usable;
+  course at rest is reported as undefined, and Item 2 retains its existing
+  handling.
+
 * **libmisbklv is pinned to hardening revision
   `1732e0c986e4b252a030147c389585da8248ddb2`.** The client remains compatible
   with that revision's API, and the project test suite remains green. Its error

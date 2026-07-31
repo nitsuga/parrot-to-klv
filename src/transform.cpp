@@ -100,13 +100,15 @@ public:
         : builder_(builder), coverage_(coverage) {}
 
     void put(uint16_t tag, double value, const std::string& rendered) {
+        if (!std::isfinite(value)) {
+            coverage_.omitted[tag] = OmissionReason::InvalidSourceValue;
+            return;
+        }
         auto result = builder_.set(tag, misbklv::Value{value});
         if (result) {
             coverage_.emitted[tag] = rendered;
         } else {
-            // Out of the item's declared range. Reported rather than clamped:
-            // a clamped value is a confident lie.
-            coverage_.omitted[tag] = OmissionReason::SourceAbsent;
+            coverage_.omitted[tag] = OmissionReason::EncodeRejected;
         }
     }
 
@@ -117,13 +119,14 @@ public:
         if (result) {
             coverage_.emitted[tag] = std::to_string(value);
         } else {
-            coverage_.omitted[tag] = OmissionReason::SourceAbsent;
+            coverage_.omitted[tag] = OmissionReason::EncodeRejected;
         }
     }
 
     void put_text(uint16_t tag, std::string_view value, const std::string& rendered) {
         auto result = builder_.set(tag, misbklv::Value{value});
         if (result) coverage_.emitted[tag] = rendered;
+        else coverage_.omitted[tag] = OmissionReason::EncodeRejected;
     }
 
     void put_text(uint16_t tag, std::string_view value) {
@@ -190,6 +193,9 @@ std::string to_string(OmissionReason reason) {
     switch (reason) {
         case OmissionReason::NoSourceInFormat: return "format does not carry it";
         case OmissionReason::SourceAbsent: return "not present in this frame";
+        case OmissionReason::InvalidSourceValue: return "source value is invalid";
+        case OmissionReason::EncodeRejected: return "value is not encodable as this item";
+        case OmissionReason::UndefinedForFrame: return "undefined for this frame";
         case OmissionReason::NeedsDerivation: return "needs terrain intersection (not implemented)";
         case OmissionReason::NeedsSessionData: return "needs MP4 session metadata (not parsed)";
         case OmissionReason::Unresolved: return "mapping is an open question";
@@ -316,7 +322,13 @@ Klv0601Frame to_0601(const TelemetrySnapshot& s, const SessionMetadata* session,
 
     // --- Item 8, air speed: v3 only, and only when the drone reported it ---
     if (s.air_speed_mps) {
-        staging.put_uint(8, static_cast<uint64_t>(std::lround(std::max(0.0, *s.air_speed_mps))));
+        if (!std::isfinite(*s.air_speed_mps)) {
+            coverage.omitted[8] = OmissionReason::InvalidSourceValue;
+        } else if (*s.air_speed_mps < 0.0 || *s.air_speed_mps > 255.0) {
+            coverage.omitted[8] = OmissionReason::EncodeRejected;
+        } else {
+            staging.put_uint(8, static_cast<uint64_t>(std::lround(*s.air_speed_mps)));
+        }
     } else {
         coverage.omitted[8] = s.source_format == ParrotFormat::Proto
                                   ? OmissionReason::NoSourceInFormat
@@ -360,15 +372,29 @@ Klv0601Frame to_0601(const TelemetrySnapshot& s, const SessionMetadata* session,
     // 0601 §8.51 measures vertical speed toward zenith; Parrot NED is positive
     // down. The sign flip lives here and only here.
     staging.put(51, -s.down_mps);
-    const double ground_speed = std::hypot(s.north_mps, s.east_mps);
-    staging.put_uint(56, static_cast<uint64_t>(std::min(255.0, std::round(ground_speed))));
     staging.put(79, s.north_mps);
     staging.put(80, s.east_mps);
-    if (ground_speed >= kCourseSpeedThresholdMps) {
-        staging.put(112, wrap_360(std::atan2(s.east_mps, s.north_mps) * kRadToDeg));
+    if (!std::isfinite(s.north_mps) || !std::isfinite(s.east_mps)) {
+        coverage.omitted[56] = OmissionReason::InvalidSourceValue;
+        coverage.omitted[112] = OmissionReason::InvalidSourceValue;
     } else {
-        // Course over ground is meaningless when the aircraft is not moving.
-        coverage.omitted[112] = OmissionReason::SourceAbsent;
+        const double ground_speed = std::hypot(s.north_mps, s.east_mps);
+        if (!std::isfinite(ground_speed)) {
+            coverage.omitted[56] = OmissionReason::InvalidSourceValue;
+            coverage.omitted[112] = OmissionReason::InvalidSourceValue;
+        } else {
+            if (ground_speed <= 255.0) {
+                staging.put_uint(56, static_cast<uint64_t>(std::round(ground_speed)));
+            } else {
+                coverage.omitted[56] = OmissionReason::EncodeRejected;
+            }
+            if (ground_speed >= kCourseSpeedThresholdMps) {
+                staging.put(112, wrap_360(std::atan2(s.east_mps, s.north_mps) * kRadToDeg));
+            } else {
+                // Course over ground is meaningless when the aircraft is not moving.
+                coverage.omitted[112] = OmissionReason::UndefinedForFrame;
+            }
+        }
     }
 
     // --- Item 113, AGL ---
@@ -376,7 +402,7 @@ Klv0601Frame to_0601(const TelemetrySnapshot& s, const SessionMetadata* session,
 
     // --- Items 123/124, navigation satellites ---
     if (s.sv_count) {
-        staging.put_uint(123, std::min<uint64_t>(255, *s.sv_count));
+        staging.put_uint(123, *s.sv_count);
         // Table 10 bit 1 is NAVSAT-GPS. Parrot does not say which constellation
         // the fix came from, so only that bit is claimed.
         staging.put_uint(124, *s.sv_count > 0 ? 0x02 : 0x00);

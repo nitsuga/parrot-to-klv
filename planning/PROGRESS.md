@@ -28,14 +28,13 @@ separately below.
 
 ## In progress
 
-- **Defining truthful transform rejection behavior.** Reject non-finite velocity
-  before derived calculations, and make Item 56 and related omissions report an
-  honest invalid/encode-rejected reason rather than a misleading absence.
+- **Adding client sanitizer CI.** Exercise the project under AddressSanitizer and
+  UndefinedBehaviorSanitizer as a separately reviewable hardening change.
 
 ## Next
 
-1. Add value-level coverage for non-finite transform inputs and Item 56 rejection.
-2. Add client sanitizer CI as a separately reviewable change.
+1. Add a bundle guard for the release deliverable.
+2. Remove tracked bytecode and correct stale CI wording.
 3. Return to fork 4, Tier 2 geometry fidelity, in [ROADMAP](./ROADMAP.md).
 
 ## Known gaps

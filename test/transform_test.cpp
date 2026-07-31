@@ -17,10 +17,12 @@
 #include <cstddef>
 #include <cstdint>
 #include <iostream>
+#include <limits>
 #include <map>
 #include <optional>
 #include <span>
 #include <string>
+#include <utility>
 #include <vector>
 
 using namespace parrot_to_klv;
@@ -510,8 +512,149 @@ void check_course_angle_omitted_when_stationary() {
     const auto klv = to_0601(snapshot);
     check(klv.coverage.omitted.count(112) == 1,
           "course angle omitted when the aircraft is not moving");
+    check(klv.coverage.omitted.at(112) == OmissionReason::UndefinedForFrame,
+          "stationary course is undefined for this frame, not absent source data");
     check(klv.coverage.emitted.count(112) == 0, "…and not emitted as a spurious heading");
     check(decode_packet(klv.packet).uints.at(56) == 0, "ground speed is zero");
+    const std::string course_line = line_for(klv.coverage.to_text(), "Platform Course Angle");
+    check(course_line.find(to_string(OmissionReason::UndefinedForFrame)) != std::string::npos,
+          "stationary course is rendered as undefined");
+    check(course_line.find("not present in this frame") == std::string::npos,
+          "stationary course is not rendered as absent source data");
+}
+
+void check_invalid_horizontal_velocity(double invalid, bool north_is_invalid,
+                                       const std::string& label) {
+    // Go through the proto normalization boundary: malformed values arriving
+    // from the public telemetry path must not become a KLV speed or course.
+    ParrotProtoFrame proto;
+    proto.drone_quat = identity();
+    proto.frame_quat = identity();
+    proto.speed = north_is_invalid ? ProtoNed{invalid, 8.0, 2.0}
+                                  : ProtoNed{6.0, invalid, 2.0};
+    const auto klv = to_0601(from_proto(proto));
+    const auto decoded = decode_packet(klv.packet);
+
+    check(klv.coverage.omitted.at(56) == OmissionReason::InvalidSourceValue,
+          label + " omits Item 56 as an invalid source value");
+    check(klv.coverage.omitted.at(112) == OmissionReason::InvalidSourceValue,
+          label + " omits Item 112 as an invalid source value");
+    check(klv.coverage.omitted.at(north_is_invalid ? 79 : 80) ==
+              OmissionReason::InvalidSourceValue,
+          label + " marks the invalid velocity component");
+    check(klv.coverage.emitted.count(north_is_invalid ? 79 : 80) == 0,
+          label + " never emits the invalid velocity component");
+    check(klv.coverage.emitted.count(north_is_invalid ? 80 : 79) == 1,
+          label + " keeps the valid peer component");
+    check(decoded.uints.count(56) == 0, label + " never encodes Item 56");
+    check(decoded.reals.count(112) == 0, label + " never encodes Item 112");
+    const uint16_t invalid_tag = north_is_invalid ? 79 : 80;
+    const uint16_t peer_tag = north_is_invalid ? 80 : 79;
+    const double peer_value = north_is_invalid ? 8.0 : 6.0;
+    check(decoded.reals.count(invalid_tag) == 0,
+          label + " is absent from the decoded packet");
+    const auto peer = decoded.reals.find(peer_tag);
+    check(peer != decoded.reals.end(), label + " keeps its peer in the decoded packet");
+    if (peer != decoded.reals.end()) {
+        check_near(peer->second, peer_value, 0.05,
+                   label + " keeps the peer component's value");
+    }
+
+    const std::string report = klv.coverage.to_text();
+    const std::string speed_line = line_for(report, "Ground Speed");
+    check(speed_line.find(to_string(OmissionReason::InvalidSourceValue)) != std::string::npos,
+          label + " report truthfully describes the bad source value");
+    check(speed_line.find("not present in this frame") == std::string::npos,
+          label + " report does not confuse a bad value with an absent one");
+}
+
+void check_velocity_rejection_policy() {
+    for (const auto& [value, label] : std::vector<std::pair<double, std::string>>{
+             {std::numeric_limits<double>::quiet_NaN(), "NaN north velocity"},
+             {std::numeric_limits<double>::infinity(), "+infinity north velocity"},
+             {-std::numeric_limits<double>::infinity(), "-infinity north velocity"},
+         }) {
+        check_invalid_horizontal_velocity(value, true, label);
+    }
+    check_invalid_horizontal_velocity(std::numeric_limits<double>::quiet_NaN(), false,
+                                      "NaN east velocity");
+
+    // A finite speed can be real but unencodable in Item 56's uint8 range. It
+    // must be omitted instead of silently clamped; independent velocity and
+    // course values remain useful and must survive.
+    ParrotProtoFrame proto;
+    proto.drone_quat = identity();
+    proto.frame_quat = identity();
+    proto.speed = {200.0, 200.0, 2.0};
+    const auto klv = to_0601(from_proto(proto));
+    const auto decoded = decode_packet(klv.packet);
+    check(klv.coverage.omitted.at(56) == OmissionReason::EncodeRejected,
+          "over-ceiling ground speed is rejected rather than clamped");
+    check(decoded.uints.count(56) == 0, "over-ceiling ground speed emits no Item 56");
+    check(decoded.reals.count(79) == 1 && decoded.reals.count(80) == 1,
+          "over-ceiling ground speed preserves valid horizontal components");
+    check(decoded.reals.count(112) == 1, "over-ceiling ground speed preserves course");
+
+    const std::string speed_line = line_for(klv.coverage.to_text(), "Ground Speed");
+    check(speed_line.find(to_string(OmissionReason::EncodeRejected)) != std::string::npos,
+          "rejected speed is rendered as an encoding rejection");
+    check(speed_line.find("not present in this frame") == std::string::npos,
+          "rejected speed is not rendered as absent source data");
+}
+
+void check_finite_codec_rejection_policy() {
+    auto snapshot = base_v3_snapshot();
+    snapshot.latitude_deg = 100.0;
+    const auto klv = to_0601(snapshot);
+    check(klv.coverage.omitted.at(13) == OmissionReason::EncodeRejected,
+          "finite out-of-range latitude is an encoding rejection, not absent data");
+    check(decode_packet(klv.packet).reals.count(13) == 0,
+          "finite out-of-range latitude is not encoded");
+    const std::string latitude_line = line_for(klv.coverage.to_text(), "Sensor Latitude");
+    check(latitude_line.find(to_string(OmissionReason::EncodeRejected)) != std::string::npos,
+          "latitude rejection is rendered truthfully");
+    check(latitude_line.find("not present in this frame") == std::string::npos,
+          "latitude rejection is not rendered as absent source data");
+}
+
+void check_air_speed_rejection_policy(double air_speed_mps, const std::string& label) {
+    // A TelemetrySnapshot is also a public transform input; callers can supply
+    // values the binary parser would never produce.
+    auto snapshot = base_v3_snapshot();
+    snapshot.air_speed_mps = air_speed_mps;
+    const auto klv = to_0601(snapshot);
+    const auto decoded = decode_packet(klv.packet);
+    check(klv.coverage.omitted.at(8) == OmissionReason::EncodeRejected,
+          label + " is rejected rather than clamped");
+    check(klv.coverage.emitted.count(8) == 0,
+          label + " is absent from emitted coverage");
+    check(decoded.uints.count(8) == 0, label + " emits no Item 8");
+    const std::string air_speed_line = line_for(klv.coverage.to_text(), "Item   8");
+    check(air_speed_line.find(to_string(OmissionReason::EncodeRejected)) != std::string::npos,
+          label + " report names the encoding rejection");
+    check(air_speed_line.find("not present in this frame") == std::string::npos,
+          label + " report does not claim the value was absent");
+}
+
+void check_navsat_count_rejection_policy() {
+    auto snapshot = base_v3_snapshot();
+    snapshot.sv_count = 300;
+    const auto klv = to_0601(snapshot);
+    const auto decoded = decode_packet(klv.packet);
+    check(klv.coverage.omitted.at(123) == OmissionReason::EncodeRejected,
+          "over-ceiling NAVSAT count is rejected rather than clamped");
+    check(klv.coverage.emitted.count(123) == 0,
+          "over-ceiling NAVSAT count is absent from emitted coverage");
+    check(decoded.uints.count(123) == 0, "over-ceiling NAVSAT count emits no Item 123");
+    check(klv.coverage.emitted.count(124) == 1,
+          "NAVSAT source remains independently reportable");
+    check(decoded.uints.count(124) == 1 && decoded.uints.at(124) == 0x02,
+          "NAVSAT source remains encoded as GPS");
+    const std::string count_line = line_for(klv.coverage.to_text(), "Item 123");
+    check(count_line.find(to_string(OmissionReason::EncodeRejected)) != std::string::npos,
+          "NAVSAT count report names the encoding rejection");
+    check(count_line.find("not present in this frame") == std::string::npos,
+          "NAVSAT count report does not claim the value was absent");
 }
 
 }  // namespace
@@ -528,6 +671,11 @@ int main() {
     check_attitude_in_range_is_untouched();
     check_status_enums();
     check_course_angle_omitted_when_stationary();
+    check_velocity_rejection_policy();
+    check_finite_codec_rejection_policy();
+    check_air_speed_rejection_policy(-1.0, "negative air speed");
+    check_air_speed_rejection_policy(300.0, "over-ceiling air speed");
+    check_navsat_count_rejection_policy();
 
     if (g_failures > 0) {
         std::cerr << g_failures << " check(s) failed\n";

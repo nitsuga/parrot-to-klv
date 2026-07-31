@@ -3,7 +3,7 @@ type: Concept
 title: Parrot to MISB 0601 Field Mapping Analysis
 description: Which Parrot telemetry fields map to which ST 0601.19 items, what must be derived geometrically, and what has no home in 0601
 tags: [mapping, parrot, misb, 0601, analysis]
-timestamp: 2026-07-25T21:00:00Z
+timestamp: 2026-07-31T16:36:53Z
 ---
 
 # Parrot to MISB 0601 Field Mapping Analysis
@@ -65,7 +65,7 @@ base struct (Bebop 2 / Disco / ANAFI). *Session* = untimed MP4 session metadata.
 | 40/41/42 | Target Location Lat/Lon/Elev | `lfic[].location` | automation ext `0x4533` `framing_target_*` (v3 only) | proto: LFIC *is* cursor-on-target — prefer `LFIC_TYPE_COT` when several are present. For v3 use the automation extension's framing target; v2 has no equivalent. **Unresolved:** real v3 recordings carry an undocumented `0x4536` extension in every sample that may be a binary LFIC — if it is, it is the better source here. See [[parrot-metadata-formats]] § Extension Mechanism |
 | 45/46 | Target Error Estimate CE90/LE90 | `lfic[].horizontal_radial_accuracy` / `horizontal_tangential_accuracy` | — | **proto only.** Approximate even there: Parrot's radial/tangential horizontal accuracies are not literally CE90/LE90. **Open question** |
 | 51 | Platform Vertical Speed | `-drone.speed.down` | `-down_speed` (Q8.8) | **negate.** 0601 §8.51 is "relative to zenith" (positive up); Parrot NED is positive down |
-| 56 | Platform Ground Speed | `hypot(speed.north, speed.east)` | `hypot(north_speed, east_speed)` | round to uint8 m/s, clamp at 255 |
+| 56 | Platform Ground Speed | `hypot(speed.north, speed.east)` | `hypot(north_speed, east_speed)` | round to uint8 m/s; omit above 255 rather than saturating |
 | 65 | UAS Datalink LS Version | — | — | constant `19` |
 | 75 | Sensor Ellipsoid Height | `camera.location.altitude_wgs84ellipsoid` | — | **proto gives both datums directly — no geoid model needed.** v2/v3 carry AMSL only, so this item needs an EGM96 lookup or omission |
 | 79 | Sensor North Velocity | `drone.speed.north` | `north_speed` (Q8.8) | direct, ±327 m/s |
@@ -74,7 +74,7 @@ base struct (Bebop 2 / Disco / ANAFI). *Session* = untimed MP4 session metadata.
 | 91 | Platform Roll Angle (Full) | `drone.quat` → roll | ditto | ±90° |
 | 112 | Platform Course Angle | `atan2(speed.east, speed.north)` | same | rad→deg, wrap [0, 360). **Undefined at zero ground speed** — omit below a threshold |
 | 113 | Altitude AGL | `drone.ground_distance` | `ground_distance` (Q16.16) | direct |
-| 123 | Number of NAVSATs in View | `*.location.sv_count` | `altitude_and_sv` bits 7..0 | direct uint8 |
+| 123 | Number of NAVSATs in View | `*.location.sv_count` | `altitude_and_sv` bits 7..0 | direct uint8; omit an out-of-range proto count rather than saturating |
 | 124 | Positioning Method Source | derived | derived | Table 10 bit-flags; set bit 1 (GPS) when `sv_count > 0`. Parrot does not say *which* constellation |
 | 125 | Platform Status | `drone.flying_state` + `piloting_mode` | `state` / `mode` | enum map — below |
 | 126 | Sensor Control Mode | `drone.piloting_mode`, `tracking.state` | `mode` | enum map — below |
@@ -192,11 +192,12 @@ with the conjugate of the drone quaternion before converting.
   `0x8000` special value rather than clamped. Always emit **90/91** (±90°)
   alongside; treat 6/7 as the legacy-compatibility pair.
 - **Item 56 is uint8 m/s.** 1 m/s quantization, 255 m/s ceiling, and 0601 has no
-  extended variant. Items 79/80 + 112 carry the precise velocity.
+  extended variant. A speed above the ceiling is reported as not encodable,
+  while Items 79/80 + 112 remain independently usable when their ranges allow.
 - **Item 15 is uint16 mapped −900..19000 m** → ~0.3 m resolution. Item 75 has
   the same resolution.
-- Items 79/80 saturate at ±327 m/s, and Item 51 at ±180 m/s — irrelevant for a
-  Parrot airframe.
+- Items 79/80 have a ±327 m/s range, and Item 51 a ±180 m/s range. Values
+  outside those ranges are omitted and reported as not encodable, not saturated.
 
 ## Open questions
 
