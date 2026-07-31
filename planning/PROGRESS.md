@@ -28,11 +28,10 @@ see [ROADMAP](./ROADMAP.md) § Open forks.
 
 ## In progress
 
-- **A release-notes publish fix sits on `main`, unpushed and untagged.** Two
-  paths could have published a release with the notes silently missing — a
-  section heading with no body yet, and the "release already exists" fallback.
-  `v0.1.2` hit neither, so its notes are correct; the fix reaches users at the
-  next tag.
+- **A release-notes publish fix is on `main`, untagged.** Two paths could have
+  published a release with the notes silently missing — a section heading with
+  no body yet, and the "release already exists" fallback. `v0.1.2` hit neither,
+  so its notes are correct; the fix reaches users at the next tag.
 
 ## Next
 
