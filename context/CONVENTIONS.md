@@ -118,14 +118,26 @@ immediately).
 
 # Linking
 
-Two forms, by audience:
+Two forms, chosen by **where the target is** — not by a judgment about who might
+read it:
 
-- **`[[slug]]`** for one concept referring to another inside the bundle — the
-  bundle's usual form, resolved by name rather than path, so moving a file does
-  not break it. GitHub does not render it as a link.
-- **`[Title](./concept.md)`**, sibling-relative, when the link must be clickable
-  on GitHub — anything a person is likely to read there — or when the target is
-  outside `context/` (`../planning/ROADMAP.md`, `../references/…`).
+- **Target inside `context/`** → **`[[slug]]`**. Resolved by name rather than
+  path, so it survives a file moving or a type being split into its own subdir
+  (see § Subdirectories — that split is expected, and it would break every
+  relative link pointing into the moved set at once). GitHub renders it as
+  literal text, which is the accepted cost inside an agent-facing bundle.
+- **Target outside `context/`** → **`[Title](../planning/ROADMAP.md)`**,
+  relative. Wikilinks cannot address outside the bundle, and these are the links
+  a person is most likely to follow on GitHub.
+
+The boundary is structural on purpose. It was previously "whatever a person is
+likely to read on GitHub", which is a judgment call made afresh at every link —
+so the boundary drifts, and two docs end up disagreeing about the same target.
+A rule you can check by looking at the path is one a lint can check too.
+
+One exception, in the other direction: a `context/` doc written primarily for
+humans to read on GitHub may use markdown links throughout. Say so at the top of
+that doc, so the deviation is visible rather than inferred.
 
 Never root-absolute (`](/concept.md)`): it resolves against the *site* root, not
 the bundle, so it works nowhere — not on GitHub, not in an editor, not for an

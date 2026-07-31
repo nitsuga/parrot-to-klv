@@ -15,6 +15,14 @@
   marks a rule *observed* where a real incident produced it and asks future
   sessions to append their own. This repo's own "Now" does not yet comply —
   recorded under PROGRESS § Known gaps.
+* **The linking boundary is now structural, and wikilinks are checked.**
+  [`CONVENTIONS.md`](./CONVENTIONS.md) § Linking used to pick a form by "whatever
+  a person is likely to read on GitHub" — a judgment call remade at every link,
+  so the boundary drifts. It is now decided by where the target is: inside
+  `context/` → `[[slug]]`, outside → relative markdown. The CI learned to resolve
+  `[[slug]]` against concept names, which puts **113 wikilinks under check that
+  nothing had ever verified** (all resolve). Both forms are now covered; neither
+  is the unchecked one.
 * **Fixed the link-check CI's blind spot.** It silently remapped root-absolute
   links onto `context/` before checking existence, so the one form
   [`CONVENTIONS.md`](./CONVENTIONS.md) § Linking bans was the one form it
