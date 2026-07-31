@@ -15,6 +15,12 @@
   marks a rule *observed* where a real incident produced it and asks future
   sessions to append their own. This repo's own "Now" does not yet comply —
   recorded under PROGRESS § Known gaps.
+* **Emptied PROGRESS "Now" of its feature inventory** (~75 lines → ~20), per the
+  rule adopted earlier today. It was pure deletion, as predicted: every claim was
+  already owned by [`mp4-extraction`](./mp4-extraction.md),
+  [`transform-stage`](./transform-stage.md), [`mux-stage`](./mux-stage.md), an
+  ADR, or — for the tools' user-facing surface — `README.md`. "Now" keeps the
+  phase state, the current release, and the one open piece of work.
 * **The linking boundary is now structural, and wikilinks are checked.**
   [`CONVENTIONS.md`](./CONVENTIONS.md) § Linking used to pick a form by "whatever
   a person is likely to read on GitHub" — a judgment call remade at every link,

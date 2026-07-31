@@ -8,78 +8,23 @@ chronological history (what landed when, decision detail) lives in
 
 ## Now
 
-**The pipeline runs end to end: `parrot-to-klv in.mp4 -o out.ts` writes an
-MPEG-TS carrying the recording's own video plus a synchronous ST 0601 KLV
-stream.** Every phase has landed; what remains is depth, not plumbing —
-Tier 2 geometry (fork 4) and the deferred mapping questions. See
-[ROADMAP](./ROADMAP.md) for scope and phase status.
+**Every phase has landed and the pipeline runs end to end** — `parrot-to-klv
+in.mp4 -o out.ts` writes an MPEG-TS carrying the recording's own video plus a
+synchronous ST 0601 KLV stream. What remains is depth, not plumbing.
 
-**Parsing works end to end for both supported formats.** The metadata track is
-located and its format read from the stsd MIME type (never inferred); v3 and
-proto samples decode to SI units; MP4 session metadata supplies the device and
-the recording date. Design, minimp4's traps and the session tags:
-[MP4 metadata extraction](../context/mp4-extraction.md).
+What each stage does, and why, is owned by its concept rather than restated
+here: [MP4 metadata extraction](../context/mp4-extraction.md),
+[transform stage](../context/transform-stage.md),
+[mux stage](../context/mux-stage.md), with the choices behind them in the
+[decisions register](../context/decisions/index.md). The three tools' user-facing
+surface — flags, output, the scrub and conform workflows — is in
+[`README.md`](../README.md).
 
-**Tier 1 of the transform is complete.** Either frame type normalizes into a
-format-neutral `TelemetrySnapshot`
-([ADR 0004](../context/decisions/0004-shared-telemetry-snapshot.md)), and
-`to_0601()` emits a real ST 0601 packet through libmisbklv's registry codec,
-checksum and all, alongside a conversion coverage report naming everything it
-could not carry ([ADR 0002](../context/decisions/0002-unmappable-parrot-fields.md)).
-What remains unemitted is unemittable without a decision or an input the
-recording lacks. Shape and traps: [transform stage](../context/transform-stage.md).
-
-**The mux stage never decodes the video — and for H.264 does not pass it through
-untouched either.** libmisbklv's `KlvSink` re-muxes the source's elementary
-stream (parsed, never decoded, so H.264 and H.265 both convert) beside the KLV,
-and each packet is timestamped from its own metadata sample, so both branches
-share the file's timeline. On an H.264 source the timing NALs are rewritten —
-Picture Timing SEI out, ST 0604 in — because we ask for it
-([ADR 0006](../context/decisions/0006-inherited-st0604-sei-injection.md)); any
-other codec is carried through unstamped, because generation is H.264-only
-upstream and asking for it elsewhere refuses the conversion outright
-([ADR 0007](../context/decisions/0007-h265-vs-st0604-generation.md)).
-`MuxReport::st0604_generated` and the CLI both say which happened, and
-`mux_test` asserts both branches. Design, the timeline rule and the failure
-behavior: [mux stage](../context/mux-stage.md).
-
-**Three tools build.** `parrot-to-klv` converts with `-o` (shows progress every
-10%), answers `--version` / `--help`, **refuses an unknown option rather than
-ignoring it**, and summarizes without `-o` (`--klv` for the 0601 mapping and its coverage;
-location and device identity are withheld unless `--with-location` /
-`--with-identity`; `--clamp-attitude` overrides the Items 6/7
-out-of-range default per
-[ADR 0005](../context/decisions/0005-attitude-range-policy.md), and
-`--infer-image-source` fills Item 11 for a format that states no spectrum per
-[ADR 0011](../context/decisions/0011-inferred-image-source-sensor.md)).
-`parrot-scrub`
-replaces a recording's location fields so a real flight can become a fixture.
-`parrot-conform` commits
-real-encoder evidence without the recording, and reports from two real ANAFI
-flights are in [`test/conformance/`](../test/conformance/) — the standing answer
-to whether a real encoder produces what the decoder assumes.
-
-**Two release deliverables build.** A relocatable tarball, and — for hosts that
-already run containers — an exported distroless image with a launcher that
-mounts only the directories in play and runs as the caller
-([ADR 0010](../context/decisions/0010-container-deliverable.md)). The image is
-built *from* the bundle, so they cannot drift. The tarball is the default.
-
-**A release bundle builds.** `packaging/make-bundle.sh` assembles a relocatable
-tree — the tool plus private copies of GStreamer and the six LGPL plugins it
-uses — that runs on 22.04/24.04 with nothing installed
-([ADR 0009](../context/decisions/0009-release-bundle.md)). 15 MB, ~6 MB
-compressed. `release.yml` builds it on tag, then converts a fixture inside a bare
-`ubuntu:24.04` container to prove the claim before publishing.
-
-**The whole suite passes with no drone footage present**, and the one test that
-uses `data/` skips cleanly without it.
-
-**`v0.1.2` is the current release**, carrying the Item 11 inference, the CLI
-hardening (unknown options refused, `--version`, `--help`), and a repo-wide
-spelling normalization. Its release page carries the hand-written `CHANGELOG.md`
-section rather than commit subjects. The libmisbklv pin moved only across a
+**`v0.1.2` is the current release.** The libmisbklv pin moved only across a
 revert, so the library source is identical to what `v0.1.1` shipped.
+
+The one substantive piece of work left is **fork 4, Tier 2 geometry fidelity** —
+see [ROADMAP](./ROADMAP.md) § Open forks.
 
 ## In progress
 
@@ -96,11 +41,6 @@ revert, so the library source is identical to what `v0.1.1` shipped.
 
 ## Known gaps
 
-- **"Now" above is still a feature inventory**, which the rule added on
-  2026-07-30 says it shouldn't be: most of its paragraphs describe what the tool
-  *does* — durable knowledge owned by a `context/` concept or an ADR — rather
-  than where the work is. Each already links the concept that owns it, so
-  migrating them is mostly deletion; pending.
 - **Non-H.264 output carries no ST 0604.** Generation is H.264-only upstream, so
   an H.265 source converts but is unstamped
   ([ADR 0007](../context/decisions/0007-h265-vs-st0604-generation.md)). Moot for
