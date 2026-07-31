@@ -28,14 +28,13 @@ separately below.
 
 ## In progress
 
-- **Adding client sanitizer CI.** Exercise the project under AddressSanitizer and
-  UndefinedBehaviorSanitizer as a separately reviewable hardening change.
+- **Guarding bundle output paths.** Keep the release deliverable from writing
+  into an unsafe or unintended output location.
 
 ## Next
 
-1. Add a bundle guard for the release deliverable.
-2. Remove tracked bytecode and correct stale CI wording.
-3. Return to fork 4, Tier 2 geometry fidelity, in [ROADMAP](./ROADMAP.md).
+1. Remove tracked bytecode and correct stale CI wording.
+2. Return to fork 4, Tier 2 geometry fidelity, in [ROADMAP](./ROADMAP.md).
 
 ## Known gaps
 

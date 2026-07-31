@@ -7,6 +7,13 @@
 
 ## 2026-07-31
 
+* **Added a dedicated `parrot-sanitize` CI contract for the project-owned,
+  GStreamer-free core.** ASan+UBSan cover the parser, normalization,
+  transform, scrub, and conformance subset under an explicit label; the
+  GStreamer mux tests remain in the ordinary suite and fetched libmisbklv stays
+  outside client instrumentation. The selected subset was verified locally, and
+  the workflow applies the same boundary to pushes and pull requests.
+
 * **Transform rejection now preserves measurement truthfulness.** Non-finite
   source values are omitted as invalid, finite values a codec cannot represent
   are reported as not encodable, and Item 56 is omitted rather than saturated

@@ -3,7 +3,7 @@ type: Component
 title: MP4 metadata extraction and Phase 1 tooling
 description: How the Parrot metadata track is located, read, scrubbed, and evidenced — the minimp4 / box-scan division of labour, minimp4's traps, and the two tools that let real footage inform the repo without entering it
 tags: [mp4, extraction, minimp4, phase-1]
-timestamp: 2026-07-31T00:00:00Z
+timestamp: 2026-07-31T16:58:31Z
 ---
 
 # MP4 metadata extraction
@@ -269,6 +269,19 @@ format.
 The box walker is bounded on depth and string length and is checked against
 truncated and single-byte-corrupted inputs under ASan+UBSan; keep that property
 when editing it, since it parses untrusted file structure.
+
+### Sanitizer boundary
+
+The dedicated `parrot-sanitize` CI job runs the GStreamer-free, project-owned
+parser, normalization, transform, scrub, and conformance subset with
+AddressSanitizer and UndefinedBehaviorSanitizer. Its label is intentionally
+separate from the ordinary `parrot` suite: it makes the sanitizer contract
+visible and lets the normal test jobs remain the general regression gate.
+
+The GStreamer-backed mux tests stay in that normal path. The client subset still
+links libmisbklv's core codec, but fetched library objects are not instrumented:
+that project owns its sanitizer policy in its own CI. Local sanitized runs and
+the push/pull-request workflow exercise the same selected subset.
 
 **Why:** the metadata track is the one part of an MP4 that general-purpose
 demuxers drop, so the interesting work is in what they leave out.

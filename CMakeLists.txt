@@ -64,6 +64,27 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
     -Wall -Wextra -Wpedantic -Werror)
 endif()
 
+# Sanitizers are opt-in so ordinary developer and release builds retain their
+# usual runtime and ABI. Keep their policy in a separate interface target for
+# the same reason as warnings: instrument project-owned targets without adding
+# flags globally to fetched dependency targets.
+option(PARROT_SANITIZE
+  "Enable AddressSanitizer and UndefinedBehaviorSanitizer for project targets" OFF)
+if(PARROT_SANITIZE)
+  if(NOT CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
+    message(FATAL_ERROR
+      "PARROT_SANITIZE requires a GNU, Clang, or AppleClang C++ compiler; "
+      "got ${CMAKE_CXX_COMPILER_ID}.")
+  endif()
+
+  add_library(parrot_project_sanitizers INTERFACE)
+  target_compile_options(parrot_project_sanitizers INTERFACE
+    -fsanitize=address,undefined
+    -fno-omit-frame-pointer)
+  target_link_options(parrot_project_sanitizers INTERFACE
+    -fsanitize=address,undefined)
+endif()
+
 # Project source files
 add_executable(parrot-to-klv src/main.cpp)
 
@@ -127,6 +148,10 @@ target_link_libraries(parrot_extract PUBLIC
   misbklv::misbklv
   parrot_project_warnings
 )
+
+if(PARROT_SANITIZE)
+  target_link_libraries(parrot_extract PUBLIC parrot_project_sanitizers)
+endif()
 
 target_include_directories(parrot_extract PUBLIC ${CMAKE_SOURCE_DIR}/src)
 
@@ -227,8 +252,11 @@ set_tests_properties(conformance_real_data PROPERTIES SKIP_RETURN_CODE 77)
 # from CI, so keep the list in step — that is the one thing this arrangement
 # asks for in exchange for not enumerating someone else's tests to exclude.
 set_tests_properties(
-  mp4_extraction parrot_v3 parrot_proto session_metadata transform mux
-  parrot_scrub conformance conformance_real_data
+  mp4_extraction parrot_v3 parrot_proto session_metadata transform
+  parrot_scrub conformance
+  PROPERTIES LABELS "parrot;parrot-sanitize")
+set_tests_properties(
+  mux conformance_real_data
   cli_version cli_help cli_rejects_unknown_option
   cli_rejects_output_without_path cli_rejects_two_inputs
   PROPERTIES LABELS parrot)
