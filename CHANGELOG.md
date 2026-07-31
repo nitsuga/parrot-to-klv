@@ -7,6 +7,42 @@ tell a user nothing.
 The release workflow publishes the section matching the tag, so a heading here
 must be exactly `## vX.Y.Z`.
 
+## v0.1.3
+
+### Fixed
+
+- **Conversion and scrubbing now refuse an output that is the input file.** The
+  check recognizes ordinary spelling differences, `.` / `..`, symlinks, and
+  hard links, and fails before touching the output. This prevents conversion
+  from truncating its source and prevents an accidental in-place scrub.
+
+  **If you script either tool, give `-o` a distinct destination.** A workflow
+  that intentionally reused the input pathname, or an alias to it, now exits
+  non-zero instead of modifying or destroying the source.
+
+- **Invalid telemetry no longer becomes a plausible measurement.** Non-finite
+  source values are omitted as invalid; finite values outside an ST 0601 item's
+  encodable range are omitted rather than silently saturated. In particular, an
+  out-of-range ground speed no longer becomes a false 255 m/s measurement, and
+  malformed airspeed and satellite counts are not clamped into valid-looking
+  values. Course over ground at rest is reported as undefined.
+
+  The `--klv` coverage report distinguishes these cases from a field that was
+  simply absent, using `source value is invalid`, `value is not encodable as
+  this item`, or `undefined for this frame` as appropriate.
+
+- **Media-backend failures retain their specific reason.** Type mismatches and
+  resource-limit failures from the updated libmisbklv dependency no longer fall
+  through to the generic `unknown error` text.
+
+### Packaging
+
+- **The release packaging scripts refuse unsafe staging directories before
+  clearing them.** This affects people who run `packaging/make-bundle.sh` or
+  `packaging/make-image.sh` themselves: use a dedicated child under `staging/`
+  or a nested temporary directory, never the checkout, an input, your home
+  directory, or a broad system directory.
+
 ## v0.1.2
 
 ### Added

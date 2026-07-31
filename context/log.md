@@ -7,6 +7,11 @@
 
 ## 2026-07-31
 
+* **Declared `0.1.3` and wrote its human-facing release notes.** The patch
+  release leads with input-preservation and truthful-telemetry fixes, names the
+  improved media failure reporting, and documents the stricter manual packaging
+  destination contract. `project(VERSION)` now agrees with the intended tag.
+
 * **Removed tracked Python bytecode and aligned runtime-plugin rationale.**
   Python cache artifacts are ignored, and CI and fixture comments now match the
   explicit-demuxer plugin set packaged by the release bundle.

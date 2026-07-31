@@ -20,18 +20,21 @@ here: [MP4 metadata extraction](../context/mp4-extraction.md),
 surface — flags, output, the scrub and conform workflows — is in
 [`README.md`](../README.md).
 
-**`v0.1.2` is the current release.**
+**`v0.1.2` is the current release.** A `v0.1.3` release candidate is declared
+on `main`, with hand-written notes in [`CHANGELOG.md`](../CHANGELOG.md).
 
 The one substantive feature piece left is **fork 4, Tier 2 geometry fidelity**
 — see [ROADMAP](./ROADMAP.md) § Open forks.
 
 ## In progress
 
-- Nothing mid-flight.
+- **Preparing `v0.1.3`.** Push the candidate, require the ordinary CI and manual
+  release smoke workflow to pass, then tag the exact tested commit.
 
 ## Next
 
-1. Return to fork 4, Tier 2 geometry fidelity, in [ROADMAP](./ROADMAP.md).
+1. Publish `v0.1.3` after its CI and release smoke gates pass.
+2. Return to fork 4, Tier 2 geometry fidelity, in [ROADMAP](./ROADMAP.md).
 
 ## Known gaps
 
