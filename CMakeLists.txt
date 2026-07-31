@@ -21,7 +21,8 @@ include(FetchContent)
 FetchContent_Declare(
   misbklv
   GIT_REPOSITORY git@github.com:nitsuga/libmisbklv.git
-  GIT_TAG e33f2fb73f38b1f2a7c1802bf31acf6fc34fb39c  # stream-order change reverted: it dropped KLV and broke SEI timing
+  # Hardening/refactor: typed validation, bounded parsing, split GStreamer backend.
+  GIT_TAG 1732e0c986e4b252a030147c389585da8248ddb2
 )
 FetchContent_MakeAvailable(misbklv)
 
@@ -101,7 +102,7 @@ endif()
 
 # The mux stage, split from parrot_extract because it is the one part that needs
 # a media backend: everything else parses and maps with no gstreamer in sight.
-add_library(parrot_mux STATIC src/mux.cpp)
+add_library(parrot_mux STATIC src/mux.cpp src/error_description.cpp)
 target_link_libraries(parrot_mux PUBLIC
   parrot_extract
   misbklv::gst  # libmisbklv with GStreamer support

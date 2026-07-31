@@ -7,11 +7,17 @@
 
 ## 2026-07-31
 
+* **libmisbklv is pinned to hardening revision
+  `1732e0c986e4b252a030147c389585da8248ddb2`.** The client remains compatible
+  with that revision's API, and the project test suite remains green. Its error
+  rendering now gives the new `TypeMismatch` and `ResourceLimit` cases useful
+  names, with direct tests, so failures do not fall through to the generic
+  unknown-error text.
+
 * **Project-owned targets now compile with a portable fatal-warning baseline.**
   The baseline is deliberately scoped to this project's code and tests: fetched
   libmisbklv and vendored dependencies are not made this project's warning
-  liability. This establishes a clean, portable gate before the pending
-  libmisbklv `1732e0c` integration; the pin work itself remains in progress.
+  liability. This established a clean, portable gate for dependency integration.
 
 * **Muxing and scrubbing now reject input/output aliases by file identity before
   touching output.** This applies the existing no-in-place-scrub policy to

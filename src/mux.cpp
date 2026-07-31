@@ -15,6 +15,7 @@
 #include "misbklv/message.hpp"
 #include "misbklv/stream.hpp"
 
+#include "error_description.hpp"
 #include "file_identity.hpp"
 #include "mp4_box_scan.hpp"
 #include "mp4_metadata_extractor.hpp"
@@ -25,20 +26,6 @@
 
 namespace parrot_to_klv {
 namespace {
-
-std::string describe(misbklv::Error error) {
-    switch (error) {
-        case misbklv::Error::Truncated:        return "packet truncated";
-        case misbklv::Error::BadLength:        return "bad BER length";
-        case misbklv::Error::UnknownTag:       return "unknown tag";
-        case misbklv::Error::OutOfRange:       return "value out of range";
-        case misbklv::Error::MissingMandatory: return "mandatory item missing";
-        case misbklv::Error::RangeError:       return "value not encodable";
-        case misbklv::Error::Backend:          return "media pipeline failed";
-        case misbklv::Error::Unsupported:      return "unsupported by the backend";
-    }
-    return "unknown error";
-}
 
 /// True for the sample entry formats that hold H.264.
 ///
@@ -174,7 +161,7 @@ MuxReport mux_to_ts(const std::string& input, const std::string& output,
             std::as_bytes(std::span<const uint8_t>(packet)));
         if (!message) {
             report.error = "encoded packet did not parse back: " +
-                           describe(message.error());
+                           detail::describe_misbklv_error(message.error());
             return;
         }
         // libmisbklv times the video branch from the start of the source file,
@@ -185,7 +172,7 @@ MuxReport mux_to_ts(const std::string& input, const std::string& output,
         if (auto pushed = sink.emit(*message); !pushed) {
             report.error = "could not mux frame " +
                            std::to_string(report.frames_emitted) + ": " +
-                           describe(pushed.error());
+                           detail::describe_misbklv_error(pushed.error());
             return;
         }
         ++report.frames_emitted;
@@ -232,7 +219,8 @@ MuxReport mux_to_ts(const std::string& input, const std::string& output,
     }
 
     if (auto closed = sink.close(); !closed && report.error.empty()) {
-        report.error = "could not finish the output stream: " + describe(closed.error());
+        report.error = "could not finish the output stream: " +
+                       detail::describe_misbklv_error(closed.error());
     }
     if (report.error.empty() && report.frames_emitted == 0) {
         report.error = "no metadata sample converted to a KLV packet";

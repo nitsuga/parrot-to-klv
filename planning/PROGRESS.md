@@ -28,16 +28,15 @@ separately below.
 
 ## In progress
 
-- **Integrating libmisbklv `1732e0c`.** Project-owned targets now compile with
-  a portable fatal-warning baseline; fetched and vendored code is outside that
-  warning liability. Handle the dependency's new error cases in the client's
-  user-facing rendering, with coverage, while keeping the integration green.
+- **Defining truthful transform rejection behavior.** Reject non-finite velocity
+  before derived calculations, and make Item 56 and related omissions report an
+  honest invalid/encode-rejected reason rather than a misleading absence.
 
 ## Next
 
-1. Complete the libmisbklv `1732e0c` integration, handling its new error cases
-   with coverage and keeping it green.
-2. Return to fork 4, Tier 2 geometry fidelity, in [ROADMAP](./ROADMAP.md).
+1. Add value-level coverage for non-finite transform inputs and Item 56 rejection.
+2. Add client sanitizer CI as a separately reviewable change.
+3. Return to fork 4, Tier 2 geometry fidelity, in [ROADMAP](./ROADMAP.md).
 
 ## Known gaps
 

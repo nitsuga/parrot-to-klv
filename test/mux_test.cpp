@@ -40,6 +40,7 @@
 #include "misbklv/message.hpp"
 #include "misbklv/stream.hpp"
 
+#include "error_description.hpp"
 #include "mp4_metadata_extractor.hpp"
 #include "mux.hpp"
 #include "parrot_proto.hpp"
@@ -59,6 +60,17 @@ void check(bool condition, const std::string& what) {
         std::cerr << "FAIL: " << what << "\n";
         ++g_failures;
     }
+}
+
+void test_error_descriptions() {
+    using parrot_to_klv::detail::describe_misbklv_error;
+
+    check(describe_misbklv_error(misbklv::Error::TypeMismatch) ==
+              "value type does not match item",
+          "type-mismatch errors have a specific diagnostic");
+    check(describe_misbklv_error(misbklv::Error::ResourceLimit) ==
+              "resource limit exceeded",
+          "resource-limit errors have a specific diagnostic");
 }
 
 std::vector<uint8_t> read_file(const std::filesystem::path& path) {
@@ -452,6 +464,7 @@ int main(int argc, char* argv[]) {
     const std::string fixtures = argv[1];
     const std::string temp = argv[2];
 
+    test_error_descriptions();
     test_refuses_input_output_aliases(fixtures, temp);
 
     check_conversion(
