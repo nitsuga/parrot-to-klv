@@ -7,7 +7,8 @@ generated:
   by: claude/opus-5
   at: 2026-07-23T19:00:00Z
 sources:
-  - resource: https://github.com/Parrot-Developers/libvideo-metadata
+  - id: libvideo-metadata
+    resource: https://github.com/Parrot-Developers/libvideo-metadata
     title: Parrot-Developers/libvideo-metadata (C reference implementation)
 ---
 

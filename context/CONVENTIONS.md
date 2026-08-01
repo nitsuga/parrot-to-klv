@@ -50,12 +50,21 @@ generated:
 agent-written docs a human merely merged. Every doc in this bundle is
 agent-written, so every `generated.by` here is `claude/opus-5`, not `human:`.
 
+**`generated.at` is the last *meaningful* content change** — the spec's words,
+and consumers use it to tell a recent edit from a stale fact. So bump it when
+you change what the doc *claims*: a revised conclusion, a new section, a fact
+updated against its source. Don't bump it for a typo, a reflow, or a link
+repair — an `at` that tracks keystrokes tells a consumer nothing, and one that
+never moves makes current knowledge look abandoned. `verified` is independent:
+content can change without re-confirmation, and re-confirmation isn't a
+content change.
+
 Optional families — add one only when it earns its keep:
 
 | Field | Use for |
 |------|------|
 | `resource` | Canonical URI/path of the asset the concept describes. Already in wide use here: the standard PDF a `Standard` synthesizes, the local `references/` snapshot a `Reference` cites. |
-| `sources` | Machine-readable inputs the concept derives from. Per entry `resource` is required; `title` optional. See § Citations and `sources`. |
+| `sources` | Machine-readable inputs the concept derives from. Per entry `resource` is required; `id` when the body cites it; `title` optional. See § Citations and `sources`. |
 | `verified` | List of `{by, at}` checks confirming the doc still matches its sources. |
 | `status` | **OKF document lifecycle**: `draft` / `stable` (default) / `deprecated`. Not the ADR state — see § Decisions. |
 | `stale_after` | `YYYY-MM-DD` after which the doc should be re-checked. |
@@ -151,8 +160,8 @@ have a job, because they carry different things:
 - **`sources:` (frontmatter)** — the machine-readable index of *external*
   inputs: a file under `../references/`, a standard's own repo at a pinned
   commit, a vendor's documentation URL. One entry per input, `resource`
-  required; `title` optional and worth adding. This is what a consumer reads
-  first.
+  required; `id` when the body cites it; `title` optional and worth adding.
+  This is what a consumer reads first.
 - **`# Citations` (body)** — the annotated bibliography this bundle already
   writes: each entry says *why that source mattered to this doc*, not merely
   that it was consulted. Links to sibling concepts and ADRs (`[[slug]]` §
@@ -164,6 +173,43 @@ reason to keep an ADR (or a `Reference`/`Standard` concept) at all. Purely
 internal cross-references (other concepts, other ADRs) need no `sources`
 entry; the body link is enough — most of this bundle's `# Citations` sections
 are exactly that, and correctly stay bare.
+
+**Give every cited source an `id`.** The spec makes `id` optional but says it
+SHOULD be present when the body cites the source. The `id` is what makes
+attribution machine-readable rather than a prose coincidence: without it, a
+consumer can see *that* a doc has sources, but not which claim came from which
+one. Keep the same `id` for the same source wherever it recurs —
+`parrot-vmeta-html` and `libmisbklv-uas0601` each appear in more than one file
+here, always spelled the same way, so a consumer following the join key lands
+on the same source every time.
+
+**Pin a specific claim with a footnote whose label is the `id`.** The label is
+the join key into `sources`; a consumer resolves attribution through the
+matching entry, not by reading the footnote text:
+
+```markdown
+---
+sources:
+  - id: libmisbklv-f8cc8c5
+    resource: https://github.com/nitsuga/libmisbklv/commit/f8cc8c5cd94d6cda8a6648fcf73e9edc79d1df53
+    title: "libmisbklv — Derive Time Status bits 6/5; refuse Generate on non-H.264"
+---
+
+Upstream then made `Generate` **H.264-only**.[^libmisbklv-f8cc8c5]
+
+[^libmisbklv-f8cc8c5]: libmisbklv `f8cc8c5`, `gst_backend.cpp:569` — refuses
+    `Sei0604::Generate` on any non-H.264 video pad.
+```
+
+Footnote the claims that would be *contested or checked* — a number, a quoted
+rule, a constraint someone might dispute — not every sentence. Footnoting
+everything restates the bibliography inline and is read as noise, which is how
+attribution stops being read at all: most of this bundle's cited claims carry
+no footnote at all, and that's correct — the `# Citations` annotation already
+says why the source mattered. A label with no matching `sources` entry is a
+dangling citation: the spec doesn't say what a consumer should do with one, so
+don't produce one — [`link-check`](../.github/workflows/link-check.yml) fails
+the build on it.
 
 **Cite by stable anchor, not by position.** Name the section, clause, message, or
 heading (`ST 0601 §6.3`, `vmeta.proto` § `TimedMetadata`) — never a line number

@@ -9,7 +9,8 @@ generated:
   by: claude/opus-5
   at: 2026-07-28T00:00:00Z
 sources:
-  - resource: https://github.com/nitsuga/libmisbklv/commit/f8cc8c5cd94d6cda8a6648fcf73e9edc79d1df53
+  - id: libmisbklv-f8cc8c5
+    resource: https://github.com/nitsuga/libmisbklv/commit/f8cc8c5cd94d6cda8a6648fcf73e9edc79d1df53
     title: "libmisbklv — Derive Time Status bits 6/5; refuse Generate on non-H.264"
 ---
 
@@ -20,10 +21,11 @@ video, and its 2026-07-28 revision made that explicit: `mux_to_ts()` now passes
 `misbklv::Sei0604::Generate` rather than inheriting generation from upstream's
 default.
 
-Upstream then made `Generate` **H.264-only**. In `gst_backend.cpp:569`, a
-non-H.264 video pad under `Generate` is dropped rather than linked. Since
-`mux_to_ts()` asked for `Generate` unconditionally, **an H.265 recording did not
-convert at all**. Reproduced on `parrot_v3_video_h265.mp4` by forcing `Generate`:
+Upstream then made `Generate` **H.264-only**.[^libmisbklv-f8cc8c5] In
+`gst_backend.cpp:569`, a non-H.264 video pad under `Generate` is dropped rather
+than linked. Since `mux_to_ts()` asked for `Generate` unconditionally, **an
+H.265 recording did not convert at all**. Reproduced on
+`parrot_v3_video_h265.mp4` by forcing `Generate`:
 
 ```
 WARNING: misbklv: Sei0604::Generate needs H.264 video; source carries video/x-h265
@@ -188,3 +190,6 @@ promising H.265 while the tool refuses it was ever available.
   this branches on
 - `test/mux_test.cpp` § `check_conversion` — both branches asserted;
   `test/make_fixture.py` § `encode_h265` for the fixture
+
+[^libmisbklv-f8cc8c5]: libmisbklv `f8cc8c5`, `gst_backend.cpp:569` — refuses
+    `Sei0604::Generate` on any non-H.264 video pad.

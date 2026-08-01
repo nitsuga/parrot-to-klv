@@ -7,11 +7,14 @@ generated:
   by: claude/opus-5
   at: 2026-07-31T16:36:53Z
 sources:
-  - resource: "../references/Embedded Video Metadata - 8.4.2.html"
+  - id: parrot-vmeta-html
+    resource: "../references/Embedded Video Metadata - 8.4.2.html"
     title: Parrot's vmeta.proto schema and v1/v2/v3 binary structs, verbatim
-  - resource: https://github.com/nitsuga/libmisbklv/blob/1732e0c986e4b252a030147c389585da8248ddb2/registry/uas0601.toml
+  - id: libmisbklv-uas0601
+    resource: https://github.com/nitsuga/libmisbklv/blob/1732e0c986e4b252a030147c389585da8248ddb2/registry/uas0601.toml
     title: libmisbklv — registered ST 0601.19 item set
-  - resource: https://github.com/nitsuga/libmisbklv/blob/1732e0c986e4b252a030147c389585da8248ddb2/references/ST0601.19.txt
+  - id: libmisbklv-st0601-txt
+    resource: https://github.com/nitsuga/libmisbklv/blob/1732e0c986e4b252a030147c389585da8248ddb2/references/ST0601.19.txt
     title: libmisbklv — MISB ST 0601.19 (per-item format blocks, Tables 3/10/11/12)
 ---
 

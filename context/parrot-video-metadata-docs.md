@@ -7,7 +7,8 @@ generated:
   by: claude/opus-5
   at: 2026-07-23T19:00:00Z
 sources:
-  - resource: "../references/Embedded Video Metadata - 8.4.2.html"
+  - id: parrot-vmeta-html
+    resource: "../references/Embedded Video Metadata - 8.4.2.html"
     title: >-
       Official Parrot developer documentation, saved from
       https://developer.parrot.com/docs/groundsdk-tools/video-metadata.html

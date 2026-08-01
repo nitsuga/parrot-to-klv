@@ -9,7 +9,8 @@ generated:
   by: claude/opus-5
   at: 2026-07-26T00:37:34Z
 sources:
-  - resource: "../../references/Embedded Video Metadata - 8.4.2.html"
+  - id: parrot-vmeta-html
+    resource: "../../references/Embedded Video Metadata - 8.4.2.html"
     title: >-
       Embedded vmeta.proto schema (proto3, package vmeta, TimedMetadata)
 ---

@@ -9,7 +9,8 @@ generated:
   by: claude/opus-5
   at: 2026-07-28T10:45:00Z
 sources:
-  - resource: https://github.com/nitsuga/libmisbklv/blob/1732e0c986e4b252a030147c389585da8248ddb2/context/decisions/0025-explicit-demuxer-passthrough.md
+  - id: libmisbklv-0025-demuxer-passthrough
+    resource: https://github.com/nitsuga/libmisbklv/blob/1732e0c986e4b252a030147c389585da8248ddb2/context/decisions/0025-explicit-demuxer-passthrough.md
     title: "libmisbklv ADR 0025 — explicit demuxer passthrough (parsebin dependency)"
 ---
 

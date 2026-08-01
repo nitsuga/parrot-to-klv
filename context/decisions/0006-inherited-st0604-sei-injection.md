@@ -9,9 +9,11 @@ generated:
   by: claude/opus-5
   at: 2026-07-27T22:00:00Z
 sources:
-  - resource: https://github.com/nitsuga/libmisbklv/commit/e3c7f4ad9a170aa66304f0acbec3c3e3326b0c07
+  - id: libmisbklv-e3c7f4a
+    resource: https://github.com/nitsuga/libmisbklv/commit/e3c7f4ad9a170aa66304f0acbec3c3e3326b0c07
     title: "libmisbklv — Fix H.264 SEI/SPS association for ST 0604 passthrough"
-  - resource: https://github.com/nitsuga/libmisbklv/commit/032db105595997e257b9127b8725873d1d943048
+  - id: libmisbklv-032db10
+    resource: https://github.com/nitsuga/libmisbklv/commit/032db105595997e257b9127b8725873d1d943048
     title: "libmisbklv ADR 0023 (fork 21) — ST 0604 SEI generation for video passthrough"
 ---
 
@@ -26,8 +28,8 @@ That promise is no longer true, and it stopped being true without anyone here
 deciding it should.
 
 libmisbklv `032db10` (their fork 21 / ADR 0023) sets `generate_sei = true`
-unconditionally on the MP4-video-source path — the path `mux_to_ts()` takes.
-Together with `e3c7f4a` the muxer now, on every conversion:
+unconditionally on the MP4-video-source path[^libmisbklv-032db10] — the path
+`mux_to_ts()` takes. Together with `e3c7f4a` the muxer now, on every conversion:
 
 1. inserts SPS/PPS with every IDR frame (`h264parse config-interval=-1`),
 2. **strips** Picture Timing SEI (type 1) from the source, and
@@ -173,3 +175,6 @@ Three consequences of the upstream change land here:
   [[log]] § 2026-07-27. Upstream rewrote history on 2026-07-27, so this ADR's
   original citation (`f6d52e4`) is orphaned — `032db10` is the same change under
   its post-rewrite hash.
+
+[^libmisbklv-032db10]: libmisbklv `032db10` (fork 21 / ADR 0023) —
+    `generate_sei = true` set unconditionally on the MP4-video-source path.
