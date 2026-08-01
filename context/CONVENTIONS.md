@@ -197,8 +197,8 @@ sources:
 
 Upstream then made `Generate` **H.264-only**.[^libmisbklv-f8cc8c5]
 
-[^libmisbklv-f8cc8c5]: libmisbklv `f8cc8c5`, `gst_backend.cpp:569` — refuses
-    `Sei0604::Generate` on any non-H.264 video pad.
+[^libmisbklv-f8cc8c5]: libmisbklv `f8cc8c5`, `src/gst/gst_backend.cpp` §
+    `on_video_pad_added` — refuses `Sei0604::Generate` on any non-H.264 video pad.
 ```
 
 Footnote the claims that would be *contested or checked* — a number, a quoted

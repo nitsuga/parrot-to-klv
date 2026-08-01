@@ -37,7 +37,10 @@ jobs:
               # fetched libmisbklv checkout — over a hundred of its docs. Those
               # are the sister repo's to keep green, and an upstream edit must
               # not fail a run here, so a local run has to see what CI sees.
-              if f.startswith(('build/', 'build-')):
+              # Match only root directories: a tracked root document such as
+              # build-guide.md must still be checked.
+              top = f.split(os.sep, 1)
+              if len(top) == 2 and (top[0] == 'build' or top[0].startswith('build-')):
                   continue
               raw = open(f, encoding='utf-8').read()
               # sources[].id values declared in this file's frontmatter

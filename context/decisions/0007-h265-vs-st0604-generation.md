@@ -184,12 +184,13 @@ promising H.265 while the tool refuses it was ever available.
 
 - [[0006-inherited-st0604-sei-injection]] § Revision — why we ask for `Generate`
 - [[mux-stage]] § Video is never decoded — the corrected description
-- libmisbklv `f8cc8c5`, `gst_backend.cpp:569` — the refusal;
+- libmisbklv `f8cc8c5`, `src/gst/gst_backend.cpp` § `on_video_pad_added` — the
+  refusal;
   `parser_for_media_type` for the H.265 passthrough that still works
 - `src/mp4_box_scan.hpp` — `Mp4TrackDescription::sample_entry_format`, the codec
   this branches on
 - `test/mux_test.cpp` § `check_conversion` — both branches asserted;
   `test/make_fixture.py` § `encode_h265` for the fixture
 
-[^libmisbklv-f8cc8c5]: libmisbklv `f8cc8c5`, `gst_backend.cpp:569` — refuses
-    `Sei0604::Generate` on any non-H.264 video pad.
+[^libmisbklv-f8cc8c5]: libmisbklv `f8cc8c5`, `src/gst/gst_backend.cpp` §
+    `on_video_pad_added` — refuses `Sei0604::Generate` on any non-H.264 video pad.
