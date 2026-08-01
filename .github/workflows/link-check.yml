@@ -32,6 +32,13 @@ jobs:
           concepts = {os.path.splitext(os.path.basename(p))[0]
                       for p in glob.glob('context/**/*.md', recursive=True)}
           for f in sorted(glob.glob('**/*.md', recursive=True)):
+              # Local build trees (gitignored). CI checks out fresh so they are
+              # absent there, but a developer's `build/_deps/` holds the whole
+              # fetched libmisbklv checkout — over a hundred of its docs. Those
+              # are the sister repo's to keep green, and an upstream edit must
+              # not fail a run here, so a local run has to see what CI sees.
+              if f.startswith(('build/', 'build-')):
+                  continue
               raw = open(f, encoding='utf-8').read()
               # sources[].id values declared in this file's frontmatter
               fm = re.match(r'---\n(.*?)\n---\n', raw, flags=re.DOTALL)
