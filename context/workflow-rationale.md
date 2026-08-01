@@ -1,14 +1,14 @@
 ---
 type: Conventions
 title: Why these rules
-description: The failure mode behind each planning-hygiene rule in CLAUDE.md.
+description: The failure mode behind each planning-hygiene rule in AGENTS.md.
 tags: [meta, conventions, hygiene]
 timestamp: 2026-07-25T00:00:00Z
 ---
 
 # Why these rules
 
-The hygiene rules in [`../CLAUDE.md`](../CLAUDE.md) § Planning hygiene look fussy
+The hygiene rules in [`../AGENTS.md`](../AGENTS.md) § Planning hygiene look fussy
 until you've watched docs rot. **Read this before relaxing one** — each earned its
 place by a failure mode — the ones marked *observed* were paid for in this repo
 or its sibling, not imagined:
@@ -24,7 +24,7 @@ or its sibling, not imagined:
   the repo *at a commit*, not at "later". Deferring also means reconstructing what
   changed from memory, so the entry arrives thin or never arrives at all. So the
   commit that changes behavior carries its own `log.md` + `PROGRESS.md` update;
-  the checklist at the top of `CLAUDE.md` is the gate that enforces it.
+  the checklist at the top of `AGENTS.md` is the gate that enforces it.
 - **No live tallies.** A count ("19 tests", "forks 1–15") is wrong the moment the
   next change lands, and nobody remembers to update prose numbers. Describe the
   *state* ("all tests green", "none open — see the register"); a number is only

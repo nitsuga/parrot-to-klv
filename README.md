@@ -105,8 +105,12 @@ duplicated here, so it can't drift.
 ## Working on this project
 
 The docs are maintained by an AI agent following the working rules in
-[`CLAUDE.md`](CLAUDE.md) — a pre-commit checklist and a set of planning-hygiene
-rules that keep each doc to one job. The reasoning behind those rules is in
+[`AGENTS.md`](AGENTS.md) — a pre-commit checklist and a set of planning-hygiene
+rules that keep each doc to one job. `AGENTS.md` is the one canonical,
+vendor-neutral copy; [`CLAUDE.md`](CLAUDE.md) is a one-line `@AGENTS.md` import,
+since Claude Code auto-loads that filename. Supporting another agent means
+adding another thin pointer, never a second copy of the rules. The reasoning
+behind those rules is in
 [`context/workflow-rationale.md`](context/workflow-rationale.md), and the
 directory taxonomy in [`context/CONVENTIONS.md`](context/CONVENTIONS.md)
 § Layout. This workflow came from
@@ -124,7 +128,8 @@ dependency — setup in [`.github/workflows/README-ci.md`](.github/workflows/REA
 ## Structure
 
 ```
-CLAUDE.md              how-to-work instructions (agent auto-loads)
+AGENTS.md              how-to-work instructions (canonical, vendor-neutral)
+CLAUDE.md              one-line adapter: @AGENTS.md (Claude Code auto-loads)
 CHANGELOG.md           hand-written release notes (release.yml publishes these)
 CMakeLists.txt         build (FetchContent pulls libmisbklv at a pinned commit)
 .github/workflows/
