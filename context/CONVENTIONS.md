@@ -19,7 +19,7 @@ the work. On disagreement, the OKF spec wins over this doc.
 
 | Path | Role |
 |------|------|
-| `../references/` | Immutable raw sources. Agent reads, never modifies. |
+| `../references/` | Raw sources, append-only. Agent reads, and deposits new snapshots on a directed ingest; never edits one that's already there. |
 | `context/` | This bundle. Agent-owned synthesis. |
 | `../docs/` | Human-facing authored guides (terse). Not agent-maintained. |
 | `../planning/` | Project management (ROADMAP, PROGRESS). Transient; human + agent read/write. Not OKF concepts. |
@@ -38,7 +38,7 @@ domain-neutral starter set (rename / add for your project):
 
 | Type | Use for |
 |------|---------|
-| `Reference` | Synthesis of an external source (a spec, a standard, a prior-art repo). Cites the immutable original in `../references/`. |
+| `Reference` | Synthesis of an external source (a spec, a standard, a prior-art repo). Cites the immutable snapshot in `../references/`. |
 | `Concept` | A piece of durable domain or design knowledge. |
 | `Component` | A module / subsystem of the project. |
 | `Decision` | Architecture decision record — the *why* of a resolved (or proposed) fork. |
@@ -144,8 +144,17 @@ the bundle, so it works nowhere — not on GitHub, not in an editor, not for an
 agent following paths.
 
 Relationship semantics — references, nests-in, depends-on — live in the
-surrounding prose; the link itself is untyped. Broken links are not errors; they
-may be not-yet-written knowledge.
+surrounding prose; the link itself is untyped.
+
+**Broken links are errors here.** OKF *consumers* must tolerate them — a
+dangling link may be not-yet-written knowledge — but that's a robustness rule
+for readers, not license for this bundle to ship them:
+[`link-check`](../.github/workflows/link-check.yml) checks both forms above and
+fails the build on one — the same guarantee that lets the wikilink form resolve
+by name instead of path (see the boundary above). When a concept isn't written
+yet, name it in prose without linking, or write the stub; the lint's "concepts
+mentioned but not written" pass (§ Operations) is what turns those into links
+later.
 
 # Reserved files
 
@@ -174,5 +183,13 @@ it periodically (e.g. when closing a fork, or before a release).
 
 # Source discipline
 
-Never edit files in `../references/`. The immutable sources are the ground truth;
-this bundle is the curated, cross-linked reading of them.
+`../references/` is **append-only**. Never edit, reformat, or delete a file
+that's already there — the immutable sources are the ground truth, and this
+bundle is the curated, cross-linked reading of them. Adding is different from
+editing: when the user directs an ingest, deposit the new source there as a
+faithful snapshot (§ Operations — Ingest), then leave it alone forever.
+"Immutable" governs each snapshot, not the directory's file count.
+
+Correcting a source you believe is wrong is *never* an edit there: the
+correction is knowledge, so it belongs in a `context/` concept that cites the
+original and says where it departs from it.

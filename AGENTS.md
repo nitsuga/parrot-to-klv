@@ -23,7 +23,8 @@ v0.1 bundle.
 - Read [`context/index.md`](context/index.md) first — the bundle catalog.
 - [`context/CONVENTIONS.md`](context/CONVENTIONS.md) — frontmatter, type
   vocabulary, ingest/query/lint rules. Read before editing `context/`.
-- `context/` is agent-owned. `references/` is immutable — read, never modify.
+- `context/` is agent-owned. `references/` is append-only: read it, add a
+  snapshot on a directed ingest, never edit one that's already there.
 - For the live plan and status, read [`planning/PROGRESS.md`](planning/PROGRESS.md)
   and [`planning/ROADMAP.md`](planning/ROADMAP.md).
 
@@ -101,12 +102,15 @@ So:
   `acknowledgment`, `analyze`. This is consistency, not correctness — the
   standards this project implements (MISB ST 0601, "Frame **Center**") are
   American-spelled, so matching them keeps our prose and our quoted item names
-  from disagreeing on the same page. **`references/` and `external/` are exempt
-  and must not be touched**: the first is immutable source-of-truth input, the
-  second is vendored third-party code.
+  from disagreeing on the same page. **`references/` is exempt, and no snapshot
+  already there is ever restyled** — it is append-only source-of-truth input:
+  an ingest may add a new source, but nothing already deposited is edited,
+  reformatted, or restyled to match. So is `external/`: vendored third-party
+  code, read it, never restyle it.
 - **Commit messages**: Conventional Commits format. No `Co-Authored-By` trailer.
 - **Repo layout**:
-  - `references/` — immutable source-of-truth inputs. Read, never modify.
+  - `references/` — source-of-truth inputs, append-only. Read; add a snapshot
+    on a directed ingest; never edit what's there.
   - `context/` — agent knowledge bundle (maintain this).
   - `docs/` — human-facing guides (terse).
   - `planning/` — live plan + progress. Read first for "what now".

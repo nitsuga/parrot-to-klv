@@ -18,7 +18,7 @@ Read [`CONVENTIONS.md`](./CONVENTIONS.md) before ingesting or editing.
 
 ## References
 
-_(`type: Reference` — synthesis of an external source, citing the immutable original in `../references/`.)_
+_(`type: Reference` — synthesis of an external source, citing the immutable snapshot in `../references/`.)_
 
 * [Parrot Video Metadata Documentation](./parrot-video-metadata-docs.md) — Official format specs (HTML in `../references/`)
 * [libvideo-metadata](./libvideo-metadata.md) — Parrot's C reference implementation (GitHub, not built as dependency)
