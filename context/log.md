@@ -5,6 +5,64 @@
      a fuller entry per significant implementation. Routine ingests/lint go here
      too. This is the ONLY home for history — PROGRESS.md is present-tense only. -->
 
+## 2026-08-01
+
+* **Migrated the knowledge bundle to OKF v0.2.** `timestamp:` became
+  `generated: {by, at}` across every concept and ADR, carrying each doc's
+  existing timestamp through unchanged; the actor is `claude/opus-5` throughout,
+  never the `human:` prefix, since trust tooling keys off that prefix and these
+  are agent-written docs. ADRs now carry `decision_status:` rather than
+  `status:`, because v0.2 claims `status` for *document* lifecycle
+  (draft/stable/deprecated) — a different axis from decision state, as a
+  superseded ADR is still a stable document. CONVENTIONS gained the v0.2
+  frontmatter shape, the actor convention, and the optional-families table, and
+  its existing `# Citations` section became `# Citations and sources` by merge
+  rather than replacement, keeping this repo's own cite-by-stable-anchor rule.
+  ROADMAP's status legend and fork-lifecycle prose were updated in the same
+  pass — they instructed the next agent to write a field that no longer exists.
+
+* **Made the agent entrypoint vendor-neutral.** `AGENTS.md` is canonical;
+  `CLAUDE.md` is a one-line `@AGENTS.md` import, since Claude Code auto-loads
+  that filename. A pointer, not a fork — duplicating the rules into two files is
+  the exact duplication those rules exist to prevent. Live cross-references were
+  repointed; this log's earlier entries were left alone as a frozen record of
+  what `CLAUDE.md` said at the time.
+
+* **Resolved two contradictions the docs had carried.** `references/` was
+  described as immutable and never to be modified, which contradicts ingesting
+  into it and makes an agent hesitate before a directed ingest; it is now stated
+  as append-only, with immutability governing each snapshot rather than the
+  directory's file count, plus the case nothing covered — a source believed
+  wrong is never edited in place, it gets a `context/` concept citing it and
+  saying where it departs. `references/README.md` was rewritten to describe what
+  is actually here (an HTML documentation export and its asset tree, not PDFs),
+  and its stale "this README is a placeholder" line was dropped now that a real
+  source has landed. Separately, CONVENTIONS claimed broken links "are not
+  errors" — OKF *consumer*-tolerance semantics pasted into this repo's own
+  policy. Consumers must tolerate a dangling link; this bundle must not ship
+  one, which is what lets the two-form linking boundary stay structural: the CI
+  checks both `[[slug]]` and relative forms, so neither is the unchecked one.
+
+* **Fixed a blind spot that had been silently disabling the link check.** The
+  workflow stripped HTML comments *before* code, so a bare `<!--` inside a
+  documented code block paired with a `-->` far below and swallowed everything
+  between — every check skipped that span, invisibly. Code spans are now removed
+  first, comments last. Verified against a constructed case: under the old
+  ordering a broken link below such a fence produced no hit at all; under the
+  new one it is caught. The workflow also gained a dangling-footnote check
+  (`[^label]` matching no `sources[].id` in the same file). That check and the
+  reordering are coupled here: this log's `grep -q '[^[:space:]]'` example is a
+  POSIX character class the footnote regex would misread, and it is safe only
+  because the corrected order strips its inline-code span first.
+
+* Backported from `okf-project-template` (commits `6301ae4`, `5643ecb`,
+  `a1e0a1c`, `cabc297`), applied in dependency order rather than template order
+  so each file was written once into its final home. The template's
+  cite-by-stable-anchor commit needed no backport — this repo already had it.
+  The libmisbklv pin was deliberately not bumped: the sister repo's matching
+  batch changed no header, source, or build input, so a bump would carry no
+  reviewable upstream change.
+
 ## 2026-07-31
 
 * **`v0.1.3` published.** Tagged at `67c25d2` after ordinary CI and a tagless
