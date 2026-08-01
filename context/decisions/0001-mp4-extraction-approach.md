@@ -2,9 +2,11 @@
 type: Decision
 title: ADR 0001 — Direct MP4 Parsing for Metadata Extraction
 description: Use lightweight MP4 box parsing instead of GStreamer qtdemux for Parrot metadata extraction
-status: accepted
+decision_status: accepted
 tags: [decision, mp4, extraction, architecture]
-timestamp: 2026-07-23T20:00:00Z
+generated:
+  by: claude/opus-5
+  at: 2026-07-23T20:00:00Z
 ---
 
 # Context

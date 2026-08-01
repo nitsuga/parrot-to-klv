@@ -2,10 +2,12 @@
 type: Decision
 title: ADR 0011 — Inferring Item 11 for formats that state no spectrum
 description: Name the sensor EO or IR from thermal-metadata presence, behind an opt-in flag and labeled as inferred, rather than leaving Item 11 permanently empty for v3 recordings
-status: accepted
+decision_status: accepted
 fork: 11
 tags: [decision, mapping, misb, 0601, parrot, v3]
-timestamp: 2026-07-28T00:00:00Z
+generated:
+  by: claude/opus-5
+  at: 2026-07-28T00:00:00Z
 ---
 
 # Context

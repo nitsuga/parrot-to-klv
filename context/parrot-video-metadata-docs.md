@@ -3,7 +3,14 @@ type: Reference
 title: Parrot Video Metadata Documentation
 description: Official Parrot developer documentation for embedded video metadata formats
 tags: [parrot, documentation, reference]
-timestamp: 2026-07-23T19:00:00Z
+generated:
+  by: claude/opus-5
+  at: 2026-07-23T19:00:00Z
+sources:
+  - resource: "../references/Embedded Video Metadata - 8.4.2.html"
+    title: >-
+      Official Parrot developer documentation, saved from
+      https://developer.parrot.com/docs/groundsdk-tools/video-metadata.html
 ---
 
 # Parrot Video Metadata Documentation

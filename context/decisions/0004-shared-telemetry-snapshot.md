@@ -2,10 +2,12 @@
 type: Decision
 title: ADR 0004 — A shared telemetry snapshot between the parsers and the transform
 description: Normalize v3 and proto frames into one format-neutral snapshot before mapping to ST 0601, rather than giving the transform stage two inputs
-status: accepted
+decision_status: accepted
 fork: 3
 tags: [decision, transform, mapping, misb, 0601, phase-2]
-timestamp: 2026-07-26T02:10:00Z
+generated:
+  by: claude/opus-5
+  at: 2026-07-26T02:10:00Z
 ---
 
 # Context

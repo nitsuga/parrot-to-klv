@@ -3,14 +3,16 @@ type: Conventions
 title: Knowledge bundle conventions
 description: How the context/ OKF bundle is structured, written, and maintained.
 tags: [meta, okf, conventions]
-timestamp: 2026-07-23T18:30:00Z
+generated:
+  by: claude/opus-5
+  at: 2026-07-23T18:30:00Z
 ---
 
 # Purpose
 
 `context/` is the agent-facing knowledge base for this project, in
 [OKF](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md)
-v0.1. It is the synthesis layer between immutable sources and the working agent:
+v0.2. It is the synthesis layer between immutable sources and the working agent:
 knowledge is compiled here once and kept current, not re-derived each session.
 The agent writes and maintains this directory; humans curate sources and direct
 the work. On disagreement, the OKF spec wins over this doc.
@@ -26,9 +28,42 @@ the work. On disagreement, the OKF spec wins over this doc.
 
 # Frontmatter
 
-Every concept `.md` carries YAML frontmatter. Required: `type`. Recommended:
-`title`, `description`, `tags`, `timestamp` (ISO 8601). Keep frontmatter minimal;
-OKF tolerates unknown keys but they add noise.
+Every concept `.md` carries YAML frontmatter. Required: `type` — the only key
+OKF mandates. Recommended: `title`, `description`, `tags`, and `generated` (who
+produced this, and when). Keep frontmatter minimal; OKF tolerates unknown keys
+but they add noise.
+
+```yaml
+type: Concept
+title: Short display name
+description: One-sentence summary.
+tags: [parrot, phase-2]
+generated:
+  by: claude/opus-5
+  at: 2026-08-01T00:00:00Z
+```
+
+**Actors.** `generated.by` (and `verified[].by`) use the OKF actor convention:
+`human:<id>` for people, `<producer>/<version>` for agents and tools (e.g.
+`claude/opus-5`), `process:<id>` for automation. Trust tooling keys off the
+`human:` prefix — use it only for genuine human authorship or review, never for
+agent-written docs a human merely merged. Every doc in this bundle is
+agent-written, so every `generated.by` here is `claude/opus-5`, not `human:`.
+
+Optional families — add one only when it earns its keep:
+
+| Field | Use for |
+|------|------|
+| `resource` | Canonical URI/path of the asset the concept describes. Already in wide use here: the standard PDF a `Standard` synthesizes, the local `references/` snapshot a `Reference` cites. |
+| `sources` | Machine-readable inputs the concept derives from. Per entry `resource` is required; `title` optional. See § Citations and `sources`. |
+| `verified` | List of `{by, at}` checks confirming the doc still matches its sources. |
+| `status` | **OKF document lifecycle**: `draft` / `stable` (default) / `deprecated`. Not the ADR state — see § Decisions. |
+| `stale_after` | `YYYY-MM-DD` after which the doc should be re-checked. |
+
+**Migrating from OKF v0.1:** `timestamp` was replaced by `generated: {by, at}`,
+and the body `# Citations` list by frontmatter `sources`. Consumers may fall
+back to the legacy fields, so an un-migrated doc still reads — but write new
+docs in the v0.2 spelling.
 
 # Type vocabulary
 
@@ -45,6 +80,11 @@ domain-neutral starter set (rename / add for your project):
 | `DataFormat` | Specification of a data format (Parrot metadata v1/v2/v3/proto, MISB KLV, MPEG-TS). |
 | `Standard` | A formal standard document (MISB ST 0601, ST 0903, etc.). |
 
+OKF v0.2 also defines one type with spec-level semantics, `Attested Computation`
+(a concept carrying `runtime` / `parameters` / `computation` / `executor` /
+`attester`, so a value's meaning and its verifiable derivation live together).
+This project doesn't compute attested values — ignore this type here.
+
 # Decisions
 
 A **fork** is a decision point — a branch in the design or plan that needs a
@@ -52,22 +92,30 @@ choice (the metaphor is a fork in the road; it has nothing to do with a git fork
 Forks are the unit the roadmap and the register track.
 
 A `type: Decision` concept is an ADR: the *why* of a resolved (or proposed) fork
-— context, alternatives considered, the choice, consequences. Carry a `status:`
-frontmatter field:
+— context, alternatives considered, the choice, consequences. Carry a
+`decision_status:` frontmatter field:
 
-| `status` | Meaning |
+| `decision_status` | Meaning |
 |---|---|
 | `proposed` | Under deliberation; not yet adopted. |
 | `accepted` | Resolved and in force. |
 | `superseded` | Replaced by a later Decision (link it). |
 | `deferred` | Parked; revisit later. |
 
+**Why not `status:`?** OKF v0.2 claims `status` for *document* lifecycle
+(`draft` / `stable` / `deprecated`) — a different axis from *decision* state: a
+superseded ADR is a stable document you keep for the record (e.g. a future
+`superseded` ADR here would still be `stable`, not `deprecated`). Since the spec
+wins on disagreement (§ Purpose), the ADR field is `decision_status`, which OKF
+tolerates as an unknown key. An ADR may still carry `status` in its OKF sense,
+but rarely needs to.
+
 Lifecycle: an open fork starts under **Open forks** in
 [`../planning/ROADMAP.md`](../planning/ROADMAP.md) (`OPEN`). Once deliberated,
 write the Decision in [`./decisions/`](./decisions/index.md) with
-`status: proposed`; on resolution set `accepted`, add its row to the **decided
-register** [`./decisions/index.md`](./decisions/index.md) (fork # ↔ ADR ↔
-status), and refresh present state in
+`decision_status: proposed`; on resolution set `accepted`, add its row to the
+**decided register** [`./decisions/index.md`](./decisions/index.md) (fork # ↔
+ADR ↔ status), and refresh present state in
 [`../planning/PROGRESS.md`](../planning/PROGRESS.md). ROADMAP defers decided
 forks to the register.
 
@@ -85,28 +133,47 @@ event and gets one line.
   Numbering is sequential by **creation order** (not the roadmap-fork number;
   they diverge). Monotonic; never reused (a superseded ADR keeps its number, the
   superseder takes the next).
-- **Frontmatter:** `type: Decision`, `title`, `status`, `tags` (include
-  `decision`, a topic tag, optionally `phase-N`), `timestamp` (ISO 8601),
-  optional `fork:` (roadmap fork # for traceability).
+- **Frontmatter:** `type: Decision`, `title`, `decision_status`, `tags` (include
+  `decision`, a topic tag, optionally `phase-N`), `generated: {by, at}`, optional
+  `sources:`, optional `fork:` (roadmap fork # for traceability).
 - **Body:** `# Context` → `# Decision` → `# Alternatives considered` →
   `# Consequences` → `# Assumptions / open questions` → `# Citations`
-  (specialized sections allowed between). Use `# Decision` always — `status`
-  carries proposed/accepted, so no header churn on accept.
+  (specialized sections allowed between). Use `# Decision` always —
+  `decision_status` carries proposed/accepted, so no header churn on accept.
 - **Register:** [`./decisions/index.md`](./decisions/index.md) lists
   `Fork | ADR | Status`; updated on every status change.
 
-# Citations
+# Citations and `sources`
 
-A `# Citations` entry says *why* that source mattered to this doc, not merely
-that it was consulted — the annotation is the part worth keeping, and it is what
-lets a later reader tell a load-bearing source from a passing mention.
+v0.2 replaces the body `# Citations` list with frontmatter `sources`. Here, both
+have a job, because they carry different things:
+
+- **`sources:` (frontmatter)** — the machine-readable index of *external*
+  inputs: a file under `../references/`, a standard's own repo at a pinned
+  commit, a vendor's documentation URL. One entry per input, `resource`
+  required; `title` optional and worth adding. This is what a consumer reads
+  first.
+- **`# Citations` (body)** — the annotated bibliography this bundle already
+  writes: each entry says *why that source mattered to this doc*, not merely
+  that it was consulted. Links to sibling concepts and ADRs (`[[slug]]` §
+  Section — what it supplied) live here.
+
+Keep the annotation. A bare `resource:` list records that a source was
+consulted; the prose records what it decided — and that reasoning is the
+reason to keep an ADR (or a `Reference`/`Standard` concept) at all. Purely
+internal cross-references (other concepts, other ADRs) need no `sources`
+entry; the body link is enough — most of this bundle's `# Citations` sections
+are exactly that, and correctly stay bare.
 
 **Cite by stable anchor, not by position.** Name the section, clause, message, or
 heading (`ST 0601 §6.3`, `vmeta.proto` § `TimedMetadata`) — never a line number
 of a file under `../references/`, and never a page of an extract. Those files get
 re-fetched and revised, and a positional citation then silently points at the
 wrong text: worse than a broken link, because it still resolves and still looks
-right.
+right. The same rule applies to a `sources:` entry that points into another
+project's repository (e.g. libmisbklv, fetched at a pinned commit): cite the
+commit or file the claim actually came from, not a line number that shifts the
+next time that pin moves.
 
 # Subdirectories
 
@@ -159,7 +226,7 @@ later.
 # Reserved files
 
 `index.md` — directory listing for progressive disclosure. No frontmatter except
-`okf_version` at the bundle root. `log.md` — chronological change history,
+`okf_version: "0.2"` at the bundle root. `log.md` — chronological change history,
 newest first, ISO `YYYY-MM-DD` headings. Both agent-maintained.
 
 # Operations

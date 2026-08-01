@@ -2,10 +2,17 @@
 type: Decision
 title: ADR 0002 — Disposition of Parrot fields with no ST 0601 item
 description: Drop unmappable Parrot telemetry and report it, rather than smuggling it through a 0601 item that does not mean it
-status: accepted
+decision_status: accepted
 fork: 1
 tags: [decision, mapping, misb, 0601, parrot]
-timestamp: 2026-07-25T21:15:00Z
+generated:
+  by: claude/opus-5
+  at: 2026-07-25T21:15:00Z
+sources:
+  - resource: https://github.com/nitsuga/libmisbklv/blob/1732e0c986e4b252a030147c389585da8248ddb2/registry/uas0601.toml
+    title: libmisbklv — the complete registered ST 0601.19 item set
+  - resource: https://github.com/nitsuga/libmisbklv/blob/1732e0c986e4b252a030147c389585da8248ddb2/references/ST0601.19.txt
+    title: libmisbklv — MISB ST 0601.19 §8.138–8.143
 ---
 
 # Context

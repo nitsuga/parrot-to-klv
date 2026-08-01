@@ -66,7 +66,8 @@ A *fork* is a decision point — a branch in the plan/design that needs a choice
 (see [`../context/CONVENTIONS.md`](../context/CONVENTIONS.md) § Decisions).
 
 Status legend: `OPEN` (undiscussed) · `PROPOSED` (Decision concept written,
-`status: proposed`) · `DECIDED` / `DEFERRED` (has an ADR — see the register).
+`decision_status: proposed`) · `DECIDED` / `DEFERRED` (has an ADR — see the
+register).
 
 - **Fork 4 — Tier 2 geometry fidelity** `OPEN`: flat-earth intersection vs. a
   DTED terrain model for frame center, corner points, and slant/ground range.
@@ -84,7 +85,7 @@ single backlog. Incremental *work* that needs no fork lives in
 ## Fork lifecycle
 
 When a fork is deliberated, write a `type: Decision` concept in `../context/`
-(`status: proposed` → `accepted`), add its row to the decided register
+(`decision_status: proposed` → `accepted`), add its row to the decided register
 ([`../context/decisions/index.md`](../context/decisions/index.md)), and update
 PROGRESS. A genuinely open (undeliberated) fork gets a line under **Open forks**
 above until it has an ADR.

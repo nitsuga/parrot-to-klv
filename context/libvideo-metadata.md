@@ -3,7 +3,12 @@ type: Reference
 title: libvideo-metadata
 description: Parrot's C library for parsing and serializing video metadata (reference only, not built)
 tags: [parrot, library, reference, c]
-timestamp: 2026-07-23T19:00:00Z
+generated:
+  by: claude/opus-5
+  at: 2026-07-23T19:00:00Z
+sources:
+  - resource: https://github.com/Parrot-Developers/libvideo-metadata
+    title: Parrot-Developers/libvideo-metadata (C reference implementation)
 ---
 
 # libvideo-metadata

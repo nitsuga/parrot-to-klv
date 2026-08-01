@@ -2,10 +2,17 @@
 type: Decision
 title: ADR 0006 — Accept libmisbklv's ST 0604 SEI injection; the video is no longer a pure passthrough
 description: Keep the ST 0604 SEI injection libmisbklv arrived with, and stop claiming the video passes through unchanged — since made opt-in upstream, so we now request it explicitly rather than inherit it
-status: accepted
+decision_status: accepted
 fork: 6
 tags: [decision, mux, video, h264, sei, misb, 0604, phase-3]
-timestamp: 2026-07-27T22:00:00Z
+generated:
+  by: claude/opus-5
+  at: 2026-07-27T22:00:00Z
+sources:
+  - resource: https://github.com/nitsuga/libmisbklv/commit/e3c7f4ad9a170aa66304f0acbec3c3e3326b0c07
+    title: "libmisbklv — Fix H.264 SEI/SPS association for ST 0604 passthrough"
+  - resource: https://github.com/nitsuga/libmisbklv/commit/032db105595997e257b9127b8725873d1d943048
+    title: "libmisbklv ADR 0023 (fork 21) — ST 0604 SEI generation for video passthrough"
 ---
 
 # Context

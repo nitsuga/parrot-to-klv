@@ -2,10 +2,12 @@
 type: Decision
 title: ADR 0008 — `--force-emit-attitude` cannot do what it promises
 description: ST 0601 spends the whole int16 range on ±limit, so there is no headroom to encode a value beyond it — the flag emits exactly the clamped value while labeling it out-of-spec
-status: accepted
+decision_status: accepted
 fork: 8
 tags: [decision, transform, mapping, misb, 0601, cli]
-timestamp: 2026-07-28T01:00:00Z
+generated:
+  by: claude/opus-5
+  at: 2026-07-28T01:00:00Z
 ---
 
 # Context

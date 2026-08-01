@@ -2,10 +2,16 @@
 type: Decision
 title: ADR 0003 — Protobuf dependency for the proto-format parser
 description: Hand-roll a minimal proto3 wire reader scoped to the mapped subset of vmeta.proto, rather than taking a protobuf toolchain and runtime dependency
-status: accepted
+decision_status: accepted
 fork: 2
 tags: [decision, parsing, protobuf, parrot, phase-1]
-timestamp: 2026-07-26T00:37:34Z
+generated:
+  by: claude/opus-5
+  at: 2026-07-26T00:37:34Z
+sources:
+  - resource: "../../references/Embedded Video Metadata - 8.4.2.html"
+    title: >-
+      Embedded vmeta.proto schema (proto3, package vmeta, TimedMetadata)
 ---
 
 # Context

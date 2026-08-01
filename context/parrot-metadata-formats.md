@@ -3,7 +3,9 @@ type: DataFormat
 title: Parrot Video Metadata Formats
 description: Binary format specifications for Parrot drone telemetry in MP4 files (v1, v2, v3, proto), with exact v2/v3 byte layouts and the enum-numbering traps
 tags: [parrot, metadata, telemetry, format, mp4]
-timestamp: 2026-07-25T23:30:00Z
+generated:
+  by: claude/opus-5
+  at: 2026-07-25T23:30:00Z
 ---
 
 # Parrot Video Metadata Formats

@@ -3,7 +3,9 @@ type: Component
 title: Transform stage — Parrot telemetry to MISB ST 0601
 description: How a decoded Parrot frame becomes an ST 0601 packet — the format-neutral snapshot, the Tier 1 mapping and its sign/range traps, and the conversion coverage report
 tags: [transform, mapping, misb, 0601, phase-2]
-timestamp: 2026-07-31T16:36:53Z
+generated:
+  by: claude/opus-5
+  at: 2026-07-31T16:36:53Z
 ---
 
 # Transform stage

@@ -2,10 +2,15 @@
 type: Decision
 title: ADR 0007 — H.265 sources versus ST 0604 generation, which now excludes them
 description: Asking libmisbklv for ST 0604 SEI refuses any non-H.264 source, so ask for it only on H.264 and carry anything else through unstamped rather than refusing it
-status: accepted
+decision_status: accepted
 fork: 7
 tags: [decision, mux, video, h264, h265, sei, misb, 0604, phase-3]
-timestamp: 2026-07-28T00:00:00Z
+generated:
+  by: claude/opus-5
+  at: 2026-07-28T00:00:00Z
+sources:
+  - resource: https://github.com/nitsuga/libmisbklv/commit/f8cc8c5cd94d6cda8a6648fcf73e9edc79d1df53
+    title: "libmisbklv — Derive Time Status bits 6/5; refuse Generate on non-H.264"
 ---
 
 # Context

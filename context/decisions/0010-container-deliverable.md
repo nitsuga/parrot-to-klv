@@ -2,10 +2,12 @@
 type: Decision
 title: ADR 0010 — A container image as a second deliverable, built from the bundle
 description: Ship an exported distroless image alongside the tarball, with a launcher that mounts only the directories in play and runs as the caller
-status: accepted
+decision_status: accepted
 fork: 10
 tags: [decision, packaging, release, docker, ci]
-timestamp: 2026-07-28T12:00:00Z
+generated:
+  by: claude/opus-5
+  at: 2026-07-28T12:00:00Z
 ---
 
 # Context

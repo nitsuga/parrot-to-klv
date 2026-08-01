@@ -2,10 +2,12 @@
 type: Decision
 title: ADR 0005 — Out-of-range policy for Items 6/7, and the two escape hatches
 description: Keep the 0x8000 sentinel as the default for out-of-range platform pitch/roll, and expose clamping and out-of-spec emission as explicit opt-in flags for consumers that cannot parse it
-status: accepted
+decision_status: accepted
 fork: 5
 tags: [decision, transform, mapping, misb, 0601, phase-2]
-timestamp: 2026-07-27T21:03:00Z
+generated:
+  by: claude/opus-5
+  at: 2026-07-27T21:03:00Z
 ---
 
 # Context

@@ -3,7 +3,9 @@ type: Component
 title: MP4 metadata extraction and Phase 1 tooling
 description: How the Parrot metadata track is located, read, scrubbed, and evidenced — the minimp4 / box-scan division of labour, minimp4's traps, and the two tools that let real footage inform the repo without entering it
 tags: [mp4, extraction, minimp4, phase-1]
-timestamp: 2026-07-31T16:58:31Z
+generated:
+  by: claude/opus-5
+  at: 2026-07-31T16:58:31Z
 ---
 
 # MP4 metadata extraction

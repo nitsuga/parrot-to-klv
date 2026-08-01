@@ -2,10 +2,15 @@
 type: Decision
 title: ADR 0009 — Ship a relocatable bundle, not a container and not a static binary
 description: Build on the oldest supported Ubuntu and ship the tool with private copies of GStreamer and the plugins it uses, so a user extracts a tarball and runs it with nothing installed
-status: accepted
+decision_status: accepted
 fork: 9
 tags: [decision, packaging, release, gstreamer, ci, phase-3]
-timestamp: 2026-07-28T10:45:00Z
+generated:
+  by: claude/opus-5
+  at: 2026-07-28T10:45:00Z
+sources:
+  - resource: https://github.com/nitsuga/libmisbklv/blob/1732e0c986e4b252a030147c389585da8248ddb2/context/decisions/0025-explicit-demuxer-passthrough.md
+    title: "libmisbklv ADR 0025 — explicit demuxer passthrough (parsebin dependency)"
 ---
 
 # Context
