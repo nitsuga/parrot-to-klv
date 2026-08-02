@@ -22,7 +22,7 @@ video, and its 2026-07-28 revision made that explicit: `mux_to_ts()` now passes
 default.
 
 Upstream then made `Generate` **H.264-only**.[^libmisbklv-f8cc8c5] In
-`gst_backend.cpp:569`, a non-H.264 video pad under `Generate` is dropped rather
+`on_video_pad_added`, a non-H.264 video pad under `Generate` is dropped rather
 than linked. Since `mux_to_ts()` asked for `Generate` unconditionally, **an
 H.265 recording did not convert at all**. Reproduced on
 `parrot_v3_video_h265.mp4` by forcing `Generate`:
@@ -42,15 +42,15 @@ places:
 
 | Where | Claim |
 |---|---|
-| `planning/PROGRESS.md:34` | "parsed, never decoded, so H.264 and H.265 both work" |
-| `context/mux-stage.md:33` | "H.264 from the ANAFI range, **H.265 from an Ai**" |
-| `src/mux.hpp:31` | "holds the same H.264/H.265 the drone recorded" |
+| `planning/PROGRESS.md` § Now | "parsed, never decoded, so H.264 and H.265 both work" |
+| [[mux-stage]] § Video is never decoded | "H.264 from the ANAFI range, **H.265 from an Ai**" |
+| `src/mux.hpp` § `mux_to_ts` doc comment | "holds the same H.264/H.265 the drone recorded" |
 | [[0006-inherited-st0604-sei-injection]] § Decision | "the same H.264/H.265 the drone recorded" |
 
 The pin-bump log entry that brought this in reasoned "Parrot records H.264, so
 this never fires for us in practice." That cannot be reconciled with
-`mux-stage.md:33` — one of the two is wrong, and which one decides how much this
-matters. The ANAFI Ai is squarely in scope: ROADMAP names "ANAFI Ai / UKR", the
+[[mux-stage]] § Video is never decoded — one of the two is wrong, and which one
+decides how much this matters. The ANAFI Ai is squarely in scope: ROADMAP names "ANAFI Ai / UKR", the
 proto parser exists for it, and `references/Embedded Video Metadata` § 8.4.2
 describes Parrot timing as living in "H.264 picture timing SEI or H.265 time
 code SEI" — which reads as Parrot shipping both codecs.
