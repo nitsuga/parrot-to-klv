@@ -221,6 +221,15 @@ project's repository (e.g. libmisbklv, fetched at a pinned commit): cite the
 commit or file the claim actually came from, not a line number that shifts the
 next time that pin moves.
 
+The [`link-check`](../.github/workflows/link-check.yml) CI fails on the
+mechanical form of this — a backticked `path.ext:NN` anywhere outside
+[[log]], whose dated entries are frozen snapshots. It cannot catch the subtler
+case: a symbol anchor is only as stable as the symbol, so a function that moves
+between files leaves a citation that still names it correctly and no longer says
+where it is — which is exactly what happened to ADR 0007's `on_video_pad_added`
+when libmisbklv split its backend. That one stays a read-through item
+(§ Operations).
+
 # Subdirectories
 
 Types stay flat in `context/` by default; the root `index.md` groups by type.
