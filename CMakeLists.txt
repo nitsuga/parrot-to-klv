@@ -21,8 +21,8 @@ include(FetchContent)
 FetchContent_Declare(
   misbklv
   GIT_REPOSITORY git@github.com:nitsuga/libmisbklv.git
-  # Hardening/refactor: typed validation, bounded parsing, split GStreamer backend.
-  GIT_TAG 1732e0c986e4b252a030147c389585da8248ddb2
+  # Hermetic upstream tests: committed project-owned synthetic fixtures.
+  GIT_TAG a25ae2e94a5f45fbef1891b3cda90c5078a00375
 )
 FetchContent_MakeAvailable(misbklv)
 

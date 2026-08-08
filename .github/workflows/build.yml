@@ -60,13 +60,7 @@ jobs:
           printf 'Host github.com\n  IdentityFile ~/.ssh/misbklv\n  IdentitiesOnly yes\n' \
             >> ~/.ssh/config
 
-      # GIT_LFS_SKIP_SMUDGE: libmisbklv keeps ~355 MB of sample media in git-lfs
-      # for its own tests. This project builds the library and runs its own
-      # suite, so the pointers are all it needs — fetching the media would burn
-      # LFS bandwidth on files nothing here opens.
       - name: Configure
-        env:
-          GIT_LFS_SKIP_SMUDGE: 1
         run: cmake -S . -B build
 
       - name: Build
@@ -113,8 +107,6 @@ jobs:
             >> ~/.ssh/config
 
       - name: Configure sanitizer build
-        env:
-          GIT_LFS_SKIP_SMUDGE: 1
         run: >-
           cmake -S . -B build-sanitizers -DCMAKE_BUILD_TYPE=Debug
           -DPARROT_SANITIZE=ON

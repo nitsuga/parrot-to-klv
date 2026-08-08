@@ -5,6 +5,20 @@
      a fuller entry per significant implementation. Routine ingests/lint go here
      too. This is the ONLY home for history — PROGRESS.md is present-tense only. -->
 
+## 2026-08-08
+
+* **Moved the libmisbklv pin to `a25ae2e94a5f45fbef1891b3cda90c5078a00375`.**
+  The upstream change replaces external test media and derived fixtures with a
+  committed, project-owned synthetic corpus; its production headers and sources
+  are unchanged apart from comments. Normal configure, build, and test remain
+  Python-free; Python 3.11 is needed only for optional upstream regeneration
+  targets. A fresh build with Python discovery explicitly disabled passed the
+  complete combined suite (37 tests, with the optional real-data consumer test
+  skipped as designed). The obsolete LFS skip left over from upstream's external
+  corpus was removed. This is build/test maintenance with no runtime or
+  user-facing behavior change, so `v0.1.3` remains the current release rather
+  than publishing a pin-only patch.
+
 ## 2026-08-01
 
 * **Migrated the knowledge bundle to OKF v0.2.** `timestamp:` became
