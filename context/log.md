@@ -7,6 +7,12 @@
 
 ## 2026-08-08
 
+* **Moved the libmisbklv pin to `2533e235d97036f597918ae0268ec4db9d8f2e65`.**
+  This takes the latest upstream revision after its historical data corpus was
+  purged, so fresh local and CI dependency fetches no longer carry those large,
+  unused files. The only source-tree change since the previous pin corrects
+  documentation attribution; production behavior is unchanged.
+
 * **Moved the libmisbklv pin to `a25ae2e94a5f45fbef1891b3cda90c5078a00375`.**
   The upstream change replaces external test media and derived fixtures with a
   committed, project-owned synthetic corpus; its production headers and sources

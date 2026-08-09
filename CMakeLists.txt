@@ -22,7 +22,7 @@ FetchContent_Declare(
   misbklv
   GIT_REPOSITORY git@github.com:nitsuga/libmisbklv.git
   # Hermetic upstream tests: committed project-owned synthetic fixtures.
-  GIT_TAG a25ae2e94a5f45fbef1891b3cda90c5078a00375
+  GIT_TAG 2533e235d97036f597918ae0268ec4db9d8f2e65
 )
 FetchContent_MakeAvailable(misbklv)
 
