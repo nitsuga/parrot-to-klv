@@ -7,6 +7,13 @@
 
 ## 2026-08-08
 
+* **`v0.1.4` published.** Tagged at `3b8d608` only after ordinary CI and the
+  tagless release workflow passed. The tag workflow rebuilt on the 22.04 ABI
+  floor, repeated the bare-24.04 bundle and container-image smoke tests, and
+  published both deliverables with checksums and the hand-written changelog
+  section. The dependency-only release changes no runtime behavior; clean local
+  and CI builds benefit from libmisbklv's purged historical data corpus.
+
 * **Declared `0.1.4` and wrote its human-facing release notes.** This patch
   release distributes the latest libmisbklv pin after upstream's historical
   data purge. It calls out faster clean dependency fetches and the absence of a
