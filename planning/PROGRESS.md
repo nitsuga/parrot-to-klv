@@ -20,21 +20,22 @@ here: [MP4 metadata extraction](../context/mp4-extraction.md),
 surface — flags, output, the scrub and conform workflows — is in
 [`README.md`](../README.md).
 
-**`v0.1.3` is the current release.** Main carries a build-only libmisbklv pin
-update that makes fresh local and CI dependency fetches faster without changing
-runtime behavior. A patch release is being prepared to distribute that build
-maintenance update.
+**`v0.1.3` is the current release.** A `v0.1.4` release candidate is declared
+on `main`, with hand-written notes in [`CHANGELOG.md`](../CHANGELOG.md). It
+distributes a build-only libmisbklv pin update that makes fresh local and CI
+dependency fetches faster without changing runtime behavior.
 
 The one substantive feature piece left is **fork 4, Tier 2 geometry fidelity**
 — see [ROADMAP](./ROADMAP.md) § Open forks.
 
 ## In progress
 
-- Prepare and smoke-test the patch release for the libmisbklv pin update.
+- **Preparing `v0.1.4`.** Push the candidate, require the ordinary CI and manual
+  release smoke workflow to pass, then tag the exact tested commit.
 
 ## Next
 
-1. Publish the smoke-tested patch release.
+1. Publish `v0.1.4` after its CI and release smoke gates pass.
 2. Return to fork 4, Tier 2 geometry fidelity, in [ROADMAP](./ROADMAP.md).
 
 ## Known gaps

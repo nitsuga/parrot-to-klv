@@ -7,6 +7,11 @@
 
 ## 2026-08-08
 
+* **Declared `0.1.4` and wrote its human-facing release notes.** This patch
+  release distributes the latest libmisbklv pin after upstream's historical
+  data purge. It calls out faster clean dependency fetches and the absence of a
+  runtime behavior change; `project(VERSION)` agrees with the intended tag.
+
 * **Moved the libmisbklv pin to `2533e235d97036f597918ae0268ec4db9d8f2e65`.**
   This takes the latest upstream revision after its historical data corpus was
   purged, so fresh local and CI dependency fetches no longer carry those large,

@@ -7,6 +7,15 @@ tell a user nothing.
 The release workflow publishes the section matching the tag, so a heading here
 must be exactly `## vX.Y.Z`.
 
+## v0.1.4
+
+### Changed
+
+- **Fresh source and CI builds fetch libmisbklv without its purged historical
+  data corpus.** The dependency pin now names the latest upstream revision, so
+  clean builds download substantially less unused data and start faster. The
+  shipped converter's runtime behavior is unchanged.
+
 ## v0.1.3
 
 ### Fixed
