@@ -5,6 +5,17 @@
      a fuller entry per significant implementation. Routine ingests/lint go here
      too. This is the ONLY home for history — PROGRESS.md is present-tense only. -->
 
+## 2026-08-10
+
+* **README now lists the full build-time and runtime package requirements.**
+  The build section's one-line "GStreamer development packages are needed" note
+  didn't capture that the mux stage also needs the `gstreamer1.0-plugins-base`
+  (`appsrc`, `appsink`) and `gstreamer1.0-plugins-bad` (`mpegtsmux`,
+  `h264parse`, `h265parse`) runtime packages, which the matching `*-dev`
+  packages do not pull in — on a bare install the mux test fails with "media
+  pipeline failed" while everything else passes. Added the complete apt command
+  and why the runtime half is easy to miss.
+
 ## 2026-08-08
 
 * **`v0.1.4` published.** Tagged at `3b8d608` only after ordinary CI and the

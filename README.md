@@ -47,8 +47,23 @@ fixture; and `parrot-conform`, which records what a real encoder produced as a
 committable JSON report carrying no position, absolute time or device identity —
 so real-footage evidence reaches the repository while the footage never does.
 
-GStreamer development packages are needed, since the mux stage runs through
-libmisbklv's GStreamer backend.
+The mux stage runs through libmisbklv's GStreamer backend, which needs both the
+build-time headers and the runtime plugins the pipeline instantiates. On
+Debian/Ubuntu:
+
+```
+sudo apt-get install build-essential cmake pkg-config \
+  libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+  libgstreamer-plugins-bad1.0-dev \
+  gstreamer1.0-plugins-base gstreamer1.0-plugins-bad
+```
+
+The dev packages satisfy CMake's configure check (`gstreamer-codecparsers` ships
+in `libgstreamer-plugins-bad1.0-dev`). The runtime plugin packages are what the
+pipeline actually instantiates, and a `*-dev` package does not pull them in:
+`appsrc`/`appsink` come from plugins-base, and `mpegtsmux` plus
+`h264parse`/`h265parse` from plugins-bad — skip them and the mux test fails with
+"media pipeline failed".
 
 ## Usage
 
