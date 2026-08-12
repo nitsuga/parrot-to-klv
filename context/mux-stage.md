@@ -5,7 +5,7 @@ description: How a Parrot MP4 becomes an MPEG-TS carrying its own video — neve
 tags: [mux, mpegts, klv, gstreamer, libmisbklv, phase-3]
 generated:
   by: claude/opus-5
-  at: 2026-07-31T00:00:00Z
+  at: 2026-08-12T00:00:00Z
 ---
 
 # Mux stage
@@ -149,15 +149,18 @@ a flight should cost that frame's telemetry, nothing more. A run that converts
 `mux_test` checks three properties, for both supported formats:
 
 1. the output's PMT lists **two** elementary streams — H.264 and KLV (stream
-   type 0x06 with a "KLVA" registration descriptor) — **with the KLV first**. A
+   type 0x06 with a "KLVA" registration descriptor) — **with the video first**. A
    KLV-only output is the failure mode the video branch exists to prevent, so it
-   is asserted rather than assumed. The *order* is asserted for the opposite
-   reason: `mpegtsmux` assigns it by sink-pad request order and puts the KLV at
-   `0:0`, which is the wrong way round for a consumer selecting by index — but
-   upstream cannot reverse it without dropping the KLV stream or breaking ST 0604
-   timing (libmisbklv ADR 0020 § Stream order). So the order is pinned as a
-   known limitation, and because changing it has broken the output before.
-   **Select the video by stream type, not by index.**
+   is asserted rather than assumed. The *order* is asserted for the same reason:
+   `mpegtsmux` orders the PMT by elementary-stream PID and allocates PIDs in
+   sink-pad request order, so the video pad is *reserved* while the pipeline is
+   still NULL — before the KLV appsrc links — and takes the lower PID, making
+   the video `0:0` and the KLV `0:1`. A consumer selecting by index
+   (`ffmpeg -map 0:0`) now gets the video. The mechanism, and the two earlier
+   attempts that failed with `GST_PAD_LINK_NOFORMAT`, are in
+   libmisbklv ADR 0020 § Stream order (revised 2026-08-12). The order is pinned
+   because the old metadata-first order once emptied our KLV stream; a
+   regression here is a deliberate change, not a silent one.
 2. every KLV packet read back is byte-identical to what `to_0601()` produced for
    that sample, in sample order.
 3. each packet comes back at its own sample's presentation time — the same

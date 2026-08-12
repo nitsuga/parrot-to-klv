@@ -82,9 +82,11 @@ Without `-o` the tool only reads the file and reports; location and airframe
 identity are withheld from that report unless `--with-location` /
 `--with-identity` ask for them.
 
-**Select output streams by type, not index** — the KLV is announced first, so
-`0:0` is the metadata and `0:1` the video (`ffmpeg -map 0:v`). See
-[mux stage](context/mux-stage.md) for why the order stands.
+**The output announces the video first, KLV second** — `0:0` is the video and
+`0:1` the KLV (`ffmpeg -map 0:0` selects the video). Video is announced first
+because its muxer pad is reserved before the KLV appsrc links, giving it the
+lower PID. See
+[mux stage](context/mux-stage.md) for the mechanism.
 
 **Attitude handling:** Items 6/7 (Platform Pitch/Roll) have narrow spec ranges
 (±20°, ±50°) which quadcopters routinely exceed. By default the spec-mandated

@@ -195,8 +195,8 @@ void print_usage(std::ostream& out, const char* program) {
         << "  guess from a proxy, not a converted field: a thermal recording\n"
         << "  that wrote no thermal metadata would be named EO. Off by default,\n"
         << "  and the coverage report marks the item (inferred).\n\n"
-        << "Output streams: the KLV is announced first, so 0:0 is the metadata\n"
-        << "  and 0:1 the video. Select by type (ffmpeg -map 0:v), not by index.\n";
+        << "Output streams: the video is announced first, so 0:0 is the video\n"
+        << "  and 0:1 the KLV (ffmpeg -map 0:0 selects the video).\n";
 }
 
 }  // namespace

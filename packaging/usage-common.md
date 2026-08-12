@@ -9,11 +9,10 @@ byte-identical either: for H.264 the timing NALs are rewritten so the video
 carries ST 0604 Precision Time Stamps, letting a consumer correlate frames
 without reading the KLV. Other codecs are carried through unstamped.
 
-**Select streams by type, not by index.** The output announces the KLV first and
-the video second, so `0:0` is the metadata stream — `ffmpeg -map 0:1` is the
-video, or better, `-map 0:v`. The muxer orders the PMT by internal pad order and
-reversing it costs more than it is worth; the PIDs and stream types are correct
-either way.
+**The output announces the video first, KLV second**, so `0:0` is the video and
+`0:1` the KLV (`ffmpeg -map 0:0` selects the video). Video is announced first
+because its muxer pad is reserved before the KLV appsrc links, giving it the
+lower PID; the PIDs and stream types are correct either way.
 
 ## Options
 

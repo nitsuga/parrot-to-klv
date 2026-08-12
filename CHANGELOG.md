@@ -7,6 +7,22 @@ tell a user nothing.
 The release workflow publishes the section matching the tag, so a heading here
 must be exactly `## vX.Y.Z`.
 
+## v0.1.5
+
+### Changed
+
+- **In the output MPEG-TS, the video is now stream `0:0` and the KLV is `0:1`** —
+  the reverse of every earlier release. A consumer selecting by index now gets
+  the video: `ffmpeg -map 0:0`, where it previously got the metadata stream and
+  needed `-map 0:v`. The change comes from the updated libmisbklv dependency,
+  which reserves the video muxer pad before the KLV appsrc links so the video
+  takes the lower PID.
+
+  This removes a long-standing known limitation rather than introducing a new
+  one, but it is the kind of change that breaks a script that hard-coded
+  `-map 0:0` expecting metadata. Select what you want by stream type if your
+  pipeline must keep working across this release.
+
 ## v0.1.4
 
 ### Changed

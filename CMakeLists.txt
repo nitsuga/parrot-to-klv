@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(parrot-to-klv VERSION 0.1.4 LANGUAGES CXX)
+project(parrot-to-klv VERSION 0.1.5 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -21,8 +21,10 @@ include(FetchContent)
 FetchContent_Declare(
   misbklv
   GIT_REPOSITORY git@github.com:nitsuga/libmisbklv.git
-  # Hermetic upstream tests: committed project-owned synthetic fixtures.
-  GIT_TAG 2533e235d97036f597918ae0268ec4db9d8f2e65
+  # Video-first PMT stream order: the video muxer pad is reserved while the
+  # pipeline is NULL so it takes the lower ES PID (libmisbklv ADR 0020
+  # § Stream order, revised 2026-08-12).
+  GIT_TAG f630d51c17826e2a64d26937a42c88ffd7511a5d
 )
 FetchContent_MakeAvailable(misbklv)
 

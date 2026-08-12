@@ -24,6 +24,12 @@ surface — flags, output, the scrub and conform workflows — is in
 update that makes fresh local and CI dependency fetches faster without changing
 runtime behavior.
 
+**The libmisbklv pin now carries a behavior change: the output announces the
+video as stream `0:0` and the KLV as `0:1`**, so `ffmpeg -map 0:0` selects the
+video. Upstream reserves the video muxer pad while the pipeline is NULL so it
+takes the lower ES PID (libmisbklv ADR 0020 § Stream order, revised 2026-08-12).
+`mux_test` pins the new order. `v0.1.5` distributes this.
+
 The one substantive feature piece left is **fork 4, Tier 2 geometry fidelity**
 — see [ROADMAP](./ROADMAP.md) § Open forks.
 
@@ -51,12 +57,6 @@ The one substantive feature piece left is **fork 4, Tier 2 geometry fidelity**
   glibc floor — a sound argument, not a test. It also pins a build-time
   GStreamer: host security updates do not reach it, a rebuild does
   ([ADR 0009](../context/decisions/0009-release-bundle.md) § Consequences).
-- **The output TS announces the KLV as stream 0 and the video as stream 1**, so
-  a consumer selecting by index (`ffmpeg -map 0:0`) gets the metadata stream.
-  Upstream's muxer orders the PMT by pad-request order and cannot reverse it
-  without dropping the KLV or breaking ST 0604 timing (libmisbklv ADR 0020
-  § Stream order), so this stands. **Select by stream type.** `mux_test` pins it,
-  because an attempt to change it silently emptied our output once.
 - **The `IR` half of `--infer-image-source` has never met a thermal recording.**
   The `EO` half is exercised by fixtures and by real EO flights; that thermal
   imagery always writes the thermal extension is reasoning about the format, not

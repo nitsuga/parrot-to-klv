@@ -5,7 +5,7 @@
 // plus an ST 0601 KLV stream. Three properties, for both supported formats:
 //
 //   1. the output's PMT lists two elementary streams — H.264 video and KLV
-//      (stream type 0x06 with a "KLVA" registration descriptor)
+//      (stream type 0x06 with a "KLVA" registration descriptor), video first
 //   2. every KLV packet read back is byte-identical to what the transform
 //      produced for that sample, in sample order
 //   3. the KLV lands on the source's timeline: each packet comes back at its own
@@ -357,17 +357,20 @@ void check_conversion(const std::string& name, const std::string& mp4,
     check(has_video, name + ": no video elementary stream in the output");
     check(has_klv, name + ": no KLV (0x06 + KLVA) elementary stream in the output");
 
-    // …and the KLV is listed *first*, video second. Upstream's muxer orders the
-    // PMT by pad-request order and cannot request the video pad first without
-    // costing either the KLV stream or ST 0604 timing, so this is a documented
-    // limitation (libmisbklv ADR 0020 § Stream order), not a defect to fix here.
-    // Pinned because a consumer selecting by index gets the metadata stream at
-    // 0:0 — anyone reading this output must select by stream type instead.
+    // …and the video is listed *first*, KLV second. Upstream's muxer reserves
+    // the video muxer pad while the pipeline is NULL so it takes the lower ES
+    // PID, and mpegtsmux orders the PMT by PID — so a consumer selecting by
+    // index gets the video at 0:0 (libmisbklv ADR 0020 § Stream order, revised
+    // 2026-08-12). Pinned because any regression toward the old metadata-first
+    // order is exactly how the KLV stream got emptied once before.
     // `read_pmt` preserves PMT order, so entry 0 is what such a consumer sees.
     if (streams.size() == 2) {
-        check(streams[0].stream_type == 0x06 && streams[0].klva,
-              name + ": PMT no longer lists the KLV first — upstream's stream "
-                     "order changed, which has broken the KLV stream before");
+        bool first_is_video = streams[0].stream_type == 0x1B ||
+                              streams[0].stream_type == 0x24;
+        bool second_is_klv = streams[1].stream_type == 0x06 && streams[1].klva;
+        check(first_is_video && second_is_klv,
+              name + ": PMT stream order regressed to metadata-first, which "
+                     "has broken the KLV stream before");
     }
 
     // 2 and 3. Read the KLV back as a consumer would — bytes and timing both.

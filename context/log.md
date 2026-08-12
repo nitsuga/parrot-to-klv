@@ -5,6 +5,21 @@
      a fuller entry per significant implementation. Routine ingests/lint go here
      too. This is the ONLY home for history — PROGRESS.md is present-tense only. -->
 
+## 2026-08-12
+
+* **Moved the libmisbklv pin to `f630d51c17826e2a64d26937a42c88ffd7511a5d`.**
+  This adopts upstream's video-first PMT stream order: the video muxer pad is
+  reserved while the pipeline is NULL so it takes the lower ES PID, making
+  `ffmpeg -map 0:0` select the video where it previously selected the KLV. The
+  mechanism, and the two earlier attempts that failed with `NOFORMAT`, are
+  owned by libmisbklv ADR 0020 § Stream order (revised 2026-08-12) — a thin
+  pointer here, not a restatement. Our `mux_test` pinned the old order as a
+  known limitation and now pins the new one; README, the packaging usage doc,
+  and the mux-stage concept describe video-first, and PROGRESS's known-gap
+  bullet is gone. The mux stage's public-API usage (`KlvSink` / `Message`) was
+  untouched by the change; the only source edit is the `--help` text, which
+  described the old order. `v0.1.5` distributes this.
+
 ## 2026-08-10
 
 * **README now lists the full build-time and runtime package requirements.**
