@@ -20,15 +20,10 @@ here: [MP4 metadata extraction](../context/mp4-extraction.md),
 surface — flags, output, the scrub and conform workflows — is in
 [`README.md`](../README.md).
 
-**`v0.1.4` is the current release.** It distributes a build-only libmisbklv pin
-update that makes fresh local and CI dependency fetches faster without changing
-runtime behavior.
-
-**The libmisbklv pin now carries a behavior change: the output announces the
-video as stream `0:0` and the KLV as `0:1`**, so `ffmpeg -map 0:0` selects the
-video. Upstream reserves the video muxer pad while the pipeline is NULL so it
-takes the lower ES PID (libmisbklv ADR 0020 § Stream order, revised 2026-08-12).
-`mux_test` pins the new order. `v0.1.5` distributes this.
+**`v0.1.5` is the current release.** It distributes the video-first PMT stream
+order: the output announces the video as stream `0:0` and the KLV as `0:1`, so
+`ffmpeg -map 0:0` selects the video. The mechanism is upstream's (libmisbklv
+ADR 0020 § Stream order, revised 2026-08-12); `mux_test` pins the order.
 
 The one substantive feature piece left is **fork 4, Tier 2 geometry fidelity**
 — see [ROADMAP](./ROADMAP.md) § Open forks.

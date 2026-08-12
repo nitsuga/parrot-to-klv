@@ -7,6 +7,13 @@
 
 ## 2026-08-12
 
+* **`v0.1.5` published.** Tagged at `552573f` after the pin-bump PR (#2) merged
+  and its ordinary CI passed. The tag workflow rebuilt on the 22.04 ABI floor,
+  repeated the bare-24.04 bundle and container-image smoke tests, and published
+  both deliverables with checksums and the hand-written changelog section. This
+  release distributes the video-first PMT stream order (above); it is the first
+  release whose output stream ordering differs from all earlier ones.
+
 * **Moved the libmisbklv pin to `f630d51c17826e2a64d26937a42c88ffd7511a5d`.**
   This adopts upstream's video-first PMT stream order: the video muxer pad is
   reserved while the pipeline is NULL so it takes the lower ES PID, making
