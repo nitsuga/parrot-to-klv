@@ -26,6 +26,21 @@
   Scrubbing updated to match; the ADR register is untouched since this is a bug
   fix closing a gap the docs described as intentional, not a design fork.
 
+* **PR #22 follow-up: the identity/date scrub now handles both ilst entry
+  shapes, and `blank_text` stopped over-counting.** deepseek-v4-flash's PR
+  review caught that `session_metadata.cpp`'s own `entry_text()` accepts a
+  second ilst shape — the string straight in the `<key>` box, no nested `data`
+  box — that the new scrub code never checked; a file written that way kept
+  every identity/date value byte-for-byte while the report claimed a clean
+  scrub. Fixed by falling back to the key box's own body exactly the way
+  `entry_text()` does, and added `test/fixtures/parrot_v3_direct_ilst.mp4`
+  (`make_fixture.py` gained `direct_ilst`/`ilst_entry_direct()`) plus a test
+  asserting the fallback scrubs it. Also fixed the flagged low-severity
+  cosmetic issue: `blank_text` counted every byte written rather than only
+  changed ones, so re-scrubbing an already-blanked file kept inflating
+  `identity_boxes_rewritten`; it now gates on content change like
+  `zero_digits` already did.
+
 * **Moved the libmisbklv pin to `84c7e3663672168d931a36296b864766f654f312`.**
   This adopts upstream's 2026-08-17 review-issue wave (upstream issues #4–#8,
   each landed via a reviewed PR with the full CTest and ASan/UBSan suites

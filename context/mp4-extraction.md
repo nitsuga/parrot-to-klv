@@ -180,7 +180,11 @@ defeats the exercise:
    geotag; the rest have no format worth preserving, so their text is
    overwritten outright (same length, so no box resizes). `©mak` (maker) and
    `©mod` (model, which feeds ST 0601 Item 10) are not identity-bearing and are
-   left alone, along with `©swr` (software version).
+   left alone, along with `©swr` (software version). Handles both ilst entry
+   shapes `entry_text()` above accepts — `<key>` wrapping a `data` box, and a
+   writer that puts the string straight in the `<key>` box — since a scrubber
+   that only handled the common shape would silently leave every value intact
+   on the other one.
 4. **Extensions it cannot decode.** Real ANAFI recordings carry a `0x4536`
    extension in every sample that the reference documentation does not describe.
    Its contents are unknown, and the protobuf schema's LFIC makes position a

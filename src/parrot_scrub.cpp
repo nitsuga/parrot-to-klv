@@ -126,11 +126,15 @@ size_t zero_digits(std::vector<uint8_t>& buf, size_t begin, size_t end) {
 /// Overwrite an identity string with a fixed filler byte, preserving length so
 /// no box needs resizing. Unlike `zero_digits`, nothing here needs to stay
 /// parseable — the field itself is what's sensitive, not just its digits.
+/// Counts only bytes actually changed, like `zero_digits`, so re-scrubbing an
+/// already-blanked file does not keep inflating the report.
 size_t blank_text(std::vector<uint8_t>& buf, size_t begin, size_t end) {
     size_t changed = 0;
     for (size_t i = begin; i < end && i < buf.size(); ++i) {
-        buf[i] = 'X';
-        ++changed;
+        if (buf[i] != 'X') {
+            buf[i] = 'X';
+            ++changed;
+        }
     }
     return changed;
 }
@@ -197,16 +201,24 @@ void scrub_session_boxes(std::vector<uint8_t>& file, ScrubReport& report) {
                 }
             } else if (box.type == kDay || box.type == kToo || box.type == kArt ||
                        box.type == kNam || box.type == kCpy) {
-                // ilst entry: <key> wraps one 'data' box — type(4) locale(4) text.
+                // ilst entry: usually <key> wraps a 'data' box — type(4)
+                // locale(4) text — but some writers put the string straight in
+                // the key box instead. session_metadata's entry_text() accepts
+                // both shapes, so the scrubber has to as well: a file in the
+                // second shape must not look scrubbed while the value survives.
                 Box data;
-                if (read_box(file, box.body_begin, box.body_end, data) && data.type == kData) {
-                    const size_t str = data.body_begin + 8;
-                    if (str < data.body_end) {
-                        const size_t changed = box.type == kDay
-                            ? zero_digits(file, str, data.body_end)
-                            : blank_text(file, str, data.body_end);
-                        if (changed > 0) ++report.identity_boxes_rewritten;
-                    }
+                size_t str = box.body_begin;
+                size_t str_end = box.body_end;
+                if (read_box(file, box.body_begin, box.body_end, data) &&
+                    data.type == kData && data.body_begin + 8 <= data.body_end) {
+                    str = data.body_begin + 8;
+                    str_end = data.body_end;
+                }
+                if (str < str_end) {
+                    const size_t changed = box.type == kDay
+                        ? zero_digits(file, str, str_end)
+                        : blank_text(file, str, str_end);
+                    if (changed > 0) ++report.identity_boxes_rewritten;
                 }
             } else if (box.type == kMoov || box.type == kUdta || box.type == kMeta ||
                        box.type == kIlst) {
