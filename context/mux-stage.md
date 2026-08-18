@@ -155,10 +155,15 @@ outside anything libmisbklv can see from inside one push or one finish:
   the sink had written so far. `main.cpp` installs a handler that only sets a
   flag (`request_mux_interrupt()`, async-signal-safe: a bare write to a
   `sig_atomic_t`); `convert_all()`'s per-sample loop checks it once per
-  iteration and, if set, reports the run as interrupted and stops — the same
-  "decide before `close()`" path above then applies. This is cooperative, not
-  preemptive: a signal that arrives while a single sample is blocked inside
-  the sink's push is not observed until that call returns.
+  iteration and, if set, reports the run as interrupted and stops. `mux_to_ts`
+  checks it once more, immediately before `close()` — a signal arriving after
+  the last sample but during the finish flush is otherwise a gap the
+  per-sample check cannot see, and a file that is complete but for whatever
+  the caller wanted to stop for is still the shape this invariant exists to
+  prevent. Either check feeds the same "decide before `close()`" path above.
+  This is cooperative, not preemptive: a signal that arrives while a single
+  sample is blocked inside the sink's push, or while `close()` itself is
+  draining, is not observed until that call returns.
 
 The guarantee is deliberately limited to a file this run created. If the output
 already existed, the sink must not delete somebody else's file; a failed run may

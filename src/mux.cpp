@@ -245,6 +245,14 @@ MuxReport mux_to_ts(const std::string& input, const std::string& output,
     if (report.error.empty() && report.frames_emitted == 0) {
         report.error = "no metadata sample converted to a KLV packet";
     }
+    // One more check right here: the per-sample loop only sees a signal
+    // between samples, so one arriving during the finish flush below — after
+    // the last sample, before close() runs — would otherwise reach close()
+    // unnoticed and keep a file that is complete but for whatever the caller
+    // wanted to stop for.
+    if (report.error.empty() && g_interrupt_requested) {
+        report.error = "conversion interrupted";
+    }
     if (report.error.empty()) {
         if (auto closed = sink.close(); !closed) {
             report.error = "could not finish the output stream: " +

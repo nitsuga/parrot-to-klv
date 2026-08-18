@@ -540,6 +540,17 @@ int main(int argc, char* argv[]) {
     // (async-signal-safe), so mux_to_ts()'s cooperative check is exercised
     // directly here rather than by delivering a real SIGINT/SIGTERM — the
     // process-wide flag has no reset, so this must run last.
+    //
+    // The flag is checked in two places: once per sample in convert_all()'s
+    // loop, and once more right before close(), so a signal arriving after
+    // the last sample but before the finish flush is not missed either. This
+    // test sets the flag before the call, which the per-sample check catches
+    // on its very first iteration — that is also, unavoidably, the only
+    // deterministic way to test either check without a real race against a
+    // fixture that converts in single-digit milliseconds, so it stands as
+    // regression coverage for both: removing *either* check on its own still
+    // leaves this test green (the other still catches it), but removing both
+    // fails it.
     const std::string interrupted = temp + "/mux_interrupted.ts";
     std::remove(interrupted.c_str());
     request_mux_interrupt();
