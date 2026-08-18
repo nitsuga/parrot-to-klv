@@ -163,8 +163,8 @@ aliases fixes the stated no-in-place policy. A distinct pre-existing output is
 still opened with truncation; preserving it until the scrubbed replacement is
 complete requires a separate transactional write policy.
 
-Two location channels have to be handled, and missing either defeats the
-exercise:
+Location and identity channels have to be handled, and missing any of them
+defeats the exercise:
 
 1. The **v3 telemetry track** — latitude, longitude, altitude, and the
    automation extension's framing-target and flight-destination triples. The
@@ -173,8 +173,15 @@ exercise:
 2. The **`moov/udta` `©xyz` geotag** — an ISO 6709 string Parrot writes
    separately from the telemetry. Scrubbed by zeroing its digits, which
    preserves length (so no box resizes) and yields a valid coordinate.
-
-3. **Extensions it cannot decode.** Real ANAFI recordings carry a `0x4536`
+3. **`moov/udta/meta/ilst`'s identity and date keys** — `©day` (the flight's
+   absolute wall-clock start time), `©too` (serial), `©ART` (friendly name),
+   `©nam` (title — Parrot's own human-readable restatement of `©day`, so it
+   leaks the date too) and `©cpy` (copyright). `©day` is zero-digited like the
+   geotag; the rest have no format worth preserving, so their text is
+   overwritten outright (same length, so no box resizes). `©mak` (maker) and
+   `©mod` (model, which feeds ST 0601 Item 10) are not identity-bearing and are
+   left alone, along with `©swr` (software version).
+4. **Extensions it cannot decode.** Real ANAFI recordings carry a `0x4536`
    extension in every sample that the reference documentation does not describe.
    Its contents are unknown, and the protobuf schema's LFIC makes position a
    plausible guess — so its payload is **blanked by default**, keeping the id and
@@ -191,8 +198,6 @@ scrubbed but still carried real coordinates would be worse than a failure.
 **It does not scrub the imagery.** A video of your street is still a video of
 your street once its coordinates are zeroed. `--zero-media` blanks the video and
 audio payloads (preserving their sizes) for output destined for a repository.
-Session metadata — serial number, friendly name, software version — is also left
-alone; it identifies the aircraft rather than the place.
 
 ## Conformance reports: real-encoder evidence without the recording
 

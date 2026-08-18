@@ -7,6 +7,25 @@
 
 ## 2026-08-18
 
+* **`parrot-scrub` now scrubs session identity and the absolute flight date, not
+  just the geotag.** Fixes issue #12: `©day` (the flight's absolute wall-clock
+  start time), `©too` (serial), `©ART` (friendly name), `©nam` (title, which
+  restates the date in prose) survived every prior scrub untouched, while the
+  printed warning claimed only serial/friendly-name/software-version were left
+  and justified that as "identifies the aircraft, not the location" — silently
+  omitting the timestamp, which the project already treats as excluded by
+  construction in the conformance report. `©day` is zero-digited the same way
+  the `©xyz` geotag already was; the other four have no format worth
+  preserving, so their text is overwritten outright (same length, so no box
+  resizes — `scrub_geotag` is renamed `scrub_session_boxes` to match). `©mak`,
+  `©mod` (feeds ST 0601 Item 4/10) and `©swr` are not identity-bearing and stay
+  untouched; the warning now says so instead of overclaiming. New
+  `ScrubReport::identity_boxes_rewritten` counter, printed by the CLI.
+  `test/parrot_scrub_test.cpp` gained a fixture-string check that none of the
+  original identity/date values survive. `context/mp4-extraction.md` §
+  Scrubbing updated to match; the ADR register is untouched since this is a bug
+  fix closing a gap the docs described as intentional, not a design fork.
+
 * **Moved the libmisbklv pin to `84c7e3663672168d931a36296b864766f654f312`.**
   This adopts upstream's 2026-08-17 review-issue wave (upstream issues #4–#8,
   each landed via a reviewed PR with the full CTest and ASan/UBSan suites
