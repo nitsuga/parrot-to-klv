@@ -5,6 +5,24 @@
      a fuller entry per significant implementation. Routine ingests/lint go here
      too. This is the ONLY home for history — PROGRESS.md is present-tense only. -->
 
+## 2026-08-18
+
+* **Moved the libmisbklv pin to `84c7e3663672168d931a36296b864766f654f312`.**
+  This adopts upstream's 2026-08-17 review-issue wave (upstream issues #4–#8,
+  each landed via a reviewed PR with the full CTest and ASan/UBSan suites
+  green). What touches this project's paths: the gstreamer backend error-path
+  hygiene sweep (`gst_insert`/`gst_video` — internal only, no API change) and
+  the core codec/API polish — `Message::set(1, …)` now returns `Error::ReadOnly`
+  and `Message::encode()` enforces mandatory items on the `create()` path, both
+  inert here since the mux parses existing packets and the transform authors
+  through `LocalSetBuilder`. The rest is out of this project's paths: the
+  `gst_extract` PtsMarks growth bound and malformed-input robustness (TS read
+  side — this project only writes TS), the ST 0903 variable-uint default widths
+  (ADR 0029), and the now-decided non-minimal BER length leniency on read
+  (ADR 0030). Adapting to the new `ReadOnly` enumerator required one source
+  edit: `describe_misbklv_error` gained its switch case, and `mux_test` pins
+  the string. Tool output is unchanged; full CTest green (39/39, both suites).
+
 ## 2026-08-12
 
 * **`v0.1.5` published.** Tagged at `552573f` after the pin-bump PR (#2) merged

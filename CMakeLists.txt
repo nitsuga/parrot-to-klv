@@ -24,7 +24,7 @@ FetchContent_Declare(
   # Video-first PMT stream order: the video muxer pad is reserved while the
   # pipeline is NULL so it takes the lower ES PID (libmisbklv ADR 0020
   # § Stream order, revised 2026-08-12).
-  GIT_TAG f630d51c17826e2a64d26937a42c88ffd7511a5d
+  GIT_TAG 84c7e3663672168d931a36296b864766f654f312
 )
 FetchContent_MakeAvailable(misbklv)
 

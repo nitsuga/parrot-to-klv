@@ -17,6 +17,7 @@ std::string describe_misbklv_error(misbklv::Error error) {
         case misbklv::Error::Unsupported:      return "unsupported by the backend";
         case misbklv::Error::TypeMismatch:     return "value type does not match item";
         case misbklv::Error::ResourceLimit:    return "resource limit exceeded";
+        case misbklv::Error::ReadOnly:         return "item is auto-managed and read-only";
     }
     return "unknown error";
 }

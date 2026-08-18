@@ -71,6 +71,9 @@ void test_error_descriptions() {
     check(describe_misbklv_error(misbklv::Error::ResourceLimit) ==
               "resource limit exceeded",
           "resource-limit errors have a specific diagnostic");
+    check(describe_misbklv_error(misbklv::Error::ReadOnly) ==
+              "item is auto-managed and read-only",
+          "read-only errors have a specific diagnostic");
 }
 
 std::vector<uint8_t> read_file(const std::filesystem::path& path) {

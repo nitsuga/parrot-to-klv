@@ -25,6 +25,11 @@ order: the output announces the video as stream `0:0` and the KLV as `0:1`, so
 `ffmpeg -map 0:0` selects the video. The mechanism is upstream's (libmisbklv
 ADR 0020 § Stream order, revised 2026-08-12); `mux_test` pins the order.
 
+Main additionally carries a build-only libmisbklv pin update (`84c7e366`,
+upstream's 2026-08-17 review-issue wave — gst error-path hygiene, core codec
+hardening). It changes no runtime behavior and does not warrant a release by
+itself.
+
 The one substantive feature piece left is **fork 4, Tier 2 geometry fidelity**
 — see [ROADMAP](./ROADMAP.md) § Open forks.
 
