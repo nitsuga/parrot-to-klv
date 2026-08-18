@@ -691,6 +691,34 @@ def v3_sample(index: int, extensions: bytes = b"") -> bytes:
     return struct.pack(">HH", 0x5033, len(body) // 4) + body
 
 
+def build_out_of_bounds_chunk_offset() -> bytes:
+    """A valid Parrot metadata track, plus a second track whose 'stco' chunk
+    offset (0xFFFFFFF0) points nowhere in this ~1 KB file.
+
+    This is the regression test for the bounds-check hardening in issue #3:
+    `offset + frame_bytes > file.size()` was written as a single comparison
+    that a much larger offset (a 'co64' entry, near UINT64_MAX) could wrap
+    past, then casting the wrapped offset to `long` walks the write out of
+    bounds. That exact wrap turns out not to be reachable in this build --
+    minimp4 refuses to open any file with a 'co64' entry whose upper 32 bits
+    are set at all (MP4D_64BIT_SUPPORTED is off by default here), so a real
+    offset never exceeds 32 bits and the 64-bit addition below cannot
+    overflow. The subtraction-form check lands anyway, as defense in depth
+    against a future minimp4 config or version where that guard is gone; this
+    fixture pins the ordinary case the fix must not regress: an offset
+    genuinely past the end of the file is rejected, and nothing is written.
+    """
+    ftyp = box(b"ftyp", b"isom" + struct.pack(">I", 512) + b"isomiso2avc1mp41")
+    meta_sample = v3_sample(0, timestamp_ext(0))
+    mdat = box(b"mdat", meta_sample)
+    meta_chunk_offset = len(ftyp) + 8
+    traks = meta_trak(1, 2, 30000, [len(meta_sample)], 1000, meta_chunk_offset,
+                      MIME_PREFIX + "com.parrot.videometadata3")
+    traks += video_trak(2, 30000, [32], 1000, 0xFFFFFFF0)
+    moov = box(b"moov", mvhd(30000, 1000, 3) + traks)
+    return ftyp + mdat + moov
+
+
 def main() -> int:
     if len(sys.argv) != 2:
         print(__doc__, file=sys.stderr)
@@ -737,6 +765,9 @@ def main() -> int:
         # the scrubber's fallback for that shape.
         "parrot_v3_direct_ilst.mp4": build(MIME_PREFIX + "com.parrot.videometadata3",
                                            samples, video, direct_ilst=True),
+        # A second track's chunk offset points past the end of the file --
+        # the bounds-check regression test for issue #3.
+        "parrot_out_of_bounds_chunk_offset.mp4": build_out_of_bounds_chunk_offset(),
     }
     # The only fixture whose video track is real H.264 -- the mux stage feeds
     # that stream to gstreamer, which will not accept the dummy bytes above.

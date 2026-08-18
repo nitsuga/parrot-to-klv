@@ -10,7 +10,9 @@
 
 #include <cstdint>
 #include <cstdio>
+#include <fstream>
 #include <iostream>
+#include <iterator>
 #include <string>
 #include <vector>
 
@@ -147,6 +149,40 @@ void test_sample_extraction(const char* dir) {
     check_eq(all.size(), size_t{8}, "extract_all_samples count");
 }
 
+void test_out_of_bounds_chunk_offset_is_rejected(const char* dir) {
+    // The second track's 'stco' chunk offset (0xFFFFFFF0) points past the end
+    // of this ~1 KB file. zero_track_samples() must refuse it and touch
+    // nothing -- the bounds-check hardening in issue #3.
+    //
+    // The wraparound issue #3 originally described needs an offset >= 2^63
+    // (a 'co64' entry with its upper 32 bits set), which minimp4 itself
+    // refuses to open in this build (MP4D_64BIT_SUPPORTED is off by
+    // default), so that specific overflow cannot reach this code today. The
+    // subtraction-form check in zero_track_samples() is still the correct
+    // form regardless; this fixture is the ordinary case it must not
+    // regress.
+    auto extractor =
+        Mp4MetadataExtractor::open(fixture(dir, "parrot_out_of_bounds_chunk_offset.mp4"));
+    check(extractor.has_value(), "out-of-bounds-offset fixture opens");
+    if (!extractor) return;
+
+    std::ifstream in(fixture(dir, "parrot_out_of_bounds_chunk_offset.mp4"), std::ios::binary);
+    std::vector<uint8_t> image((std::istreambuf_iterator<char>(in)),
+                               std::istreambuf_iterator<char>());
+    // Pinned explicitly, not just implied by the later equality check: a
+    // fixture that shrank or grew out from under this test would still pass
+    // `image == before` (both would just be wrong together) without this.
+    check_eq(image.size(), size_t{1151}, "fixture is the expected size");
+    const auto before = image;
+
+    // Track 0 is the metadata track (skipped by callers, same as
+    // parrot_scrub.cpp's --zero-media loop); track 1 is the poisoned one.
+    const uint64_t zeroed = extractor->zero_track_samples(1, image);
+
+    check_eq(zeroed, uint64_t{0}, "poisoned track: nothing zeroed");
+    check(image == before, "poisoned track: file image untouched");
+}
+
 }  // namespace
 
 int main(int argc, char* argv[]) {
@@ -160,6 +196,7 @@ int main(int argc, char* argv[]) {
     test_format_detection(dir);
     test_rejects_non_parrot(dir);
     test_sample_extraction(dir);
+    test_out_of_bounds_chunk_offset_is_rejected(dir);
 
     if (g_failures > 0) {
         std::cerr << "\n" << g_failures << " check(s) failed\n";

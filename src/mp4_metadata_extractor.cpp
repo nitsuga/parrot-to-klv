@@ -280,7 +280,19 @@ uint64_t Mp4MetadataExtractor::zero_track_samples(int track_index,
         const MP4D_file_offset_t offset =
             MP4D_frame_offset(&impl_->demux, static_cast<unsigned>(track_index), i, &frame_bytes,
                               nullptr, nullptr);
-        if (frame_bytes == 0 || offset + frame_bytes > file.size()) {
+        // Subtraction form: `offset` comes from the sample table (stco/co64),
+        // hostile-file-controlled, and is 64-bit wide (MINIMP4_ALLOW_64BIT
+        // defaults on). `offset + frame_bytes` in additive form can wrap past
+        // this check for an offset near UINT64_MAX, and the wrapped value
+        // then casts to a negative `long` below — out of bounds. minimp4
+        // currently refuses to open a file whose 'co64' upper bits are set at
+        // all (MP4D_64BIT_SUPPORTED, unlike MINIMP4_ALLOW_64BIT, is off by
+        // default here), so today `offset` never exceeds 32 bits in
+        // practice; this is defense in depth against that guard changing,
+        // not a live exploit closed. Checking `offset` against `file.size()`
+        // first, then subtracting, cannot overflow either way.
+        if (frame_bytes == 0 || static_cast<uint64_t>(offset) > file.size() ||
+            frame_bytes > file.size() - static_cast<uint64_t>(offset)) {
             continue;
         }
         std::fill_n(file.begin() + static_cast<long>(offset), frame_bytes, uint8_t{0});

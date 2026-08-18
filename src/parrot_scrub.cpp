@@ -282,7 +282,18 @@ ScrubReport scrub_file(const std::string& input, const std::string& output,
             return report;
         }
         const auto [offset, size] = *located;
-        if (offset + size > file.size() || size < kParrotV3BaseSize) {
+        // Subtraction form: `offset` comes from the sample table (stco/co64),
+        // hostile-file-controlled, and is 64-bit wide (MINIMP4_ALLOW_64BIT
+        // defaults on). `offset + size` in additive form can wrap past this
+        // check for an offset near UINT64_MAX, and the wrapped value then
+        // casts to a negative `long` below — out of bounds. minimp4
+        // currently refuses to open a file whose 'co64' upper bits are set
+        // at all (MP4D_64BIT_SUPPORTED, unlike MINIMP4_ALLOW_64BIT, is off by
+        // default here), so today `offset` never exceeds 32 bits in
+        // practice; this is defense in depth against that guard changing,
+        // not a live exploit closed. Checking `offset` against `file.size()`
+        // first, then subtracting, cannot overflow either way.
+        if (offset > file.size() || size > file.size() - offset || size < kParrotV3BaseSize) {
             report.error = "sample " + std::to_string(i) + " lies outside the file";
             return report;
         }

@@ -7,6 +7,29 @@
 
 ## 2026-08-18
 
+* **Bounds checks on hostile sample-table offsets rewritten as subtraction, not
+  addition.** Fixes the cheap half of issue #3:
+  `mp4_metadata_extractor.cpp`'s `zero_track_samples()` and
+  `parrot_scrub.cpp`'s per-sample rewrite loop both checked
+  `offset + size > file.size()`, which can wrap for an `offset` near
+  UINT64_MAX before the following `static_cast<long>(offset)` — a hostile
+  `co64` entry could turn that into a negative-offset OOB write. Investigating
+  a regression fixture for this surfaced that the wrap is not reachable in
+  this build today: minimp4 refuses to open any file with a `co64` entry
+  whose upper 32 bits are nonzero at all (`MP4D_64BIT_SUPPORTED` is off by
+  default and undefined anywhere in this project's CMake), so a real parsed
+  `offset` never exceeds 32 bits, and `offset + size` in 64-bit arithmetic
+  can't overflow at that scale. The subtraction-form check goes in anyway —
+  correct regardless, and it stops relying on a guard this project doesn't
+  control — verified against `test/fixtures/parrot_out_of_bounds_chunk_offset.mp4`
+  (an ordinary out-of-file 32-bit `stco` offset, the case that must still be
+  rejected). `mp4_extraction_test` gained the regression test; both source
+  comments say plainly that this is defense in depth, not a demonstrated
+  exploit closed. `ctest -L parrot`: 15/15 green in both the ordinary and
+  ASan build directories. The other half of #3 — minimp4 accepting tracks
+  with missing/mismatched sample tables — is unaddressed; better paired with
+  #17's malformed-MP4 fixture work.
+
 * **`parrot-scrub` now scrubs session identity and the absolute flight date, not
   just the geotag.** Fixes issue #12: `©day` (the flight's absolute wall-clock
   start time), `©too` (serial), `©ART` (friendly name), `©nam` (title, which
