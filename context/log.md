@@ -7,6 +7,43 @@
 
 ## 2026-08-18
 
+* **Mux stage stops leaving a complete-looking output behind for a signal
+  interruption or a zero-frame conversion.** Fixes issue #10:
+  - `mux_to_ts()` called `sink.close()` unconditionally, then only *afterward*
+    decided whether zero converted frames (or an error the sample loop had
+    already raised) should fail the run. Closing succeeds whenever the video
+    branch alone drains cleanly — libmisbklv has no way to know the KLV side
+    produced nothing — and a successful close clears the sink's "discard on
+    destruction" state, so the file survived next to the error message. Now
+    `report.error` is decided before `close()` is ever called, and `close()`
+    is skipped entirely once an error is set (whichever raised it), letting
+    `KlvSink`'s destructor discard the file exactly the way an in-loop push
+    failure already did.
+  - No SIGINT/SIGTERM handling existed anywhere in `src/`. Default
+    disposition terminates the process immediately, runs no destructors, and
+    leaves whatever the sink had written so far — Ctrl-C on a long flight
+    left a truncated `.ts` indistinguishable from a finished one. `mux.cpp`
+    gained `request_mux_interrupt()`, an async-signal-safe flag setter
+    (`sig_atomic_t`, nothing else) that `convert_all()`'s per-sample loop
+    checks once per iteration; `main.cpp` installs it via `std::signal` for
+    both signals. This is cooperative, not preemptive — a signal arriving
+    while a single sample is blocked inside the sink's push is not observed
+    until that call returns, which is the best available without threading
+    or async cancellation at this layer.
+
+  `test/mux_test.cpp` gained two regression tests: a new fixture
+  (`parrot_v3_video_undecodable_metadata.mp4` — real H.264 video paired with
+  every metadata sample too short to parse) proves the zero-frame path
+  leaves no file, and a direct call to `request_mux_interrupt()` exercises
+  the interruption path deterministically (real signal delivery races a
+  fixture that converts in single-digit milliseconds, so the flag is set
+  directly rather than by sending an actual SIGINT — the process-wide flag
+  has no reset, so that test runs last). Both were verified to fail against
+  the pre-fix code before being confirmed green against the fix.
+  `context/mux-stage.md` § "An error must leave no output file" updated to
+  describe both mechanisms. `ctest -L parrot`: 15/15 green in both the
+  ordinary and ASan build directories.
+
 * **Transform stops fabricating position, AGL, and Item 124 for no-fix and
   invalid frames; a NaN attitude is now reported invalid rather than
   out-of-range.** Fixes issue #6:

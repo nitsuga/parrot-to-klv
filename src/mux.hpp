@@ -62,4 +62,15 @@ struct MuxReport {
 MuxReport mux_to_ts(const std::string& input, const std::string& output,
                     const TransformOptions& options = {});
 
+/// Ask `mux_to_ts()` to stop at the next sample boundary and report the run as
+/// interrupted rather than finishing it, so the output it created is discarded
+/// like any other failed conversion instead of being left half-written.
+///
+/// Async-signal-safe — only sets a `sig_atomic_t` flag — so it is safe to call
+/// from a signal handler. It does not itself install one; `main.cpp` does that
+/// for SIGINT/SIGTERM. A signal that arrives while `mux_to_ts()` is blocked
+/// inside a single sample's push (backpressure on the sink) is not seen until
+/// that call returns — this is cooperative, not preemptive, cancellation.
+void request_mux_interrupt();
+
 }  // namespace parrot_to_klv

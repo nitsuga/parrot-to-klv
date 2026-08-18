@@ -520,6 +520,34 @@ int main(int argc, char* argv[]) {
     check(!failed.error.empty(), "a fixture with no real video should not convert");
     check(!std::ifstream(orphan).good(), "a failed conversion left an output file behind");
 
+    // issue #10: every metadata sample fails to decode, but the video branch
+    // alone drains cleanly — GStreamer's EOS looks like success even though
+    // nothing was actually converted. Before the fix, close() ran anyway and
+    // upstream kept the file; the error was set only after, too late to matter.
+    const std::string undecodable = temp + "/mux_undecodable_metadata.ts";
+    std::remove(undecodable.c_str());
+    const auto nothing_converted =
+        mux_to_ts(fixtures + "/parrot_v3_video_undecodable_metadata.mp4", undecodable);
+    check(!nothing_converted.error.empty(),
+          "a source with no decodable metadata sample should not convert");
+    check(nothing_converted.frames_emitted == 0, "nothing was actually emitted");
+    check(nothing_converted.frames_skipped == nothing_converted.samples_seen,
+          "every sample was skipped, none converted");
+    check(!std::ifstream(undecodable).good(),
+          "a conversion that converted nothing left an output file behind");
+
+    // issue #10, the other finding: a signal handler can only set a flag
+    // (async-signal-safe), so mux_to_ts()'s cooperative check is exercised
+    // directly here rather than by delivering a real SIGINT/SIGTERM — the
+    // process-wide flag has no reset, so this must run last.
+    const std::string interrupted = temp + "/mux_interrupted.ts";
+    std::remove(interrupted.c_str());
+    request_mux_interrupt();
+    const auto stopped = mux_to_ts(fixtures + "/parrot_v3_video.mp4", interrupted);
+    check(!stopped.error.empty(), "an interrupted conversion reports an error");
+    check(!std::ifstream(interrupted).good(),
+          "an interrupted conversion left an output file behind");
+
     if (g_failures == 0) std::cout << "All mux tests passed\n";
     return g_failures == 0 ? 0 : 1;
 }
