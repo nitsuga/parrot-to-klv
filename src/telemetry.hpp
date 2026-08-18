@@ -104,12 +104,16 @@ struct TelemetrySnapshot {
     uint64_t monotonic_us = 0;
 
     // --- sensor position ---
+    /// Empty when the frame reports no fix — proto3 gives its scalars no
+    /// presence bit, so "no fix" and "0°N 0°E" are wire-identical; `from_proto`
+    /// tells them apart before this struct is ever populated.
     std::optional<double> latitude_deg;
     std::optional<double> longitude_deg;
     std::optional<double> altitude_amsl_m;    ///< EGM96
     std::optional<double> altitude_wgs84_m;   ///< ellipsoidal; proto only
     std::optional<uint32_t> sv_count;
-    double ground_distance_m = 0.0;           ///< AGL
+    std::optional<double> ground_distance_m;  ///< AGL; empty under the same
+                                              ///< proto3 zero-is-absent rule
 
     // --- attitude ---
     Quaternion drone_quat;

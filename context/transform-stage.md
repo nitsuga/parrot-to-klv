@@ -81,12 +81,29 @@ values are checked as a consumer sees them rather than as we staged them.
   numbers that are pure noise when the aircraft is stationary, so it is omitted
   below 0.5 m/s rather than reporting a direction of travel that does not exist.
 - **Zero is not a value in proto.** Proto3 gives scalars no presence bit, so
-  Parrot signals "unknown" in band: a zero altitude means no fix, and
-  `utc_timestamp_accuracy == 0` means the UTC stamp is invalid. Both become an
-  empty optional at normalization; treating either as a number would put the
-  aircraft at sea level or stamp the packet with a confident wrong time.
+  Parrot signals "unknown" in band: a zero altitude means no fix,
+  `utc_timestamp_accuracy == 0` means the UTC stamp is invalid, and zero
+  lat/lon (camera and drone both) means no position fix at all — the camera
+  location wins when it alone has a fix, but if neither location has one, Items
+  13/14 stay empty rather than reporting 0°N 0°E. Zero AGL follows the same
+  rule as altitude: it is wire-identical to "not reported," so a landed drone's
+  genuine 0 m reading and a no-data frame cannot be told apart, and the project
+  takes the same tradeoff it already takes for altitude, zoom and the FOVs
+  rather than risk a fabricated ground clearance. All of these become an empty
+  optional at normalization; treating any of them as a number would put the
+  aircraft at sea level, 0°N 0°E, on the ground, or stamp the packet with a
+  confident wrong time.
 - **`asin` is clamped** before computing pitch. A v3 quaternion that is barely
-  non-unit from fixed-point rounding can push the argument past 1 and yield NaN.
+  non-unit from fixed-point rounding can push the argument past 1 and yield NaN
+  anyway — a NaN pitch/roll that reaches `put_narrow_angle` (Items 6/7) is
+  checked for finiteness before the range comparison, not after: `std::abs(NaN)
+  <= limit` is false, so an unguarded comparison falls into the same branch as
+  a genuinely out-of-range angle and mislabels "not a measurement" as
+  "measurement out of range."
+- **Item 124 has no all-zero encoding.** ST 0601.19 §8.124.1 forbids it
+  outright. A frame with `sv_count == 0` still reports Item 123 truthfully —
+  zero satellites in use is a real, valid count — but Item 124 (which
+  constellation) is omitted rather than encoded as the forbidden `0x00`.
 
 ## Invalid values are omissions, not approximations
 

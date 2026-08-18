@@ -87,7 +87,7 @@ base struct (Bebop 2 / Disco / ANAFI). *Session* = untimed MP4 session metadata.
 | 112 | Platform Course Angle | `atan2(speed.east, speed.north)` | same | rad→deg, wrap [0, 360). **Undefined at zero ground speed** — omit below a threshold |
 | 113 | Altitude AGL | `drone.ground_distance` | `ground_distance` (Q16.16) | direct |
 | 123 | Number of NAVSATs in View | `*.location.sv_count` | `altitude_and_sv` bits 7..0 | direct uint8; omit an out-of-range proto count rather than saturating |
-| 124 | Positioning Method Source | derived | derived | Table 10 bit-flags; set bit 1 (GPS) when `sv_count > 0`. Parrot does not say *which* constellation |
+| 124 | Positioning Method Source | derived | derived | Table 10 bit-flags; set bit 1 (GPS) when `sv_count > 0`, omit when 0 — an all-zero value has no meaning under ST 0601.19 §8.124.1. Parrot does not say *which* constellation |
 | 125 | Platform Status | `drone.flying_state` + `piloting_mode` | `state` / `mode` | enum map — below |
 | 126 | Sensor Control Mode | `drone.piloting_mode`, `tracking.state` | `mode` | enum map — below |
 | 134 | Zoom Percentage | `camera.zoom_level` | — | proto only. Parrot's `zoom_level` is a multiplier, 0601 wants IMAPB 0..100 % — needs a defined mapping |
