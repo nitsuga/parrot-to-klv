@@ -169,6 +169,10 @@ void test_out_of_bounds_chunk_offset_is_rejected(const char* dir) {
     std::ifstream in(fixture(dir, "parrot_out_of_bounds_chunk_offset.mp4"), std::ios::binary);
     std::vector<uint8_t> image((std::istreambuf_iterator<char>(in)),
                                std::istreambuf_iterator<char>());
+    // Pinned explicitly, not just implied by the later equality check: a
+    // fixture that shrank or grew out from under this test would still pass
+    // `image == before` (both would just be wrong together) without this.
+    check_eq(image.size(), size_t{1151}, "fixture is the expected size");
     const auto before = image;
 
     // Track 0 is the metadata track (skipped by callers, same as
