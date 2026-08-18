@@ -11,6 +11,7 @@
 #include "transform.hpp"
 
 #include <algorithm>
+#include <csignal>
 #include <cstdint>
 #include <cstdio>
 #include <iomanip>
@@ -199,9 +200,21 @@ void print_usage(std::ostream& out, const char* program) {
         << "  and 0:1 the KLV (ffmpeg -map 0:0 selects the video).\n";
 }
 
+/// Ctrl-C (or a `kill`) mid-conversion must not leave a truncated output that
+/// looks like a finished one. Default disposition terminates the process
+/// immediately — no stack unwinding, so the sink's RAII cleanup never runs.
+/// This handler only sets a flag; `mux_to_ts()` checks it cooperatively
+/// between samples and returns normally, which is what lets that cleanup fire.
+extern "C" void handle_interrupt_signal(int /*signal_number*/) {
+    request_mux_interrupt();
+}
+
 }  // namespace
 
 int main(int argc, char* argv[]) {
+    std::signal(SIGINT, handle_interrupt_signal);
+    std::signal(SIGTERM, handle_interrupt_signal);
+
     std::string input;
     std::string output;
     bool with_location = false;

@@ -791,6 +791,13 @@ def main() -> int:
         fixtures["parrot_v3_video_audio.mp4"] = build(
             MIME_PREFIX + "com.parrot.videometadata3", samples, h264.samples,
             video=h264, audio=aac)
+        # Every metadata sample undecodable (too short for even the base
+        # struct), paired with a video track that mux/decode cleanly -- the
+        # "converted nothing" regression fixture for issue #10: the video
+        # branch alone is enough for GStreamer's EOS to look like success.
+        fixtures["parrot_v3_video_undecodable_metadata.mp4"] = build(
+            MIME_PREFIX + "com.parrot.videometadata3",
+            [b"\xff\xff\xff\xff" for _ in samples], h264.samples, video=h264)
 
     # An H.265 source takes the other branch of fork 7 (ADR 0007): it converts,
     # but carries no ST 0604, because generation is H.264-only upstream and

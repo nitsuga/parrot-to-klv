@@ -121,14 +121,49 @@ A conversion that fails has to leave nothing behind, because a zero-byte `.ts`
 next to an error message reads like a run that half-worked and will be picked up
 by whatever runs next.
 
-**libmisbklv guarantees this for the whole insert session** (its ADR 0022), so
-this stage does no cleanup of its own: a failure in the open, a push or the
-finish all leave no file, and never delete a file the run did not create. That
-guarantee originally covered only the open, which left a real gap — a source
-whose video track is declared but does not actually parse (our own pre-mux
-fixtures, whose "video" is five bytes of `0xDEADBEEF`) opens fine and fails at
-EOS. `mux_test` still asserts the property from this side, since it is this
-tool's promise to its user whoever implements it.
+**libmisbklv guarantees this for the whole insert session** (its ADR 0022): a
+failure in the open, a push, or an unsuccessful finish all leave no file, and
+it never deletes a file the run did not create. `KlvSink`'s destructor is where
+this actually happens — an abandoned or unfinished session has produced only an
+unfinalized file, and the destructor discards it unless `close()`/`finish()`
+already succeeded and cleared that state. That guarantee originally covered
+only the open, which left a real gap — a source whose video track is declared
+but does not actually parse (our own pre-mux fixtures, whose "video" is five
+bytes of `0xDEADBEEF`) opens fine and fails at EOS. `mux_test` still asserts
+the property from this side, since it is this tool's promise to its user
+whoever implements it.
+
+This stage still has two things of its own to get right, because they are
+outside anything libmisbklv can see from inside one push or one finish:
+
+- **Deciding failure *before* calling `close()`, not after.** A run that
+  converts zero frames is a error this project defines — libmisbklv sees a
+  video branch that drained cleanly and calls that a successful finish, which
+  clears its own "discard on destruction" state and keeps the file. `mux_to_ts`
+  computes `report.error` for the zero-frame case (and for any error a sample
+  loop already raised) *before* it calls `close()`, and skips the call
+  entirely when an error is already set — so the sink is destroyed unfinished,
+  and its own destructor discards the file, exactly the same path a mid-loop
+  push failure already took. Calling `close()` unconditionally and only
+  checking `report.error` afterward would leave the video-only, KLV-empty
+  output on disk with a "Conversion failed" message next to it — a
+  complete-looking file next to a lie about it.
+- **SIGINT/SIGTERM.** No process-level signal has any relationship to
+  libmisbklv's destructor-based cleanup unless something turns it into a
+  normal, stack-unwinding return — the default disposition for both signals is
+  immediate termination, which runs no destructors at all and leaves whatever
+  the sink had written so far. `main.cpp` installs a handler that only sets a
+  flag (`request_mux_interrupt()`, async-signal-safe: a bare write to a
+  `sig_atomic_t`); `convert_all()`'s per-sample loop checks it once per
+  iteration and, if set, reports the run as interrupted and stops. `mux_to_ts`
+  checks it once more, immediately before `close()` — a signal arriving after
+  the last sample but during the finish flush is otherwise a gap the
+  per-sample check cannot see, and a file that is complete but for whatever
+  the caller wanted to stop for is still the shape this invariant exists to
+  prevent. Either check feeds the same "decide before `close()`" path above.
+  This is cooperative, not preemptive: a signal that arrives while a single
+  sample is blocked inside the sink's push, or while `close()` itself is
+  draining, is not observed until that call returns.
 
 The guarantee is deliberately limited to a file this run created. If the output
 already existed, the sink must not delete somebody else's file; a failed run may

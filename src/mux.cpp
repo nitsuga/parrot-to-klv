@@ -3,6 +3,7 @@
 
 #include "mux.hpp"
 
+#include <csignal>
 #include <cstdint>
 #include <cstdio>
 #include <iostream>
@@ -26,6 +27,12 @@
 
 namespace parrot_to_klv {
 namespace {
+
+/// Set only from `request_mux_interrupt()` (async-signal-safe: a plain write
+/// to a `sig_atomic_t`, nothing else). Checked once per sample in
+/// `convert_all()`'s loop, which is the only place a long conversion actually
+/// spends time.
+volatile std::sig_atomic_t g_interrupt_requested = 0;
 
 /// True for the sample entry formats that hold H.264.
 ///
@@ -66,6 +73,13 @@ void convert_all(Mp4MetadataExtractor& extractor, const SessionMetadata& session
     }
 
     for (uint32_t i = 0; i < extractor.sample_count() && report.error.empty(); ++i) {
+        if (g_interrupt_requested) {
+            // Turn the signal into a normal, stack-unwinding return: report an
+            // error and stop, same as any other mid-conversion failure, so the
+            // caller skips close() and the sink's destructor discards the file.
+            report.error = "conversion interrupted";
+            break;
+        }
         auto sample = extractor.extract_sample(i);
         if (!sample) {
             ++report.frames_skipped;
@@ -90,6 +104,8 @@ void convert_all(Mp4MetadataExtractor& extractor, const SessionMetadata& session
 }
 
 }  // namespace
+
+void request_mux_interrupt() { g_interrupt_requested = 1; }
 
 MuxReport mux_to_ts(const std::string& input, const std::string& output,
                     const TransformOptions& options) {
@@ -218,12 +234,30 @@ MuxReport mux_to_ts(const std::string& input, const std::string& output,
         std::cerr << "                    \r" << std::flush;  // Clear the "Converting..." line
     }
 
-    if (auto closed = sink.close(); !closed && report.error.empty()) {
-        report.error = "could not finish the output stream: " +
-                       detail::describe_misbklv_error(closed.error());
-    }
+    // Every failure mode above this point — a loop error, an interruption, zero
+    // convertible samples — must be decided *before* close(), not after: close()
+    // finishing successfully is what tells the sink to keep the file it wrote
+    // (upstream clears its "created by us" flag on a clean finish), so calling
+    // it after the fact and only checking `report.error` for a message would
+    // leave a complete-looking but wrong output on disk. Skipping close()
+    // entirely leaves the sink unfinished, and its destructor discards the file
+    // it created — the same path a mid-loop emit failure already took.
     if (report.error.empty() && report.frames_emitted == 0) {
         report.error = "no metadata sample converted to a KLV packet";
+    }
+    // One more check right here: the per-sample loop only sees a signal
+    // between samples, so one arriving during the finish flush below — after
+    // the last sample, before close() runs — would otherwise reach close()
+    // unnoticed and keep a file that is complete but for whatever the caller
+    // wanted to stop for.
+    if (report.error.empty() && g_interrupt_requested) {
+        report.error = "conversion interrupted";
+    }
+    if (report.error.empty()) {
+        if (auto closed = sink.close(); !closed) {
+            report.error = "could not finish the output stream: " +
+                           detail::describe_misbklv_error(closed.error());
+        }
     }
     return report;
 }
