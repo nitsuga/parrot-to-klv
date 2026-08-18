@@ -28,8 +28,9 @@ void usage(const char* argv0) {
         << "                  are unknown and may include position; the output is then\n"
         << "                  NOT scrubbed. For studying an extension, not for sharing.\n\n"
         << "Scrubs: the v3 telemetry track (latitude, longitude, altitude, and the\n"
-        << "automation extension's target coordinates) and any ISO 6709 geotag in\n"
-        << "moov/udta.\n\n"
+        << "automation extension's target coordinates); any ISO 6709 geotag in\n"
+        << "moov/udta; and moov/udta/meta/ilst's media date, serial number,\n"
+        << "friendly name, title and copyright.\n\n"
         << "Does NOT scrub the imagery. A video of your street is still a video of\n"
         << "your street after its coordinates are zeroed — pass --zero-media when the\n"
         << "output is going into a repository.\n";
@@ -74,6 +75,7 @@ int main(int argc, char* argv[]) {
     }
     std::cout << "\n";
     std::cout << "Geotag boxes rewritten: " << report.geotag_boxes_rewritten << "\n";
+    std::cout << "Identity boxes rewritten: " << report.identity_boxes_rewritten << "\n";
     if (!report.unknown_extension_ids.empty()) {
         std::cout << "Undecoded extension(s) found:";
         for (uint16_t id : report.unknown_extension_ids) {

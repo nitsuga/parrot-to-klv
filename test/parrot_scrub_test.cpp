@@ -180,6 +180,10 @@ void test_scrub_replaces_location() {
     check_eq(report.samples_rewritten, uint32_t{8}, "every sample rewritten");
     check_eq(report.automation_extensions_rewritten, uint32_t{8}, "automation exts rewritten");
     check_eq(report.geotag_boxes_rewritten, uint32_t{1}, "geotag rewritten");
+    // '©day', '©too', '©ART', '©nam' — the identity/date keys the fixture's
+    // session_udta() writes. '©mak', '©mod', '©swr' are not identity-bearing
+    // and are left alone.
+    check_eq(report.identity_boxes_rewritten, uint32_t{4}, "identity boxes rewritten");
 
     // Size must be identical — the scrub patches in place so every box offset
     // and sample table in the file stays valid.
@@ -249,6 +253,51 @@ void test_original_coordinates_absent() {
     const std::string text(reinterpret_cast<const char*>(data.data()), data.size());
     check(text.find("48.85837") == std::string::npos, "geotag latitude digits gone");
     check(text.find("002.29448") == std::string::npos, "geotag longitude digits gone");
+}
+
+void test_identity_and_date_scrubbed() {
+    const std::string out = temp("scrubbed_identity.mp4");
+    const auto report = scrub_file(fixture("parrot_v3_extensions.mp4"), out, ScrubOptions{});
+    check(report.ok, "scrub succeeds");
+    if (!report.ok) return;
+
+    const auto data = read_file(out);
+    const std::string text(reinterpret_cast<const char*>(data.data()), data.size());
+    // Values session_udta() in make_fixture.py writes — none may survive.
+    check(text.find("ANAFI-G059745") == std::string::npos, "friendly name gone");
+    check(text.find("PI040416BA8G059745") == std::string::npos, "serial number gone");
+    check(text.find("2018-10-06") == std::string::npos, "media date digits gone");
+    check(text.find("06 Oct 2018") == std::string::npos, "title's restated date gone");
+    // Maker and model are not identity-bearing (model feeds ST 0601 Item 10)
+    // and must survive untouched.
+    check(text.find("Parrot") != std::string::npos, "maker preserved");
+    check(text.find("Anafi") != std::string::npos, "model preserved");
+}
+
+void test_identity_scrubbed_in_direct_ilst_shape() {
+    // Some writers put the ilst string straight in the <key> box instead of
+    // wrapping it in a 'data' box — session_metadata's entry_text() accepts
+    // both, so the scrubber must too, or this shape silently keeps its
+    // identity fields while the report claims a clean scrub.
+    const std::string out = temp("scrubbed_direct_ilst.mp4");
+    const auto report = scrub_file(fixture("parrot_v3_direct_ilst.mp4"), out, ScrubOptions{});
+    check(report.ok, "scrub succeeds on direct-ilst fixture");
+    if (!report.ok) return;
+
+    check_eq(report.identity_boxes_rewritten, uint32_t{4},
+             "identity boxes rewritten in direct-ilst shape");
+
+    const auto data = read_file(out);
+    const std::string text(reinterpret_cast<const char*>(data.data()), data.size());
+    check(text.find("ANAFI-G059745") == std::string::npos,
+          "direct-ilst: friendly name gone");
+    check(text.find("PI040416BA8G059745") == std::string::npos,
+          "direct-ilst: serial number gone");
+    check(text.find("2018-10-06") == std::string::npos, "direct-ilst: media date digits gone");
+    check(text.find("06 Oct 2018") == std::string::npos,
+          "direct-ilst: title's restated date gone");
+    check(text.find("Parrot") != std::string::npos, "direct-ilst: maker preserved");
+    check(text.find("Anafi") != std::string::npos, "direct-ilst: model preserved");
 }
 
 void test_zero_media() {
@@ -379,6 +428,8 @@ int main(int argc, char* argv[]) {
     test_refuses_input_output_aliases();
     test_scrub_replaces_location();
     test_original_coordinates_absent();
+    test_identity_and_date_scrubbed();
+    test_identity_scrubbed_in_direct_ilst_shape();
     test_zero_media();
     test_refuses_what_it_cannot_scrub();
     test_unknown_extension_payload_is_cleared();

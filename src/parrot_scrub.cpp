@@ -123,6 +123,22 @@ size_t zero_digits(std::vector<uint8_t>& buf, size_t begin, size_t end) {
     return changed;
 }
 
+/// Overwrite an identity string with a fixed filler byte, preserving length so
+/// no box needs resizing. Unlike `zero_digits`, nothing here needs to stay
+/// parseable — the field itself is what's sensitive, not just its digits.
+/// Counts only bytes actually changed, like `zero_digits`, so re-scrubbing an
+/// already-blanked file does not keep inflating the report.
+size_t blank_text(std::vector<uint8_t>& buf, size_t begin, size_t end) {
+    size_t changed = 0;
+    for (size_t i = begin; i < end && i < buf.size(); ++i) {
+        if (buf[i] != 'X') {
+            buf[i] = 'X';
+            ++changed;
+        }
+    }
+    return changed;
+}
+
 struct Box {
     uint32_t type = 0;
     size_t body_begin = 0;
@@ -147,21 +163,31 @@ bool read_box(const std::vector<uint8_t>& b, size_t pos, size_t limit, Box& out)
     return true;
 }
 
-/// Find 'moov'/'udta' and zero any geotag it holds.
+/// Find 'moov'/'udta' and zero the geotag and identity boxes it holds.
 ///
 /// Parrot writes the recording's position into a '©xyz' box as an ISO 6709
-/// string — a location leak entirely separate from the telemetry track, and one
-/// that survives every metadata-level scrub.
-void scrub_geotag(std::vector<uint8_t>& file, ScrubReport& report) {
+/// string — a location leak entirely separate from the telemetry track, and
+/// one that survives every metadata-level scrub. The same `udta/meta/ilst`
+/// carries device- and flight-identifying strings alongside it: '©day' is the
+/// flight's absolute wall-clock start time, and '©too'/'©ART'/'©nam'/'©cpy'
+/// are the airframe serial, friendly name, title and copyright — title in
+/// particular is Parrot's own human-readable rendering of the same date.
+void scrub_session_boxes(std::vector<uint8_t>& file, ScrubReport& report) {
     const uint32_t kMoov = fourcc("moov");
     const uint32_t kUdta = fourcc("udta");
     const uint32_t kMeta = fourcc("meta");
     const uint32_t kIlst = fourcc("ilst");
-    // '©xyz' — 0xA9 is the copyright sign, then 'x' 'y' 'z'. Not expressible
+    const uint32_t kData = fourcc("data");
+    // '©' (0xA9, the copyright sign) prefixes each key below; not expressible
     // through fourcc(), whose argument is a plain char literal.
     const uint32_t kXyz = 0xA978797Au;
+    const uint32_t kDay = 0xA9646179u;   // media date
+    const uint32_t kToo = 0xA9746F6Fu;   // serial number
+    const uint32_t kArt = 0xA9415254u;   // friendly name
+    const uint32_t kNam = 0xA96E616Du;   // title
+    const uint32_t kCpy = 0xA9637079u;   // copyright
 
-    // Recurse through moov -> udta -> (meta -> ilst) looking for ©xyz.
+    // Recurse through moov -> udta -> (meta -> ilst) looking for these keys.
     const auto walk = [&](auto&& self, size_t begin, size_t end, int depth) -> void {
         if (depth > 6) return;
         size_t pos = begin;
@@ -172,6 +198,27 @@ void scrub_geotag(std::vector<uint8_t>& file, ScrubReport& report) {
                 const size_t str = box.body_begin + 4;
                 if (str < box.body_end && zero_digits(file, str, box.body_end) > 0) {
                     ++report.geotag_boxes_rewritten;
+                }
+            } else if (box.type == kDay || box.type == kToo || box.type == kArt ||
+                       box.type == kNam || box.type == kCpy) {
+                // ilst entry: usually <key> wraps a 'data' box — type(4)
+                // locale(4) text — but some writers put the string straight in
+                // the key box instead. session_metadata's entry_text() accepts
+                // both shapes, so the scrubber has to as well: a file in the
+                // second shape must not look scrubbed while the value survives.
+                Box data;
+                size_t str = box.body_begin;
+                size_t str_end = box.body_end;
+                if (read_box(file, box.body_begin, box.body_end, data) &&
+                    data.type == kData && data.body_begin + 8 <= data.body_end) {
+                    str = data.body_begin + 8;
+                    str_end = data.body_end;
+                }
+                if (str < str_end) {
+                    const size_t changed = box.type == kDay
+                        ? zero_digits(file, str, str_end)
+                        : blank_text(file, str, str_end);
+                    if (changed > 0) ++report.identity_boxes_rewritten;
                 }
             } else if (box.type == kMoov || box.type == kUdta || box.type == kMeta ||
                        box.type == kIlst) {
@@ -262,7 +309,7 @@ ScrubReport scrub_file(const std::string& input, const std::string& output,
         ++report.samples_rewritten;
     }
 
-    scrub_geotag(file, report);
+    scrub_session_boxes(file, report);
 
     if (options.zero_media) {
         FILE* raw = std::fopen(input.c_str(), "rb");
@@ -282,8 +329,8 @@ ScrubReport scrub_file(const std::string& input, const std::string& output,
     }
 
     report.warnings.push_back(
-        "session metadata (serial number, friendly name, software version) is not "
-        "scrubbed; it identifies the aircraft, not the location.");
+        "maker, model, and software version are not scrubbed; they identify the "
+        "aircraft type, not this specific airframe or flight.");
 
     if (!report.unknown_extension_ids.empty() && !options.zero_unknown_extensions) {
         std::string ids;

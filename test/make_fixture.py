@@ -180,7 +180,16 @@ def ilst_entry(key: bytes, text: str) -> bytes:
     return box(key, data)
 
 
-def session_udta(iso6709: str) -> bytes:
+def ilst_entry_direct(key: bytes, text: str) -> bytes:
+    """One moov/udta/meta/ilst tag using the direct-string shape some writers
+    use instead: the string sits straight in the <key> box, no nested 'data'
+    box. session_metadata's entry_text() accepts this as a fallback, so the
+    scrubber must too.
+    """
+    return box(key, text.encode())
+
+
+def session_udta(iso6709: str, direct_ilst: bool = False) -> bytes:
     """moov/udta carrying the geotag plus Parrot's four-character session tags.
 
     Parrot writes the session metadata two ways -- these iTunes-style keys under
@@ -189,16 +198,20 @@ def session_udta(iso6709: str) -> bytes:
 
     Note the geotag sits in 'udta' directly, NOT in the ilst -- Parrot does that
     for Android compatibility, and a parser looking only inside ilst misses it.
+
+    `direct_ilst` swaps every entry to the shape `ilst_entry_direct()` builds,
+    for fixtures exercising that fallback.
     """
+    entry = ilst_entry_direct if direct_ilst else ilst_entry
     geo = box(b"\xa9xyz", struct.pack(">HH", len(iso6709), 0x15C7) + iso6709.encode())
     ilst = box(b"ilst",
-               ilst_entry(b"\xa9ART", "ANAFI-G059745")      # friendly name
-               + ilst_entry(b"\xa9mak", "Parrot")            # maker
-               + ilst_entry(b"\xa9mod", "Anafi")             # model -> Item 10
-               + ilst_entry(b"\xa9too", "PI040416BA8G059745")  # serial -> Item 4
-               + ilst_entry(b"\xa9swr", "1.3.0")             # software version
-               + ilst_entry(b"\xa9nam", "Sat, 06 Oct 2018 18:12:52 +0200")
-               + ilst_entry(b"\xa9day", "2018-10-06T18:12:52+02:00"))  # media date
+               entry(b"\xa9ART", "ANAFI-G059745")      # friendly name
+               + entry(b"\xa9mak", "Parrot")            # maker
+               + entry(b"\xa9mod", "Anafi")             # model -> Item 10
+               + entry(b"\xa9too", "PI040416BA8G059745")  # serial -> Item 4
+               + entry(b"\xa9swr", "1.3.0")             # software version
+               + entry(b"\xa9nam", "Sat, 06 Oct 2018 18:12:52 +0200")
+               + entry(b"\xa9day", "2018-10-06T18:12:52+02:00"))  # media date
     # 'meta' is a FullBox: version/flags precede its children.
     meta = box(b"meta", struct.pack(">I", 0) + ilst)
     return box(b"udta", geo + meta)
@@ -207,6 +220,7 @@ def session_udta(iso6709: str) -> bytes:
 def build(mime: str, samples: list[bytes], video_samples: list[bytes],
           timescale: int = 30000, delta: int = 1000,
           content_encoding: str = "", session: bool = True,
+          direct_ilst: bool = False,
           video: "H264Track | None" = None,
           audio: "AacTrack | None" = None) -> bytes:
     """Assemble ftyp + mdat + moov. mdat first so chunk offsets are known up front.
@@ -237,8 +251,8 @@ def build(mime: str, samples: list[bytes], video_samples: list[bytes],
         traks += audio_trak(3, audio.sample_rate, [len(s) for s in audio.samples],
                             1024, audio_chunk_offset, audio.asc, audio.channels)
     moov = box(b"moov", mvhd(timescale, duration, 4 if audio else 3)
-               + (session_udta("+48.85837+002.29448+135.250/") if session
-                  else geotag("+48.85837+002.29448+135.250/"))
+               + (session_udta("+48.85837+002.29448+135.250/", direct_ilst=direct_ilst)
+                  if session else geotag("+48.85837+002.29448+135.250/"))
                + traks)
     return ftyp + mdat + moov
 
@@ -718,6 +732,11 @@ def main() -> int:
         # A metadata track that is not Parrot's -- must be rejected, not guessed.
         "foreign_meta.mp4": build("application/octet-stream;type=com.example.telemetry",
                                   samples, video),
+        # Session metadata written with the direct-string ilst shape (no nested
+        # 'data' box) instead of the usual one -- exercises entry_text()'s and
+        # the scrubber's fallback for that shape.
+        "parrot_v3_direct_ilst.mp4": build(MIME_PREFIX + "com.parrot.videometadata3",
+                                           samples, video, direct_ilst=True),
     }
     # The only fixture whose video track is real H.264 -- the mux stage feeds
     # that stream to gstreamer, which will not accept the dummy bytes above.

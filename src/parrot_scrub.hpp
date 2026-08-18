@@ -46,6 +46,9 @@ struct ScrubReport {
     uint32_t samples_rewritten = 0;
     uint32_t automation_extensions_rewritten = 0;
     uint32_t geotag_boxes_rewritten = 0;
+    /// '©day' (media date), '©too' (serial), '©ART' (friendly name), '©nam'
+    /// (title) and '©cpy' (copyright) boxes rewritten.
+    uint32_t identity_boxes_rewritten = 0;
     uint64_t media_bytes_zeroed = 0;
     uint32_t unknown_extension_payloads_zeroed = 0;
     /// Distinct extension ids encountered that this tool does not decode.
@@ -58,8 +61,8 @@ struct ScrubReport {
     std::vector<std::string> warnings;
 };
 
-/// Copy `input` to `output`, replacing location-bearing fields with synthetic
-/// values.
+/// Copy `input` to `output`, replacing location-bearing and identity-bearing
+/// fields with synthetic values.
 ///
 /// Byte-for-byte copy plus in-place field overwrites: sample sizes never change,
 /// so every box, table and offset in the file survives untouched. That keeps the
