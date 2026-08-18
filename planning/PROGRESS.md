@@ -27,8 +27,12 @@ ADR 0020 § Stream order, revised 2026-08-12); `mux_test` pins the order.
 
 Main additionally carries a build-only libmisbklv pin update (`84c7e366`,
 upstream's 2026-08-17 review-issue wave — gst error-path hygiene, core codec
-hardening). It changes no runtime behavior and does not warrant a release by
-itself.
+hardening) and four merged fixes from an automated review round (issues #3,
+#6, #10, #12; see `context/log.md`'s 2026-08-18 entries for detail): a
+scrub identity/date gap, a hostile-offset bounds-check hardening, transform
+fabrication/spec-violation fixes, and a mux invariant restore (signal
+handling, zero-frame conversions). All are runtime-behavior changes and
+together are release-worthy; no release has been cut for them yet.
 
 The one substantive feature piece left is **fork 4, Tier 2 geometry fidelity**
 — see [ROADMAP](./ROADMAP.md) § Open forks.
