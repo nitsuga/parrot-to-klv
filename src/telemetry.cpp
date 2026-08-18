@@ -215,17 +215,26 @@ TelemetrySnapshot from_proto(const ParrotProtoFrame& f) {
         s.utc_timestamp_us = f.utc_timestamp_us;
     }
 
-    // Prefer the camera's own position; fall back to the drone's.
+    // Prefer the camera's own position; fall back to the drone's. Zero
+    // lat/lon is proto3's absent-value sentinel (no scalar presence bit) —
+    // when neither location has a fix, leaving both optionals empty stops a
+    // GPS-denied frame from reporting a confident 0°N 0°E.
     const bool camera_has_fix =
         f.camera_location.latitude_deg != 0.0 || f.camera_location.longitude_deg != 0.0;
     const ProtoLocation& location = camera_has_fix ? f.camera_location : f.drone_location;
-    s.latitude_deg = location.latitude_deg;
-    s.longitude_deg = location.longitude_deg;
+    const bool has_fix = location.latitude_deg != 0.0 || location.longitude_deg != 0.0;
+    if (has_fix) {
+        s.latitude_deg = location.latitude_deg;
+        s.longitude_deg = location.longitude_deg;
+    }
     s.altitude_amsl_m = altitude_or_unknown(location.altitude_egm96_m);
     // The reason proto is worth parsing separately: both datums, no geoid model.
     s.altitude_wgs84_m = altitude_or_unknown(location.altitude_wgs84_m);
     s.sv_count = location.sv_count;
-    s.ground_distance_m = f.ground_distance_m;
+    // Same proto3 sentinel: a landed drone can genuinely read 0 m AGL, but
+    // wire-identical to "not reported", same tradeoff this project already
+    // accepts for altitude, zoom, and the FOVs below.
+    if (f.ground_distance_m != 0.0) s.ground_distance_m = f.ground_distance_m;
 
     s.drone_quat = f.drone_quat;
     s.frame_quat = f.frame_quat;

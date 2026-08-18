@@ -7,6 +7,55 @@
 
 ## 2026-08-18
 
+* **Transform stops fabricating position, AGL, and Item 124 for no-fix and
+  invalid frames; a NaN attitude is now reported invalid rather than
+  out-of-range.** Fixes issue #6:
+  - `from_proto()` treated proto3's zero-lat/lon absent-value sentinel as a
+    real fix only for the camera-vs-drone choice, then assigned whichever
+    location it picked unconditionally — so a genuinely no-fix frame (both
+    locations zero) reported a confident 0°N 0°E. `TelemetrySnapshot::
+    latitude_deg`/`longitude_deg` now stay empty when neither location has a
+    fix, and `transform.cpp`'s existing `if (s.latitude_deg) ...` guards on
+    Items 13/14 needed no change — they were already correct once given an
+    honest optional.
+  - `ground_distance_m` was a bare `double`, so Item 113 was unconditionally
+    emitted even at the same zero-sentinel value; it is now
+    `std::optional<double>`, empty under proto's zero-is-absent rule
+    (matching altitude/zoom/FOV, and the same known tradeoff: a landed
+    drone's true 0 m AGL is indistinguishable from no data). v3's AGL keeps
+    its prior always-present behavior — v3 has no documented no-fix
+    sentinel, and guessing one wasn't in scope for this fix.
+  - Item 124 was encoded as `0x00` whenever `sv_count` was present but zero,
+    which ST 0601.19 §8.124.1 forbids outright ("a value with all bits set
+    to zero ... is not allowed"). Now omitted (`UndefinedForFrame`) in that
+    case; Item 123 still reports the true zero count.
+  - `put_narrow_angle()` (Items 6/7) compared `std::abs(degrees) <= limit`
+    without a finiteness check first; a NaN pitch/roll (reachable from an
+    unchecked proto wire float, or asin's clamp guard not catching every
+    path) is neither true nor false under that comparison and fell into the
+    out-of-range `0x8000` sentinel branch. Now checked with `std::isfinite`
+    first and handed to `put()`, which already treats non-finite as
+    `InvalidSourceValue` — matching how Items 5/90/91 already behaved.
+
+  **Deliberately not touched:** the v3 path has the same shape as a
+  no-fix-sentinel question (`from_v3` assigns `latitude_deg`/`longitude_deg`
+  unconditionally too), but v3 is a fixed binary format with no documented
+  "0 means no fix" convention anywhere in the reference docs or this
+  project's own knowledge base — unlike proto's explicit no-presence-bit
+  design. Guessing one risks turning a legitimate v3 reading of exactly
+  0°N 0°E into a fabricated omission, which is the same class of error this
+  fix closes, just inverted. Left open rather than guessed at.
+
+  `transform_test` gained three regression tests
+  (`check_no_fix_proto_frame_omits_position_and_agl`,
+  `check_zero_sv_count_omits_item_124`,
+  `check_nan_attitude_is_invalid_not_out_of_range`); each was verified to
+  fail against the pre-fix code before being confirmed green against the
+  fix. `context/transform-stage.md` § "Zero is not a value in proto" and the
+  invalid-values section, and `field-mapping-analysis.md`'s Item 124 row,
+  updated to match. `ctest -L parrot`: 15/15 green in both the ordinary and
+  ASan build directories.
+
 * **Bounds checks on hostile sample-table offsets rewritten as subtraction, not
   addition.** Fixes the cheap half of issue #3:
   `mp4_metadata_extractor.cpp`'s `zero_track_samples()` and

@@ -657,6 +657,70 @@ void check_navsat_count_rejection_policy() {
           "NAVSAT count report does not claim the value was absent");
 }
 
+void check_no_fix_proto_frame_omits_position_and_agl() {
+    // A default-constructed proto frame is exactly a no-fix, no-ground-sensor
+    // frame: proto3 gives its scalars no presence bit, so zero lat/lon/AGL is
+    // wire-identical to "not reported" in both camera_location and
+    // drone_location. This must not become a confident 0°N 0°E at 0 m AGL.
+    ParrotProtoFrame frame;
+    frame.drone_quat = identity();
+    frame.frame_quat = identity();
+    const auto snapshot = from_proto(frame);
+    check(!snapshot.latitude_deg.has_value(), "no-fix frame: latitude is absent, not 0.0");
+    check(!snapshot.longitude_deg.has_value(), "no-fix frame: longitude is absent, not 0.0");
+    check(!snapshot.ground_distance_m.has_value(), "no-fix frame: AGL is absent, not 0.0");
+
+    const auto klv = to_0601(snapshot);
+    const auto decoded = decode_packet(klv.packet);
+    check(klv.coverage.omitted.at(13) == OmissionReason::SourceAbsent,
+          "Item 13 omitted as absent, not fabricated");
+    check(klv.coverage.omitted.at(14) == OmissionReason::SourceAbsent,
+          "Item 14 omitted as absent, not fabricated");
+    check(klv.coverage.omitted.at(113) == OmissionReason::SourceAbsent,
+          "Item 113 omitted as absent, not fabricated");
+    check(decoded.reals.count(13) == 0, "no-fix frame emits no Item 13");
+    check(decoded.reals.count(14) == 0, "no-fix frame emits no Item 14");
+    check(decoded.reals.count(113) == 0, "no-fix frame emits no Item 113");
+}
+
+void check_zero_sv_count_omits_item_124() {
+    // sv_count present but 0 (a GPS-denied frame that still reports "zero
+    // satellites") is a real, valid Item 123 value -- but ST 0601.19 §8.124.1
+    // forbids an all-zero Item 124: it has no meaning and is not allowed.
+    auto snapshot = base_v3_snapshot();
+    snapshot.sv_count = 0;
+    const auto klv = to_0601(snapshot);
+    const auto decoded = decode_packet(klv.packet);
+    check(decoded.uints.count(123) == 1 && decoded.uints.at(123) == 0,
+          "Item 123 still reports zero satellites");
+    check(klv.coverage.omitted.count(124) == 1,
+          "Item 124 is omitted rather than emitted as the forbidden 0x00");
+    check(decoded.uints.count(124) == 0, "no Item 124 in the packet");
+}
+
+void check_nan_attitude_is_invalid_not_out_of_range() {
+    // A NaN component (reachable from an unchecked proto wire float) makes
+    // to_euler()'s pitch/roll NaN. std::abs(NaN) <= limit is false, so an
+    // unguarded put_narrow_angle would fall through to the "out-of-range"
+    // 0x8000 sentinel -- but NaN is not a measurement that is out of range.
+    auto snapshot = base_v3_snapshot();
+    snapshot.drone_quat = Quaternion{std::nan(""), 0.0, 0.0, 1.0};
+    snapshot.frame_quat = snapshot.drone_quat;
+
+    const auto klv = to_0601(snapshot);
+    const auto decoded = decode_packet(klv.packet);
+    check(klv.coverage.omitted.at(6) == OmissionReason::InvalidSourceValue,
+          "Item 6 (NaN pitch) is invalid, not out-of-range");
+    check(klv.coverage.omitted.at(7) == OmissionReason::InvalidSourceValue,
+          "Item 7 (NaN roll) is invalid, not out-of-range");
+    check(decoded.raw_len.count(6) == 0, "no Item 6 in the packet");
+    check(decoded.raw_len.count(7) == 0, "no Item 7 in the packet");
+    check(klv.coverage.emitted.count(6) == 0,
+          "Item 6 is not reported emitted with the out-of-range special");
+    check(klv.coverage.emitted.count(7) == 0,
+          "Item 7 is not reported emitted with the out-of-range special");
+}
+
 }  // namespace
 
 int main() {
@@ -676,6 +740,9 @@ int main() {
     check_air_speed_rejection_policy(-1.0, "negative air speed");
     check_air_speed_rejection_policy(300.0, "over-ceiling air speed");
     check_navsat_count_rejection_policy();
+    check_no_fix_proto_frame_omits_position_and_agl();
+    check_zero_sv_count_omits_item_124();
+    check_nan_attitude_is_invalid_not_out_of_range();
 
     if (g_failures > 0) {
         std::cerr << g_failures << " check(s) failed\n";

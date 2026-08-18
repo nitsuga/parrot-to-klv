@@ -160,6 +160,14 @@ private:
 /// produced the clamped value (ADR 0008). Fidelity lives in Items 90/91.
 void put_narrow_angle(Staging& staging, uint16_t tag, double degrees, double limit,
                       bool clamp) {
+    if (!std::isfinite(degrees)) {
+        // std::abs(NaN) <= limit is false, which would otherwise fall through
+        // to the out-of-range sentinel below — but NaN is not a measurement
+        // that is out of range, it is not a measurement at all. Let put()
+        // apply its own NaN/inf-is-invalid handling instead.
+        staging.put(tag, degrees);
+        return;
+    }
     if (std::abs(degrees) <= limit) {
         staging.put(tag, degrees);
     } else if (clamp) {
@@ -398,14 +406,22 @@ Klv0601Frame to_0601(const TelemetrySnapshot& s, const SessionMetadata* session,
     }
 
     // --- Item 113, AGL ---
-    staging.put(113, s.ground_distance_m);
+    if (s.ground_distance_m) staging.put(113, *s.ground_distance_m);
+    else coverage.omitted[113] = OmissionReason::SourceAbsent;
 
     // --- Items 123/124, navigation satellites ---
     if (s.sv_count) {
         staging.put_uint(123, *s.sv_count);
-        // Table 10 bit 1 is NAVSAT-GPS. Parrot does not say which constellation
-        // the fix came from, so only that bit is claimed.
-        staging.put_uint(124, *s.sv_count > 0 ? 0x02 : 0x00);
+        if (*s.sv_count > 0) {
+            // Table 10 bit 1 is NAVSAT-GPS. Parrot does not say which
+            // constellation the fix came from, so only that bit is claimed.
+            staging.put_uint(124, 0x02);
+        } else {
+            // ST 0601.19 §8.124.1: all bits zero has no meaning and is not
+            // allowed. Zero satellites in use says nothing about which
+            // constellation, so omit rather than emit the forbidden code.
+            coverage.omitted[124] = OmissionReason::UndefinedForFrame;
+        }
     } else {
         coverage.omitted[123] = OmissionReason::SourceAbsent;
         coverage.omitted[124] = OmissionReason::SourceAbsent;
