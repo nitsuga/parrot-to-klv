@@ -305,7 +305,7 @@ Expected expected_packets(const std::string& mp4, Parse parse, Normalize normali
         std::fclose(handle);
     }
 
-    uint64_t first_monotonic_us = 0;
+    std::optional<uint64_t> first_monotonic_us;
     if (auto first = extractor->extract_sample(0)) {
         if (auto frame = parse(first->data)) {
             first_monotonic_us = normalize(*frame).monotonic_us;
