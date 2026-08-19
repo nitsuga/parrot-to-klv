@@ -44,7 +44,8 @@ cmake -S . -B build && cmake --build build && ctest --test-dir build
 This builds three tools: `parrot-to-klv` (the converter); `parrot-scrub`, which
 replaces a recording's location, identity, and flight-date fields — serial,
 friendly name, title, copyright, and the absolute flight start time — so a real
-flight can be shared as a test fixture; and `parrot-conform`, which records what a real encoder produced as a
+flight can be shared as a test fixture; and `parrot-conform`, which records what
+a real encoder produced as a
 committable JSON report carrying no position, absolute time or device identity —
 so real-footage evidence reaches the repository while the footage never does.
 
