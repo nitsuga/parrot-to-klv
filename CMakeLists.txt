@@ -349,10 +349,7 @@ add_test(NAME conform_reports_stat_failure
 # asks for in exchange for not enumerating someone else's tests to exclude.
 set_tests_properties(
   mp4_extraction parrot_v3 parrot_proto session_metadata transform
-  parrot_scrub conformance
-  PROPERTIES LABELS "parrot;parrot-sanitize")
-set_tests_properties(
-  mux conformance_real_data cli_converts_fixture
+  parrot_scrub conformance mux conformance_real_data cli_converts_fixture
   cli_version cli_help cli_rejects_unknown_option
   cli_rejects_output_without_path cli_rejects_two_inputs
   scrub_rejects_unknown_option scrub_rejects_nan_lat
@@ -362,4 +359,4 @@ set_tests_properties(
   conform_rejects_extra_argument conform_rejects_label_with_scan
   conform_reports_stat_failure
   packaging_output_guard
-  PROPERTIES LABELS parrot)
+  PROPERTIES LABELS "parrot;parrot-sanitize")

@@ -6,6 +6,10 @@ CLAUDE.md § Security), so the extractor is tested against files built here: sam
 box layout, invented payloads. Track layout follows Parrot's documented shape --
 tkhd/tref(cdsc)/hdlr('meta')/nmhd/stsd(TextMetaDataSampleEntry).
 
+All metadata-only fixtures are byte-reproducible across environments. Fixtures
+with generated video/audio (such as parrot_v3_video_audio.mp4) depend on the
+ffmpeg/AAC encoder version (e.g., ffmpeg 6.1.1).
+
 Usage: make_fixture.py <output-dir>
 """
 
