@@ -5,6 +5,54 @@
      a fuller entry per significant implementation. Routine ingests/lint go here
      too. This is the ONLY home for history — PROGRESS.md is present-tense only. -->
 
+## 2026-08-19
+
+* **Extractor refuses tracks with missing or implausible sample-index
+  tables, and caps unbounded allocation.** Fixes the two remaining findings
+  of issue #3 (the wrapped-bounds-check finding shipped 2026-08-18).
+  `MP4D_open()` validates only `track_count > 0`; a track missing `stco`/
+  `co64` or `stsc` leaves `chunk_offset`/`sample_to_chunk` null, and
+  `MP4D_frame_offset()`'s `sample_to_chunk()` helper dereferences
+  `sample_to_chunk[0]` unconditionally on its first loop iteration whenever
+  `chunk_count` is at least two (one chunk hits a safe early-return path
+  inside `sample_to_chunk()` — cost a fixture rewrite to discover: the first
+  attempt, with a single chunk, opened and extracted cleanly with no crash
+  at all). New `track_sample_tables_valid()` in `mp4_metadata_extractor.cpp`
+  checks every mandatory table is non-null, non-empty, and `sample_count`
+  under a 10M-sample sanity ceiling, called right after `MP4D_open()`
+  succeeds and before anything that would dereference them.
+  `extract_sample()` separately caps a single declared sample size at 1 MiB
+  before `resize()` — real Parrot samples run to a few hundred bytes; a
+  hostile `stsz` entry can declare up to 4 GiB. Two new hostile fixtures
+  (`parrot_missing_stsc.mp4`, `parrot_oversized_sample_size.mp4`) and their
+  regression tests in `mp4_extraction_test.cpp`. Verified the missing-`stsc`
+  crash is real before fixing it: a standalone repro against the pre-fix
+  code segfaulted (confirmed via a two-chunk fixture — the first, one-chunk
+  attempt did not reproduce it, which is what led to finding minimp4's
+  `chunk_count <= 1` fast path); the same repro against the fix returns a
+  clean rejection instead. `ctest -L parrot`: 15/15 green in both the
+  ordinary and ASan build directories.
+
+  **Deliberately not closed:** a residual OOB-read risk where `stsz`'s
+  `sample_count` and `stts`'s own declared total disagree — minimp4 discards
+  the true `stts` total once the box is parsed, so nothing outside
+  `MP4D_open()` can detect the mismatch without an independent re-parse.
+  Documented in [mp4-extraction](./mp4-extraction.md) § minimp4 traps rather
+  than attempted here; closing it needs either a minimp4.h patch or a
+  parallel `stts` scan, both bigger moves than a wrapper-boundary check.
+
+  **Also found, not fixed here — filed separately:** `MP4D_open()`'s `stsz`
+  parser multiplies `sample_count * 4` in 32-bit `unsigned` arithmetic before
+  passing it to `malloc()`; a `sample_count` near `0x40000000` overflows that
+  product to a small number, so the allocation undersizes while the
+  following fill loop still iterates the full (unoverflowed) `sample_count`
+  — a heap buffer overflow *write*, inside `MP4D_open()` itself, before any
+  wrapper-boundary check added here ever gets a chance to run. Patching
+  vendored `external/minimp4/minimp4.h` for a security fix is a real
+  decision (this project's stated policy is read it, never restyle it) that
+  deserves its own issue and likely an ADR, not a quiet fix folded into this
+  one.
+
 ## 2026-08-18
 
 * **Mux stage stops leaving a complete-looking output behind for a signal

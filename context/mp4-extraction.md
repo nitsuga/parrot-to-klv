@@ -86,6 +86,29 @@ in others. Verified against the source:
 - **`MP4D_close()` must be called** or the per-track index arrays leak.
 - Only `MP4D_HANDLER_TYPE_VIDE` and `_SOUN` are defined; `'meta'` is ours to
   name.
+- **`MP4D_open()` validates none of the sample-index tables it builds.** A
+  track missing `stco`/`co64` or `stsc` leaves `chunk_offset`/
+  `sample_to_chunk` null; `MP4D_frame_offset()`'s `sample_to_chunk()` helper
+  dereferences `sample_to_chunk[0]` unconditionally on its first loop
+  iteration whenever `chunk_count` is at least *two* — its `chunk_count <= 1`
+  fast path means one chunk never reaches the bug, which cost a fixture
+  iteration here (see `make_fixture.py`'s `build_missing_stsc()`). A missing
+  `stts` leaves `timestamp`/`duration` null the same way.
+  `track_sample_tables_valid()` in `mp4_metadata_extractor.cpp` checks all of
+  these are non-null (and non-empty, and `sample_count` under a sane
+  ceiling) right after `MP4D_open()` succeeds, before any call that would
+  dereference them — issue #3.
+- **A residual, unclosed risk from the same class:** `stsz`'s declared
+  `sample_count` can genuinely differ from what `stts` declares (its own
+  entries sum to a different total). minimp4 does not persist that stts-side
+  total on the track struct once the box is parsed — it is a local variable,
+  discarded — so nothing outside `MP4D_open()` can detect the mismatch
+  without independently re-parsing `stts`. If the stts total undercounts
+  `sample_count`, `MP4D_frame_offset()` can read `tr->timestamp[]`/
+  `tr->duration[]` out of bounds for a legitimately-numbered sample. Closing
+  this needs either a minimp4.h patch (persist the true count) or a parallel
+  `stts` scan in project code — both bigger moves than a wrapper-boundary
+  check, deliberately left open rather than attempted here.
 
 Because `MP4D_frame_offset()` returns size and timestamp alongside the offset,
 per-sample timestamps cost nothing — deriving them by summing durations from
