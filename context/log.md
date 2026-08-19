@@ -7,6 +7,14 @@
 
 ## 2026-08-19
 
+* **Doc-drift close-out and triage housekeeping.** README's `parrot-scrub`
+  blurb now names what scrub removes beyond location — identity and the
+  flight's absolute start time (serial, friendly name, title, copyright,
+  `©day`) — not just "location fields". Issue #3 closed as resolved by PRs
+  #23/#26; the two vendored-`minimp4.h` remainders each now have their own
+  issue (#27 the in-`MP4D_open` `stsz` heap-overflow write, #28 the
+  stts/stsz-mismatch OOB read), both pending the vendored-patch/ADR decision.
+
 * **Extractor refuses tracks with missing or implausible sample-index
   tables, and caps unbounded allocation.** Fixes the two remaining findings
   of issue #3 (the wrapped-bounds-check finding shipped 2026-08-18).
