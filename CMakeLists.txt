@@ -321,6 +321,18 @@ add_test(NAME packaging_output_guard
          COMMAND ${CMAKE_SOURCE_DIR}/test/packaging_output_guard_test.sh
                  ${CMAKE_SOURCE_DIR})
 
+# A recording that vanishes between --scan's directory listing and its
+# per-file stat (here, a dangling symlink -- deterministic and privilege-
+# independent, unlike a permission-denied directory) must be reported by
+# name with the real OS error, not silently absorbed into a bogus
+# multi-terabyte "file size" (issue #14). A bare add_test + WILL_FAIL cannot
+# catch this: the exit code alone does not discriminate between the old and
+# new behavior here, only the message does.
+add_test(NAME conform_reports_stat_failure
+         COMMAND ${CMAKE_SOURCE_DIR}/test/conform_stat_failure_test.sh
+                 $<TARGET_FILE:parrot-conform>
+                 ${CMAKE_SOURCE_DIR}/test/fixtures)
+
 # libmisbklv is a subproject, so `ctest` here runs its suite too — useful
 # locally as an early warning when the pin moves, but several of its tests need
 # hundreds of megabytes of git-lfs media that this project has no reason to
@@ -342,5 +354,6 @@ set_tests_properties(
   scrub_rejects_extra_argument
   conform_rejects_unknown_option conform_rejects_missing_value
   conform_rejects_extra_argument conform_rejects_label_with_scan
+  conform_reports_stat_failure
   packaging_output_guard
   PROPERTIES LABELS parrot)

@@ -7,6 +7,32 @@
 
 ## 2026-08-19
 
+* **`parrot-conform --scan` reports filesystem errors instead of silently
+  absorbing them.** Fixes issue #14. Three unchecked `std::error_code`s in
+  `conform_main.cpp`'s scan-mode loop: `fs::directory_iterator`'s
+  construction error was ignored (a permission-denied scan directory
+  produced a silently-empty listing, reported as "No recordings" rather
+  than the real cause); the range-for loop's implicit `operator++()` throws
+  on a mid-scan filesystem change, which was uncaught (an exception during
+  iteration would have crashed the whole scan rather than reporting one bad
+  entry); and `fs::file_size(p, ec)`'s error was ignored, so a vanished or
+  unreadable file printed `static_cast<uintmax_t>(-1) / (1024*1024)` — a
+  multi-terabyte garbage figure — instead of the real "No such file or
+  directory", then still called `run_conformance()` on a file already known
+  to be inaccessible. All three now check their `error_code` and report by
+  name; the directory-listing and per-entry-iteration failures are now hard
+  errors (nothing downstream can proceed without a real listing), while a
+  per-file stat failure is reported and counted as a failure without
+  stopping the rest of the scan.
+
+  New `test/conform_stat_failure_test.sh`: a message-content check (a bare
+  `add_test` + `WILL_FAIL` cannot discriminate here — both old and new code
+  exit non-zero for a scan with one bad file among good ones, only the
+  *message* differs), using a dangling symlink as a privilege-independent
+  way to reproduce a vanished-file stat failure deterministically.
+  Confirmed genuinely discriminant: fails against the pre-fix binary
+  (missing the "cannot stat" message), passes against the fix.
+
 * **Coverage reporting now aggregates across every frame instead of keeping
   only the first.** Fixes issue #15. `mux.cpp`'s `MuxReport::coverage` used
   to hold the first emitted frame's `CoverageReport` only (`if

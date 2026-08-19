@@ -152,21 +152,61 @@ int main(int argc, char* argv[]) {
             return kSkipExitCode;
         }
         std::vector<fs::path> inputs;
-        for (const auto& e : fs::directory_iterator(scan_dir, ec)) {
-            const auto ext = e.path().extension().string();
-            if (ext == ".mp4" || ext == ".MP4") inputs.push_back(e.path());
+        // A fresh error_code per call: a stale one left set by an earlier,
+        // unrelated call would otherwise make the checks below fire on the
+        // wrong error, or not at all.
+        std::error_code iterate_ec;
+        // directory_iterator(path, ec) only guards *construction* -- range-for
+        // calls the throwing operator++() internally, so a directory that
+        // changes mid-scan (a recording removed, a permission change) would
+        // otherwise surface as an uncaught filesystem_error and crash the
+        // whole scan instead of reporting one bad entry. The manual loop
+        // below uses increment(ec) so that stays a checked, reported failure.
+        fs::directory_iterator it(scan_dir, iterate_ec);
+        if (iterate_ec) {
+            std::cerr << "Error: cannot list " << scan_dir << ": " << iterate_ec.message()
+                      << "\n";
+            return 1;
+        }
+        const fs::directory_iterator end;
+        for (; it != end; it.increment(iterate_ec)) {
+            if (iterate_ec) {
+                std::cerr << "Error: " << scan_dir << " changed while being scanned: "
+                          << iterate_ec.message() << "\n";
+                return 1;
+            }
+            const auto ext = it->path().extension().string();
+            if (ext == ".mp4" || ext == ".MP4") inputs.push_back(it->path());
         }
         std::sort(inputs.begin(), inputs.end());
         if (inputs.empty()) {
             std::cout << "No recordings in " << scan_dir << " — skipping conformance check.\n";
             return kSkipExitCode;
         }
-        fs::create_directories(reports_dir, ec);
+        std::error_code mkdir_ec;
+        fs::create_directories(reports_dir, mkdir_ec);
+        if (mkdir_ec) {
+            std::cerr << "Error: cannot create " << reports_dir << ": " << mkdir_ec.message()
+                      << "\n";
+            return 1;
+        }
 
         int failures = 0;
         int applicable = 0;
         for (const auto& p : inputs) {
-            const uintmax_t size = fs::file_size(p, ec);
+            std::error_code size_ec;
+            const uintmax_t size = fs::file_size(p, size_ec);
+            if (size_ec) {
+                // A recording that vanished (or became unreadable) between the
+                // scan above and here must be reported, not silently skipped
+                // or shown as a bogus "0 MB" (file_size(p, ec) on error
+                // returns static_cast<uintmax_t>(-1), which / (1024*1024)
+                // would otherwise print as an enormous, equally wrong size).
+                std::cerr << p.filename().string() << ": cannot stat: " << size_ec.message()
+                          << "\n";
+                ++failures;
+                continue;
+            }
             std::cout << p.filename().string() << " (" << (size / (1024 * 1024)) << " MB):\n";
             const auto report = run_conformance(p.string(), "");
             if (report.input_hash.empty()) {

@@ -70,6 +70,12 @@ appearing later or a thermal extension starting mid-flight. See
 [transform-stage](../context/transform-stage.md) § Aggregated across a
 recording. Also unreleased.
 
+`parrot-conform --scan` now reports filesystem errors instead of silently
+absorbing them (issue #14): a permission-denied scan directory used to
+report "No recordings" rather than the real cause, and a vanished or
+unreadable file printed a multi-terabyte garbage size instead of the actual
+stat failure. Also unreleased.
+
 The one substantive feature piece left is **fork 4, Tier 2 geometry fidelity**
 — see [ROADMAP](./ROADMAP.md) § Open forks.
 
