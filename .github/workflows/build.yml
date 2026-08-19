@@ -54,6 +54,12 @@ jobs:
                 -e 's|http://azure.archive.ubuntu.com/ubuntu|http://archive.ubuntu.com/ubuntu|g' \
                 -e 's|https://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' {} +
             sudo rm -rf /var/lib/apt/lists/*
+            # A timed-out install can leave packages unpacked. Finish that
+            # transaction before asking apt to resolve dependencies again.
+            sudo timeout --foreground 300 dpkg --configure -a
+            sudo timeout --foreground 300 apt-get \
+              -o Acquire::Retries=2 -o Acquire::http::Timeout=30 \
+              -o Acquire::https::Timeout=30 --fix-broken install -y
             install_dependencies
           fi
 
@@ -118,6 +124,12 @@ jobs:
                 -e 's|http://azure.archive.ubuntu.com/ubuntu|http://archive.ubuntu.com/ubuntu|g' \
                 -e 's|https://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' {} +
             sudo rm -rf /var/lib/apt/lists/*
+            # A timed-out install can leave packages unpacked. Finish that
+            # transaction before asking apt to resolve dependencies again.
+            sudo timeout --foreground 300 dpkg --configure -a
+            sudo timeout --foreground 300 apt-get \
+              -o Acquire::Retries=2 -o Acquire::http::Timeout=30 \
+              -o Acquire::https::Timeout=30 --fix-broken install -y
             install_dependencies
           fi
 
