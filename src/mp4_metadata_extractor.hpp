@@ -32,6 +32,9 @@ enum class ParrotFormat {
 /// Human-readable name for a format, for diagnostics.
 std::string to_string(ParrotFormat format);
 
+/// Parse Parrot format from an stsd MIME type string (e.g. application/octet-stream;type=com.parrot.videometadata3).
+std::optional<ParrotFormat> format_from_mime(const std::string& mime);
+
 /// Result of MP4 metadata track identification
 struct MetadataTrackInfo {
     int track_index = -1;  ///< Track index in MP4 file

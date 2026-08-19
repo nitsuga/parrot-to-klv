@@ -9,6 +9,7 @@
 #include "minimp4.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -16,6 +17,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -40,19 +42,25 @@ struct Mp4MetadataExtractor::Impl {
 
 namespace {
 
-/// Parrot writes `application/octet-stream;type=com.parrot.videometadata3`.
-/// Match on the `type=` parameter; the media type prefix carries no information.
-std::optional<ParrotFormat> format_from_mime(const std::string& mime) {
-    const auto pos = mime.find("com.parrot.videometadata");
-    if (pos == std::string::npos) {
-        return std::nullopt;
+std::optional<ParrotFormat> parse_format_identifier(std::string_view id) {
+    if (id == "com.parrot.videometadata1") return ParrotFormat::V1;
+    if (id == "com.parrot.videometadata2") return ParrotFormat::V2;
+    if (id == "com.parrot.videometadata3") return ParrotFormat::V3;
+    if (id == "com.parrot.videometadataproto" || id == "com.parrot.videometadata.proto") {
+        return ParrotFormat::Proto;
     }
-    const std::string suffix = mime.substr(pos + std::strlen("com.parrot.videometadata"));
-    if (suffix == "1") return ParrotFormat::V1;
-    if (suffix == "2") return ParrotFormat::V2;
-    if (suffix == "3") return ParrotFormat::V3;
-    if (suffix == "proto") return ParrotFormat::Proto;
     return std::nullopt;
+}
+
+bool starts_with_ci(std::string_view s, std::string_view prefix) {
+    if (s.size() < prefix.size()) return false;
+    for (size_t i = 0; i < prefix.size(); ++i) {
+        if (std::tolower(static_cast<unsigned char>(s[i])) !=
+            std::tolower(static_cast<unsigned char>(prefix[i]))) {
+            return false;
+        }
+    }
+    return true;
 }
 
 int64_t file_size_of(FILE* file) {
@@ -154,6 +162,52 @@ void report_tracks(const std::vector<Mp4TrackDescription>& tracks) {
 }
 
 }  // namespace
+
+std::optional<ParrotFormat> format_from_mime(const std::string& mime) {
+    if (auto direct = parse_format_identifier(mime)) {
+        return direct;
+    }
+
+    // Match type parameter: e.g. "application/octet-stream;type=com.parrot.videometadata3"
+    size_t pos = 0;
+    while (pos < mime.size()) {
+        size_t next_semi = mime.find(';', pos);
+        if (next_semi == std::string::npos) {
+            next_semi = mime.size();
+        }
+        std::string_view param = std::string_view(mime).substr(pos, next_semi - pos);
+
+        // Trim leading and trailing whitespace
+        while (!param.empty() && (param.front() == ' ' || param.front() == '\t')) {
+            param.remove_prefix(1);
+        }
+        while (!param.empty() && (param.back() == ' ' || param.back() == '\t')) {
+            param.remove_suffix(1);
+        }
+
+        if (starts_with_ci(param, "type=")) {
+            std::string_view val = param.substr(5);
+            while (!val.empty() && (val.front() == ' ' || val.front() == '\t')) {
+                val.remove_prefix(1);
+            }
+            while (!val.empty() && (val.back() == ' ' || val.back() == '\t')) {
+                val.remove_suffix(1);
+            }
+            if (val.size() >= 2 && ((val.front() == '"' && val.back() == '"') ||
+                                    (val.front() == '\'' && val.back() == '\''))) {
+                val.remove_prefix(1);
+                val.remove_suffix(1);
+            }
+            if (auto fmt = parse_format_identifier(val)) {
+                return fmt;
+            }
+        }
+
+        pos = next_semi + 1;
+    }
+
+    return std::nullopt;
+}
 
 std::string to_string(ParrotFormat format) {
     switch (format) {

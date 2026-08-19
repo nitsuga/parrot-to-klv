@@ -242,11 +242,8 @@ void test_hostile_mdhd_duration_is_bounded(const char* dir) {
 }
 
 void test_tkhd_version_2_track_id_not_misread(const char* dir) {
-    // A 'tkhd' declaring version 2, with 64-bit times like version 1 rather
-    // than version 0's 32-bit ones. The old code treated any version other
-    // than 1 as version 0's 8-byte time layout, so it read track_id 8 bytes
-    // into the wrong field -- this fixture plants a sentinel there
-    // (0xDEADBEEF) to catch exactly that misread; the real track_id (1) sits
+    // A version-2 tkhd has 64-bit creation/modification times, pushing track_id
+    // to offset 20 instead of 12. Write a probe word at the version-0 offset
     // where only the correct 16-byte-times offset would find it.
     FILE* file = std::fopen(fixture(dir, "parrot_tkhd_version_2.mp4").c_str(), "rb");
     check(file != nullptr, "fixture opens");
@@ -262,6 +259,51 @@ void test_tkhd_version_2_track_id_not_misread(const char* dir) {
              "a tkhd version this code does not know is rejected, not guessed at");
 }
 
+void test_mime_parsing() {
+    // Valid standard MIME strings
+    auto v1 = format_from_mime("application/octet-stream;type=com.parrot.videometadata1");
+    check(v1.has_value() && *v1 == ParrotFormat::V1, "v1 format from mime");
+
+    auto v2 = format_from_mime("application/octet-stream;type=com.parrot.videometadata2");
+    check(v2.has_value() && *v2 == ParrotFormat::V2, "v2 format from mime");
+
+    auto v3 = format_from_mime("application/octet-stream;type=com.parrot.videometadata3");
+    check(v3.has_value() && *v3 == ParrotFormat::V3, "v3 format from mime");
+
+    auto proto = format_from_mime("application/octet-stream;type=com.parrot.videometadataproto");
+    check(proto.has_value() && *proto == ParrotFormat::Proto, "proto format from mime");
+
+    // Quoted parameters and whitespace
+    auto quoted = format_from_mime("application/octet-stream; type=\"com.parrot.videometadata3\"");
+    check(quoted.has_value() && *quoted == ParrotFormat::V3, "quoted v3 format parameter");
+
+    auto extra = format_from_mime("application/octet-stream; type='com.parrot.videometadataproto' ; other=foo");
+    check(extra.has_value() && *extra == ParrotFormat::Proto, "single-quoted proto with extra parameter");
+
+    // Bare format identifier
+    auto bare = format_from_mime("com.parrot.videometadata3");
+    check(bare.has_value() && *bare == ParrotFormat::V3, "bare v3 identifier");
+
+    // Case-insensitive parameter name (TYPE=, Type=)
+    auto uppercase_type = format_from_mime("application/octet-stream;TYPE=com.parrot.videometadata3");
+    check(uppercase_type.has_value() && *uppercase_type == ParrotFormat::V3, "uppercase TYPE= parameter parses");
+
+    auto mixed_case_type = format_from_mime("application/octet-stream;Type=\"com.parrot.videometadataproto\"");
+    check(mixed_case_type.has_value() && *mixed_case_type == ParrotFormat::Proto, "mixed-case Type= parameter parses");
+
+    // Negative cases: magic substring in a non-type parameter (Issue #5)
+    check(!format_from_mime("application/octet-stream;other=com.parrot.videometadata3").has_value(),
+          "magic string in non-type parameter is rejected");
+    check(!format_from_mime("application/octet-stream;comment=\"com.parrot.videometadata3\"").has_value(),
+          "magic string in comment parameter is rejected");
+    check(!format_from_mime("application/octet-stream;type=com.parrot.videometadata3_extra").has_value(),
+          "unknown suffix is rejected");
+    check(!format_from_mime("application/octet-stream;type=com.parrot.videometadata99").has_value(),
+          "unknown version is rejected");
+    check(!format_from_mime("").has_value(), "empty MIME string is rejected");
+    check(!format_from_mime("application/octet-stream").has_value(), "bare octet-stream is rejected");
+}
+
 }  // namespace
 
 int main(int argc, char* argv[]) {
@@ -274,6 +316,7 @@ int main(int argc, char* argv[]) {
     test_box_scan(dir);
     test_format_detection(dir);
     test_rejects_non_parrot(dir);
+    test_mime_parsing();
     test_sample_extraction(dir);
     test_out_of_bounds_chunk_offset_is_rejected(dir);
     test_missing_stsc_is_rejected(dir);
