@@ -33,13 +33,29 @@ jobs:
       # configure until this line was added.
       - name: Install build dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            cmake g++ \
-            libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
-            libgstreamer-plugins-bad1.0-dev \
-            gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
-            gstreamer1.0-plugins-bad
+          install_dependencies() {
+            sudo timeout --foreground 120 apt-get \
+              -o Acquire::Retries=2 -o Acquire::http::Timeout=30 \
+              -o Acquire::https::Timeout=30 update &&
+            sudo timeout --foreground 300 apt-get \
+              -o Acquire::Retries=2 -o Acquire::http::Timeout=30 \
+              -o Acquire::https::Timeout=30 install -y --no-install-recommends \
+              cmake g++ \
+              libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+              libgstreamer-plugins-bad1.0-dev \
+              gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
+              gstreamer1.0-plugins-bad
+          }
+
+          if ! install_dependencies; then
+            echo "::warning::Default Ubuntu mirror failed or timed out; retrying archive.ubuntu.com"
+            sudo find /etc/apt -type f \( -name apt-mirrors.txt -o -name '*.list' -o -name '*.sources' \) \
+              -exec sed -i \
+                -e 's|http://azure.archive.ubuntu.com/ubuntu|http://archive.ubuntu.com/ubuntu|g' \
+                -e 's|https://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' {} +
+            sudo rm -rf /var/lib/apt/lists/*
+            install_dependencies
+          fi
 
       # libmisbklv is a private repo, so the runner needs its own credential:
       # GITHUB_TOKEN is scoped to *this* repository and cannot clone it. A
@@ -83,11 +99,27 @@ jobs:
       # plugins.
       - name: Install build dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            cmake g++ pkg-config \
-            libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
-            libgstreamer-plugins-bad1.0-dev
+          install_dependencies() {
+            sudo timeout --foreground 120 apt-get \
+              -o Acquire::Retries=2 -o Acquire::http::Timeout=30 \
+              -o Acquire::https::Timeout=30 update &&
+            sudo timeout --foreground 300 apt-get \
+              -o Acquire::Retries=2 -o Acquire::http::Timeout=30 \
+              -o Acquire::https::Timeout=30 install -y --no-install-recommends \
+              cmake g++ pkg-config \
+              libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
+              libgstreamer-plugins-bad1.0-dev
+          }
+
+          if ! install_dependencies; then
+            echo "::warning::Default Ubuntu mirror failed or timed out; retrying archive.ubuntu.com"
+            sudo find /etc/apt -type f \( -name apt-mirrors.txt -o -name '*.list' -o -name '*.sources' \) \
+              -exec sed -i \
+                -e 's|http://azure.archive.ubuntu.com/ubuntu|http://archive.ubuntu.com/ubuntu|g' \
+                -e 's|https://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' {} +
+            sudo rm -rf /var/lib/apt/lists/*
+            install_dependencies
+          fi
 
       # GITHUB_TOKEN is scoped to this repository, so use the same narrow,
       # read-only deploy key as the normal build to fetch private libmisbklv.
