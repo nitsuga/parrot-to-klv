@@ -1,7 +1,7 @@
 ---
 type: Component
 title: MP4 metadata extraction and Phase 1 tooling
-description: How the Parrot metadata track is located, read, scrubbed, and evidenced — the minimp4 / box-scan division of labour, minimp4's traps, and the two tools that let real footage inform the repo without entering it
+description: How the Parrot metadata track is located, read, scrubbed, and evidenced — the minimp4 / box-scan division of labor, minimp4's traps, and the two tools that let real footage inform the repo without entering it
 tags: [mp4, extraction, minimp4, phase-1]
 generated:
   by: claude/opus-5
@@ -39,7 +39,7 @@ parsing over GStreamer `qtdemux`) — see its follow-on note.
 | `test/conformance_test.cpp` | `ctest` target `conformance` |
 | `test/conformance/` | committed reports; `conformance_real_data` replays them |
 
-## Division of labour
+## Division of labor
 
 **minimp4 owns the sample index** — chunk offsets, sample sizes, and per-sample
 timestamps, via `MP4D_frame_offset()`.
@@ -98,17 +98,21 @@ in others. Verified against the source:
   these are non-null (and non-empty, and `sample_count` under a sane
   ceiling) right after `MP4D_open()` succeeds, before any call that would
   dereference them — issue #3.
-- **A residual, unclosed risk from the same class:** `stsz`'s declared
-  `sample_count` can genuinely differ from what `stts` declares (its own
-  entries sum to a different total). minimp4 does not persist that stts-side
-  total on the track struct once the box is parsed — it is a local variable,
-  discarded — so nothing outside `MP4D_open()` can detect the mismatch
-  without independently re-parsing `stts`. If the stts total undercounts
-  `sample_count`, `MP4D_frame_offset()` can read `tr->timestamp[]`/
-  `tr->duration[]` out of bounds for a legitimately-numbered sample. Closing
-  this needs either a minimp4.h patch (persist the true count) or a parallel
-  `stts` scan in project code — both bigger moves than a wrapper-boundary
-  check, deliberately left open rather than attempted here.
+- **Two risks from the same class, now closed by re-vendoring rather than a
+  wrapper-boundary check** (ADR 0012): `stsz`'s declared `sample_count *
+  4` used to overflow native 32-bit arithmetic before reaching the
+  allocation-size check — a hostile count near `0x40000000` drove a
+  heap-buffer-overflow write (issue #27). Separately, `stsz`'s declared
+  `sample_count` could genuinely differ from what `stts` declares (its own
+  entries sum to a different total); minimp4 discarded that stts-side total
+  once the box was parsed, so nothing outside `MP4D_open()` could detect the
+  mismatch without independently re-parsing `stts`, and `MP4D_frame_offset()`
+  could read `tr->timestamp[]`/`tr->duration[]` out of bounds for a
+  legitimately-numbered sample as a result (issue #28). `external/minimp4.h`
+  is re-vendored onto upstream's commit `5a212a1` (2026-07-13, up from
+  2021-08-20), which widens the `stsz` allocation-size computation and adds
+  `MP4D_track_t::timestamp_count` to bound-check the second case — both from
+  the same upstream fuzzing-driven hardening pass.
 
 Because `MP4D_frame_offset()` returns size and timestamp alongside the offset,
 per-sample timestamps cost nothing — deriving them by summing durations from

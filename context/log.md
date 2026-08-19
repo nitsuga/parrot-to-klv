@@ -7,6 +7,18 @@
 
 ## 2026-08-19
 
+* **Lint pass.** Found two items the ADR 0012 re-vendor left behind:
+  `context/mp4-extraction.md`'s "minimp4 traps" section still described the
+  `stsz`/`stts` sample-count mismatch as "a residual, unclosed risk" — a
+  forward-looking claim the re-vendor had since resolved (issue #28, closed
+  alongside #27) — and ADR 0012 itself was missing from `context/index.md`'s
+  Decisions list (present in the decided register, just not the bundle
+  catalog). Both fixed. Also caught and fixed a stray "division of labour"
+  (heading and frontmatter) in the same file — the one American-English
+  holdout found in a repo-wide re-check against the 2026-07-28 spelling pass;
+  its own `references/`/`external/` exemptions accounted for, and `log.md`'s
+  own dated history left as written rather than rewritten.
+
 * **Extraction stage no longer silently mis-parses four classes of malformed
   input.** Fixes issue #4. `parse_iso8601_to_epoch`
   (`session_metadata.cpp`) now rejects a malformed or out-of-range UTC offset
