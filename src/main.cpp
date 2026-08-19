@@ -124,7 +124,10 @@ int decode_all(Mp4MetadataExtractor& extractor, const SessionMetadata& session,
     const uint32_t to_show = std::min(3u, extractor.sample_count());
 
     // The first sample's clock is the origin the session media date anchors to.
-    uint64_t first_monotonic_us = 0;
+    // Left empty (never defaulted to zero) if the origin sample's own
+    // extraction or parse fails -- anchor_to_session treats an unknown origin
+    // as "do not anchor" rather than assuming a zero clock base.
+    std::optional<uint64_t> first_monotonic_us;
     if (auto first = extractor.extract_sample(0)) {
         std::string ignored;
         if (auto frame = parse(first->data, ignored)) {
