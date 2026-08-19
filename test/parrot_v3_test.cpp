@@ -203,6 +203,15 @@ void test_malformed() {
     check(!parse_v3(overlong, &err).has_value(), "over-long declared length rejected");
     check_eq(to_string(err), to_string(ParrotV3Error::LengthMismatch), "length mismatch error");
 
+    // Declared length is shorter than the buffer (trailing unparsed bytes).
+    std::vector<uint8_t> underlong(kParrotV3BaseSize + 4, 0);
+    underlong[0] = 0x50;
+    underlong[1] = 0x33;
+    underlong[2] = 0x00;
+    underlong[3] = 17;  // declared 72 bytes, buffer is 76
+    check(!parse_v3(underlong, &err).has_value(), "under-long declared length rejected");
+    check_eq(to_string(err), to_string(ParrotV3Error::LengthMismatch), "length mismatch error");
+
     // A base structure one byte short.
     std::vector<uint8_t> truncated(kParrotV3BaseSize - 1, 0);
     truncated[0] = 0x50;
@@ -256,6 +265,75 @@ void test_malformed() {
              "under tolerance invalid quaternion error");
 }
 
+void test_short_extensions(const char* dir) {
+    const auto samples = samples_of(dir, "parrot_v3.mp4");
+    if (samples.empty()) return;
+    auto base_data = samples[0].data;
+
+    // Construct sample with a truncated timestamp extension (4 bytes payload instead of 8).
+    std::vector<uint8_t> sample_ts(base_data.begin(), base_data.begin() + kParrotV3BaseSize);
+    sample_ts[2] = 0x00;
+    sample_ts[3] = 19;  // 17 + 2 = 19 words (76 bytes)
+    sample_ts.push_back(0x45);  // 'E'
+    sample_ts.push_back(0x31);  // '1'
+    sample_ts.push_back(0x00);
+    sample_ts.push_back(0x01);  // 1 word = 4 bytes payload (needs 8)
+    sample_ts.insert(sample_ts.end(), 4, 0);
+
+    auto frame_ts = parse_v3(sample_ts);
+    check(frame_ts.has_value(), "sample with short timestamp extension parses");
+    if (frame_ts) {
+        check(!frame_ts->frame_timestamp_us.has_value(), "short timestamp extension not decoded");
+        check_eq(frame_ts->skipped_extension_ids.size(), size_t{1},
+                 "short timestamp extension recorded in skipped");
+        if (!frame_ts->skipped_extension_ids.empty()) {
+            check_eq(frame_ts->skipped_extension_ids[0], uint16_t{0x4531}, "skipped id is timestamp");
+        }
+    }
+
+    // Construct sample with a truncated thermal extension (4 bytes payload instead of 20).
+    std::vector<uint8_t> sample_th(base_data.begin(), base_data.begin() + kParrotV3BaseSize);
+    sample_th[2] = 0x00;
+    sample_th[3] = 19;  // 17 + 2 = 19 words (76 bytes)
+    sample_th.push_back(0x45);  // 'E'
+    sample_th.push_back(0x34);  // '4'
+    sample_th.push_back(0x00);
+    sample_th.push_back(0x01);  // 1 word = 4 bytes payload (needs 20)
+    sample_th.insert(sample_th.end(), 4, 0);
+
+    auto frame_th = parse_v3(sample_th);
+    check(frame_th.has_value(), "sample with short thermal extension parses");
+    if (frame_th) {
+        check(!frame_th->thermal.has_value(), "short thermal extension not decoded");
+        check_eq(frame_th->skipped_extension_ids.size(), size_t{1},
+                 "short thermal extension recorded in skipped");
+        if (!frame_th->skipped_extension_ids.empty()) {
+            check_eq(frame_th->skipped_extension_ids[0], uint16_t{0x4534}, "skipped id is thermal");
+        }
+    }
+
+    // Construct sample with a truncated automation extension (4 bytes payload instead of 28).
+    std::vector<uint8_t> sample_au(base_data.begin(), base_data.begin() + kParrotV3BaseSize);
+    sample_au[2] = 0x00;
+    sample_au[3] = 19;  // 17 + 2 = 19 words (76 bytes)
+    sample_au.push_back(0x45);  // 'E'
+    sample_au.push_back(0x33);  // '3'
+    sample_au.push_back(0x00);
+    sample_au.push_back(0x01);  // 1 word = 4 bytes payload (needs 28)
+    sample_au.insert(sample_au.end(), 4, 0);
+
+    auto frame_au = parse_v3(sample_au);
+    check(frame_au.has_value(), "sample with short automation extension parses");
+    if (frame_au) {
+        check(!frame_au->automation.has_value(), "short automation extension not decoded");
+        check_eq(frame_au->skipped_extension_ids.size(), size_t{1},
+                 "short automation extension recorded in skipped");
+        if (!frame_au->skipped_extension_ids.empty()) {
+            check_eq(frame_au->skipped_extension_ids[0], uint16_t{0x4533}, "skipped id is automation");
+        }
+    }
+}
+
 }  // namespace
 
 int main(int argc, char* argv[]) {
@@ -268,6 +346,7 @@ int main(int argc, char* argv[]) {
     test_base_fields(dir);
     test_timestamp_extension(dir);
     test_all_extensions(dir);
+    test_short_extensions(dir);
     test_malformed();
 
     if (g_failures > 0) {

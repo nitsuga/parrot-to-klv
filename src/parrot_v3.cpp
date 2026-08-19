@@ -61,10 +61,10 @@ ThermalSpot read_spot(std::span<const uint8_t> b, size_t off, bool valid) {
     return spot;
 }
 
-void parse_automation(std::span<const uint8_t> payload, ParrotV3Frame& frame) {
+bool parse_automation(std::span<const uint8_t> payload, ParrotV3Frame& frame) {
     // 6 x int32 + 2 x uint8 + uint16 reserved.
     if (payload.size() < 28) {
-        return;
+        return false;
     }
     AutomationExt ext;
     ext.framing_target_latitude_deg = be32s(payload, 0) / kQ10_22;
@@ -79,12 +79,13 @@ void parse_automation(std::span<const uint8_t> payload, ParrotV3Frame& frame) {
     ext.look_at_me = (flags & 0x02) != 0;
     ext.angle_locked = (flags & 0x04) != 0;
     frame.automation = ext;
+    return true;
 }
 
-void parse_thermal(std::span<const uint8_t> payload, ParrotV3Frame& frame) {
+bool parse_thermal(std::span<const uint8_t> payload, ParrotV3Frame& frame) {
     // 9 x int16 + 2 x uint8.
     if (payload.size() < 20) {
-        return;
+        return false;
     }
     const uint8_t flags = payload[19];
     ThermalExt ext;
@@ -93,6 +94,7 @@ void parse_thermal(std::span<const uint8_t> payload, ParrotV3Frame& frame) {
     ext.probe = read_spot(payload, 12, (flags & 0x04) != 0);
     ext.calibration_state = payload[18];
     frame.thermal = ext;
+    return true;
 }
 
 void parse_extensions(std::span<const uint8_t> ext_area, ParrotV3Frame& frame) {
@@ -114,13 +116,19 @@ void parse_extensions(std::span<const uint8_t> ext_area, ParrotV3Frame& frame) {
                 if (payload.size() >= 8) {
                     frame.frame_timestamp_us =
                         (static_cast<uint64_t>(be32(payload, 0)) << 32) | be32(payload, 4);
+                } else {
+                    frame.skipped_extension_ids.push_back(id);
                 }
                 break;
             case kExtAutomation:
-                parse_automation(payload, frame);
+                if (!parse_automation(payload, frame)) {
+                    frame.skipped_extension_ids.push_back(id);
+                }
                 break;
             case kExtThermal:
-                parse_thermal(payload, frame);
+                if (!parse_thermal(payload, frame)) {
+                    frame.skipped_extension_ids.push_back(id);
+                }
                 break;
             default:
                 // Unknown extensions must be skipped, not treated as an error.
@@ -190,7 +198,7 @@ std::optional<ParrotV3Frame> parse_v3(std::span<const uint8_t> sample, ParrotV3E
 
     // `length` counts 32-bit words after the id/length pair, extensions included.
     const size_t declared = 4 + static_cast<size_t>(be16(sample, 2)) * 4;
-    if (declared < kParrotV3BaseSize || declared > sample.size()) {
+    if (declared != sample.size()) {
         return fail(ParrotV3Error::LengthMismatch);
     }
 
