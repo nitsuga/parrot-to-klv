@@ -10,6 +10,8 @@
 
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <iterator>
@@ -304,6 +306,92 @@ void test_mime_parsing() {
     check(!format_from_mime("application/octet-stream").has_value(), "bare octet-stream is rejected");
 }
 
+void test_malformed_and_truncated_inputs(const char* dir) {
+    const std::string valid_path = fixture(dir, "parrot_v3.mp4");
+    std::ifstream in(valid_path, std::ios::binary);
+    check(in.good(), "valid v3 fixture opens");
+    std::vector<uint8_t> valid_bytes((std::istreambuf_iterator<char>(in)),
+                                     std::istreambuf_iterator<char>());
+    in.close();
+
+    const std::filesystem::path temp_file =
+        std::filesystem::temp_directory_path() / "test_malformed_mp4_tmp.mp4";
+
+    auto write_temp = [&](const std::vector<uint8_t>& data) {
+        std::ofstream out(temp_file, std::ios::binary | std::ios::trunc);
+        out.write(reinterpret_cast<const char*>(data.data()), static_cast<long>(data.size()));
+    };
+
+    struct Cleanup {
+        std::filesystem::path path;
+        ~Cleanup() {
+            std::error_code ec;
+            std::filesystem::remove(path, ec);
+        }
+    } cleanup{temp_file};
+
+    // 1. Truncation at various boundaries
+    const std::vector<size_t> trunc_lengths = {
+        0, 1, 4, 8, 12, 16, 24, 32, 64, 128, 256, 512, 1024,
+        valid_bytes.size() > 50 ? valid_bytes.size() - 50 : 0,
+        valid_bytes.size() > 10 ? valid_bytes.size() - 10 : 0,
+        valid_bytes.size() > 1 ? valid_bytes.size() - 1 : 0
+    };
+    for (size_t len : trunc_lengths) {
+        if (len > valid_bytes.size()) continue;
+        std::vector<uint8_t> truncated(valid_bytes.begin(), valid_bytes.begin() + len);
+        write_temp(truncated);
+        auto ext = Mp4MetadataExtractor::open(temp_file.string());
+        if (ext) {
+            for (size_t s = 0; s < ext->sample_count(); ++s) {
+                (void)ext->extract_sample(s);
+            }
+        }
+    }
+
+    // 2. Box size larger than file size (moov declaring huge size past EOF)
+    auto moov_huge = valid_bytes;
+    for (size_t i = 0; i + 8 <= moov_huge.size(); ++i) {
+        if (std::memcmp(&moov_huge[i + 4], "moov", 4) == 0) {
+            moov_huge[i] = 0x7F;
+            moov_huge[i + 1] = 0xFF;
+            moov_huge[i + 2] = 0xFF;
+            moov_huge[i + 3] = 0xFF;
+            break;
+        }
+    }
+    write_temp(moov_huge);
+    auto moov_ext = Mp4MetadataExtractor::open(temp_file.string());
+    check(!moov_ext.has_value(), "moov box size past EOF is rejected");
+
+    // 3. Truncated mdat payload: moov table intact, but mdat payload is cut off
+    for (size_t i = 0; i + 8 <= valid_bytes.size(); ++i) {
+        if (std::memcmp(&valid_bytes[i + 4], "mdat", 4) == 0) {
+            std::vector<uint8_t> mdat_cut(valid_bytes.begin(), valid_bytes.begin() + i + 8);
+            write_temp(mdat_cut);
+            auto cut_ext = Mp4MetadataExtractor::open(temp_file.string());
+            if (cut_ext && cut_ext->sample_count() > 0) {
+                check(!cut_ext->extract_sample(0).has_value(),
+                      "sample extraction from truncated mdat returns nullopt");
+            }
+            break;
+        }
+    }
+
+    // 4. Single-byte corruption sweep under bounds checker / ASan
+    for (size_t i = 0; i < valid_bytes.size(); i += 37) {
+        auto corrupted = valid_bytes;
+        corrupted[i] ^= 0xFF;
+        write_temp(corrupted);
+        auto ext = Mp4MetadataExtractor::open(temp_file.string());
+        if (ext) {
+            for (size_t s = 0; s < ext->sample_count(); ++s) {
+                (void)ext->extract_sample(s);
+            }
+        }
+    }
+}
+
 }  // namespace
 
 int main(int argc, char* argv[]) {
@@ -324,6 +412,7 @@ int main(int argc, char* argv[]) {
     test_stsz_count_overflow_is_rejected(dir);
     test_hostile_mdhd_duration_is_bounded(dir);
     test_tkhd_version_2_track_id_not_misread(dir);
+    test_malformed_and_truncated_inputs(dir);
 
     if (g_failures > 0) {
         std::cerr << "\n" << g_failures << " check(s) failed\n";

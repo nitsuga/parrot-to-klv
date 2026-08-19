@@ -538,6 +538,13 @@ int main(int argc, char* argv[]) {
     check(!std::ifstream(undecodable).good(),
           "a conversion that converted nothing left an output file behind");
 
+    // Issue #11: unwritable or nonexistent output directory reports a specific diagnostic.
+    const std::string bad_parent = temp + "/nonexistent_dir_12345/out.ts";
+    const auto bad_path_res = mux_to_ts(fixtures + "/parrot_v3_video.mp4", bad_parent);
+    check(!bad_path_res.error.empty() &&
+          bad_path_res.error.find("parent directory does not exist") != std::string::npos,
+          "nonexistent output parent directory reports specific error");
+
     // issue #10, the other finding: a signal handler can only set a flag
     // (async-signal-safe), so mux_to_ts()'s cooperative check is exercised
     // directly here rather than by delivering a real SIGINT/SIGTERM — the

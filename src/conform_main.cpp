@@ -54,12 +54,24 @@ int emit(const ConformanceReport& report, const fs::path& out, bool check) {
     const std::string text = to_json(report);
 
     if (!check) {
-        std::ofstream f(out);
+        FILE* f = std::fopen(out.c_str(), "w");
         if (!f) {
             std::cerr << "  cannot write " << out << "\n";
             return 1;
         }
-        f << text;
+        if (std::fwrite(text.data(), 1, text.size(), f) != text.size() || std::fflush(f) != 0) {
+            std::fclose(f);
+            std::error_code ec;
+            fs::remove(out, ec);
+            std::cerr << "  write failed: " << out << "\n";
+            return 1;
+        }
+        if (std::fclose(f) != 0) {
+            std::error_code ec;
+            fs::remove(out, ec);
+            std::cerr << "  close failed: " << out << "\n";
+            return 1;
+        }
         std::cout << "  wrote " << out << " (" << report.decoded << "/" << report.sample_count
                   << " samples decoded)\n";
         return 0;

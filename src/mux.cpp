@@ -6,6 +6,7 @@
 #include <csignal>
 #include <cstdint>
 #include <cstdio>
+#include <filesystem>
 #include <iostream>
 #include <optional>
 #include <span>
@@ -163,11 +164,29 @@ MuxReport mux_to_ts(const std::string& input, const std::string& output,
     // unrecognized takes the same path, so a codec we have never seen converts
     // rather than erroring on a guess.
     //
-    // A failure to open the source surfaces on the first emit(), which is where
-    // the error below comes from. Nothing here cleans up a half-written output:
-    // libmisbklv guarantees that a failed insert session leaves no file it
-    // created, whether the failure lands in the open, a push, or the finish
-    // (its ADR 0022).
+    // Preflight output directory before constructing the GStreamer sink, so an
+    // unwritable or nonexistent destination fails with a clear, specific message
+    // rather than the opaque "media pipeline failed" from deep in GStreamer.
+    const std::filesystem::path out_path(output);
+    if (std::error_code ec; std::filesystem::is_directory(out_path, ec)) {
+        report.error = "cannot write " + output + ": path is a directory";
+        return report;
+    }
+    std::filesystem::path parent = out_path.parent_path();
+    if (parent.empty()) {
+        parent = ".";
+    }
+    std::error_code ec;
+    const auto parent_status = std::filesystem::status(parent, ec);
+    if (ec || !std::filesystem::exists(parent_status)) {
+        report.error = "cannot write " + output + ": parent directory does not exist";
+        return report;
+    }
+    if (!std::filesystem::is_directory(parent_status)) {
+        report.error = "cannot write " + output + ": parent path is not a directory";
+        return report;
+    }
+
     misbklv::KlvSink sink("file:" + output, /*realtime=*/false, input,
                           report.st0604_generated ? misbklv::Sei0604::Generate
                                                   : misbklv::Sei0604::Preserve);

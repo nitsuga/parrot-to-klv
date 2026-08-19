@@ -13,9 +13,14 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <filesystem>
 #include <fstream>
 #include <string>
 #include <vector>
+
+#if defined(__unix__) || defined(__APPLE__)
+#include <unistd.h>
+#endif
 
 namespace parrot_to_klv {
 namespace {
@@ -356,13 +361,31 @@ ScrubReport scrub_file(const std::string& input, const std::string& output,
             "include position — treat this output as NOT scrubbed.");
     }
 
-    std::ofstream out(output, std::ios::binary | std::ios::trunc);
+    FILE* out = std::fopen(output.c_str(), "wb");
     if (!out) {
         report.error = "cannot write " + output;
         return report;
     }
-    out.write(reinterpret_cast<const char*>(file.data()), static_cast<long>(file.size()));
-    if (!out) {
+    if (std::fwrite(file.data(), 1, file.size(), out) != file.size() || std::fflush(out) != 0) {
+        std::fclose(out);
+        std::error_code ec;
+        std::filesystem::remove(output, ec);
+        report.error = "write failed";
+        return report;
+    }
+#if defined(__unix__) || defined(__APPLE__)
+    const int fd = fileno(out);
+    if (fd < 0 || fsync(fd) != 0) {
+        std::fclose(out);
+        std::error_code ec;
+        std::filesystem::remove(output, ec);
+        report.error = "sync failed";
+        return report;
+    }
+#endif
+    if (std::fclose(out) != 0) {
+        std::error_code ec;
+        std::filesystem::remove(output, ec);
         report.error = "write failed";
         return report;
     }
