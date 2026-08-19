@@ -81,17 +81,30 @@ void check_fixture(const std::string& fixture_dir) {
 }
 
 void check_iso8601() {
-    // The offset is the part that matters: dropping it would put every frame's
-    // Item 2 two hours off, consistently and invisibly.
-    check_eq(*parse_iso8601_to_epoch("2018-10-06T18:12:52+02:00"), int64_t{1538842372},
-             "positive offset is subtracted");
-    check_eq(*parse_iso8601_to_epoch("2018-10-06T16:12:52+00:00"), int64_t{1538842372},
-             "UTC with an explicit zero offset");
-    check_eq(*parse_iso8601_to_epoch("2018-10-06T10:12:52-06:00"), int64_t{1538842372},
-             "negative offset is added");
+    auto epoch_pos = parse_iso8601_to_epoch("2018-10-06T18:12:52+02:00");
+    check(epoch_pos.has_value(), "positive offset parses");
+    if (epoch_pos) {
+        check_eq(*epoch_pos, int64_t{1538842372}, "positive offset is subtracted");
+    }
+
+    auto epoch_zero = parse_iso8601_to_epoch("2018-10-06T16:12:52+00:00");
+    check(epoch_zero.has_value(), "UTC zero offset parses");
+    if (epoch_zero) {
+        check_eq(*epoch_zero, int64_t{1538842372}, "UTC with an explicit zero offset");
+    }
+
+    auto epoch_neg = parse_iso8601_to_epoch("2018-10-06T10:12:52-06:00");
+    check(epoch_neg.has_value(), "negative offset parses");
+    if (epoch_neg) {
+        check_eq(*epoch_neg, int64_t{1538842372}, "negative offset is added");
+    }
+
     // Parrot writes a space instead of 'T' in some fields.
-    check_eq(*parse_iso8601_to_epoch("2018-10-06 16:12:52+00:00"), int64_t{1538842372},
-             "a space separator is accepted");
+    auto epoch_space = parse_iso8601_to_epoch("2018-10-06 16:12:52+00:00");
+    check(epoch_space.has_value(), "space separator parses");
+    if (epoch_space) {
+        check_eq(*epoch_space, int64_t{1538842372}, "a space separator is accepted");
+    }
 
     check(!parse_iso8601_to_epoch("not a date").has_value(), "garbage does not parse");
     check(!parse_iso8601_to_epoch("").has_value(), "empty string does not parse");

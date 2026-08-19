@@ -146,6 +146,7 @@ void check_fixture_samples(const std::string& fixture_dir) {
         check_near(frame->lfic[0].horizontal_radial_accuracy_m, 4.0, 1e-6, "LFIC radial accuracy");
     }
     check(frame->tracking.has_value(), "tracking present");
+    check(frame->tracking && frame->tracking->target.has_value(), "tracking target present");
     if (frame->tracking && frame->tracking->target) {
         check_near(frame->tracking->target->width, 0.5, 1e-6, "tracking box width");
         check_eq(frame->tracking->target->uid, uint32_t{42}, "tracking target uid");
