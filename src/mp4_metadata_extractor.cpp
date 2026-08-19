@@ -73,6 +73,50 @@ int read_callback(int64_t offset, void* buffer, size_t size, void* token) {
     return fread(buffer, 1, size, file) != size;
 }
 
+/// A generous ceiling, not a real limit: no genuine Parrot recording comes
+/// remotely close. Exists only so a hostile `stsz` sample count (up to
+/// 2^32-1) cannot drive `extract_all_samples()`'s `reserve()` to attempt a
+/// multi-hundred-gigabyte allocation, or a caller's loop over `sample_count()`
+/// into a multi-hour fail loop, before a single byte of sample data is read.
+constexpr uint32_t kMaxSaneSampleCount = 10'000'000;
+
+/// Also generous: real Parrot metadata samples run to a few hundred bytes at
+/// most (the largest fixture extension payloads are smaller still). A hostile
+/// `stsz` entry can declare up to 4 GiB for one sample; without a cap that
+/// reaches `resize()` before the short-read check below ever gets a chance to
+/// reject it.
+constexpr uint32_t kMaxSaneFrameBytes = 1 * 1024 * 1024;
+
+/// True when a track's sample-index tables are self-consistent enough for
+/// `MP4D_frame_offset()` to be called safely.
+///
+/// minimp4 validates none of this itself — `MP4D_open` only checks
+/// `track_count > 0`. A track missing `stco`/`co64` or `stsc` leaves
+/// `chunk_offset`/`sample_to_chunk` null, and `MP4D_frame_offset`'s
+/// `sample_to_chunk()` helper dereferences `sample_to_chunk[0]`
+/// unconditionally on its very first loop iteration whenever `chunk_count` is
+/// at least 1 — a hostile file that pairs a populated `stco` with a missing
+/// `stsc` (or vice versa) crashes here, not on some later malformed-sample
+/// path. A track that declares zero samples has nothing to validate: every
+/// table pointer legitimately stays null in that case.
+bool track_sample_tables_valid(const MP4D_track_t& track) {
+    if (track.sample_count == 0) return true;
+    if (track.sample_count > kMaxSaneSampleCount) return false;
+    if (track.chunk_count == 0 || track.chunk_offset == nullptr) return false;
+    if (track.sample_to_chunk_count == 0 || track.sample_to_chunk == nullptr) return false;
+    if (track.entry_size == nullptr) return false;
+#if MP4D_TIMESTAMPS_SUPPORTED
+    // A missing 'stts' leaves these null; MP4D_frame_offset dereferences them
+    // unconditionally whenever a caller asks for timestamp/duration, which
+    // extract_sample() always does. This does not catch the narrower case of
+    // an 'stts' present but declaring fewer samples than 'stsz' -- minimp4
+    // discards that count once the box is parsed, so it is not recoverable
+    // from the public struct without re-parsing 'stts' independently.
+    if (track.timestamp == nullptr || track.duration == nullptr) return false;
+#endif
+    return true;
+}
+
 /// Locate the Parrot metadata track among the scanned descriptions.
 /// Returns the index into `tracks`, or -1.
 int find_parrot_metadata_track(const std::vector<Mp4TrackDescription>& tracks) {
@@ -174,6 +218,13 @@ std::optional<Mp4MetadataExtractor> Mp4MetadataExtractor::open(const std::string
                   << fourcc_to_string(track.handler_type) << "'" << std::endl;
         return std::nullopt;
     }
+    if (!track_sample_tables_valid(track)) {
+        std::cerr << "Track " << track_idx << " is missing or has an implausible "
+                     "sample-index table ('stco'/'co64', 'stsc', 'stts', or a sample "
+                     "count past a sane ceiling) -- refusing rather than reading past "
+                     "one that is not there" << std::endl;
+        return std::nullopt;
+    }
 
     extractor.impl_->metadata_track_idx = track_idx;
 
@@ -225,7 +276,7 @@ std::optional<MetadataSample> Mp4MetadataExtractor::extract_sample(uint32_t samp
     const MP4D_file_offset_t offset =
         MP4D_frame_offset(&impl_->demux, static_cast<unsigned>(impl_->metadata_track_idx),
                           sample_index, &frame_bytes, &timestamp_units, &duration_units);
-    if (frame_bytes == 0) {
+    if (frame_bytes == 0 || frame_bytes > kMaxSaneFrameBytes) {
         return std::nullopt;
     }
 

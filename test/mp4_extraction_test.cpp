@@ -183,6 +183,35 @@ void test_out_of_bounds_chunk_offset_is_rejected(const char* dir) {
     check(image == before, "poisoned track: file image untouched");
 }
 
+void test_missing_stsc_is_rejected(const char* dir) {
+    // A metadata track whose 'stsc' box is missing entirely, while 'stsz'
+    // still declares a sample and 'stco' still declares a chunk. Before the
+    // sample-table validation in issue #3, this reached
+    // MP4D_frame_offset() -> sample_to_chunk(), which dereferences
+    // sample_to_chunk[0] unconditionally on its first loop iteration
+    // whenever chunk_count >= 1 -- a NULL deref, since MP4D_open() does not
+    // itself require an 'stsc' box to be present. open() must refuse the
+    // whole track up front instead of accepting it and crashing later.
+    auto extractor = Mp4MetadataExtractor::open(fixture(dir, "parrot_missing_stsc.mp4"));
+    check(!extractor.has_value(), "a track missing 'stsc' is rejected");
+}
+
+void test_oversized_sample_size_is_skipped(const char* dir) {
+    // A metadata sample whose 'stsz' entry declares 2 MiB while the real
+    // payload sitting in mdat is a normal, tiny sample. Before the frame_bytes
+    // cap in issue #3, this reached std::vector::resize(2 MiB) unchecked --
+    // harmless for one sample at this size, but an attacker-controlled 'stsz'
+    // entry can declare up to 4 GiB, and every consumer loop calls
+    // extract_sample() once per declared sample. The track itself is fine
+    // (every other table is well-formed and sample_count is sane), so open()
+    // must still succeed; only the oversized sample is refused.
+    auto extractor = Mp4MetadataExtractor::open(fixture(dir, "parrot_oversized_sample_size.mp4"));
+    check(extractor.has_value(), "a track with one oversized sample still opens");
+    if (!extractor) return;
+    check(!extractor->extract_sample(0).has_value(),
+          "a sample declaring 2 MiB is refused, not allocated");
+}
+
 }  // namespace
 
 int main(int argc, char* argv[]) {
@@ -197,6 +226,8 @@ int main(int argc, char* argv[]) {
     test_rejects_non_parrot(dir);
     test_sample_extraction(dir);
     test_out_of_bounds_chunk_offset_is_rejected(dir);
+    test_missing_stsc_is_rejected(dir);
+    test_oversized_sample_size_is_skipped(dir);
 
     if (g_failures > 0) {
         std::cerr << "\n" << g_failures << " check(s) failed\n";

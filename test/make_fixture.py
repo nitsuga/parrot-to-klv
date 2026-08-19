@@ -719,6 +719,72 @@ def build_out_of_bounds_chunk_offset() -> bytes:
     return ftyp + mdat + moov
 
 
+def build_missing_stsc() -> bytes:
+    """A Parrot metadata track whose 'stsc' (sample-to-chunk) box is missing
+    entirely, while 'stsz' declares two samples and 'stco' declares two
+    chunks -- the NULL-deref regression test for issue #3.
+
+    minimp4's sample_to_chunk() short-circuits `chunk_count <= 1` to a safe
+    early return, so *one* chunk never reaches the bug -- it takes two to
+    reach the loop body, which dereferences tr->sample_to_chunk[0]
+    unconditionally on its very first iteration, with no null check.
+    MP4D_open() itself does not validate that a 'stsc' box was even present.
+    A hostile file that pairs a populated multi-entry 'stco' with a missing
+    'stsc' used to crash inside MP4D_frame_offset(); the wrapper now
+    validates every mandatory sample-index table is non-null (and non-empty)
+    right after MP4D_open() succeeds, and refuses the track instead.
+    """
+    ftyp = box(b"ftyp", b"isom" + struct.pack(">I", 512) + b"isomiso2avc1mp41")
+    sample0 = v3_sample(0, timestamp_ext(0))
+    sample1 = v3_sample(1, timestamp_ext(33333))
+    mdat = box(b"mdat", sample0 + sample1)
+    chunk0_offset = len(ftyp) + 8
+    chunk1_offset = chunk0_offset + len(sample0)
+
+    stts = full_box(b"stts", 0, 0, struct.pack(">III", 1, 2, 1000))
+    stsz = full_box(b"stsz", 0, 0, struct.pack(">II", 0, 2)
+                    + struct.pack(">I", len(sample0)) + struct.pack(">I", len(sample1)))
+    stco = full_box(b"stco", 0, 0, struct.pack(">III", 2, chunk0_offset, chunk1_offset))
+    # No stsc box at all, despite two chunks -- nothing says how the two
+    # samples map onto them.
+    stbl_box = box(b"stbl", stsd_mett(MIME_PREFIX + "com.parrot.videometadata3")
+                   + stts + stsz + stco)
+    minf = box(b"minf", full_box(b"nmhd", 0, 0, b"") + dinf() + stbl_box)
+    mdia = box(b"mdia", mdhd(30000, 2000) + hdlr(b"meta", "ParrotMetadata") + minf)
+    trak = box(b"trak", tkhd(1, 2000, 0, 0, 0) + mdia)
+    moov = box(b"moov", mvhd(30000, 2000, 2) + trak)
+    return ftyp + mdat + moov
+
+
+def build_oversized_sample_size() -> bytes:
+    """A Parrot metadata sample whose 'stsz' entry declares 2 MiB, far past
+    extract_sample()'s 1 MiB sanity cap -- the unbounded-allocation
+    regression test for issue #3.
+
+    The real mdat payload is a normal, tiny sample; only the size *field* in
+    'stsz' is hostile. That is exactly the shape a crafted file would use to
+    drive std::vector::resize() into an oversized allocation before a single
+    byte of the (much smaller) real payload is ever read.
+    """
+    ftyp = box(b"ftyp", b"isom" + struct.pack(">I", 512) + b"isomiso2avc1mp41")
+    sample = v3_sample(0, timestamp_ext(0))
+    mdat = box(b"mdat", sample)
+    chunk_offset = len(ftyp) + 8
+
+    lied_size = 2 * 1024 * 1024  # 2 MiB declared; not actually present
+    stts = full_box(b"stts", 0, 0, struct.pack(">III", 1, 1, 1000))
+    stsc = full_box(b"stsc", 0, 0, struct.pack(">IIII", 1, 1, 1, 1))
+    stsz = full_box(b"stsz", 0, 0, struct.pack(">II", 0, 1) + struct.pack(">I", lied_size))
+    stco = full_box(b"stco", 0, 0, struct.pack(">II", 1, chunk_offset))
+    stbl_box = box(b"stbl", stsd_mett(MIME_PREFIX + "com.parrot.videometadata3")
+                   + stts + stsc + stsz + stco)
+    minf = box(b"minf", full_box(b"nmhd", 0, 0, b"") + dinf() + stbl_box)
+    mdia = box(b"mdia", mdhd(30000, 1000) + hdlr(b"meta", "ParrotMetadata") + minf)
+    trak = box(b"trak", tkhd(1, 1000, 0, 0, 0) + mdia)
+    moov = box(b"moov", mvhd(30000, 1000, 2) + trak)
+    return ftyp + mdat + moov
+
+
 def main() -> int:
     if len(sys.argv) != 2:
         print(__doc__, file=sys.stderr)
@@ -768,6 +834,12 @@ def main() -> int:
         # A second track's chunk offset points past the end of the file --
         # the bounds-check regression test for issue #3.
         "parrot_out_of_bounds_chunk_offset.mp4": build_out_of_bounds_chunk_offset(),
+        # 'stsc' missing entirely -- the NULL-deref regression test for
+        # issue #3.
+        "parrot_missing_stsc.mp4": build_missing_stsc(),
+        # 'stsz' declares a 2 MiB sample -- the unbounded-allocation
+        # regression test for issue #3.
+        "parrot_oversized_sample_size.mp4": build_oversized_sample_size(),
     }
     # The only fixture whose video track is real H.264 -- the mux stage feeds
     # that stream to gstreamer, which will not accept the dummy bytes above.
