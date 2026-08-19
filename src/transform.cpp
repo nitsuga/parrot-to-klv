@@ -289,13 +289,21 @@ std::string CoverageReport::to_text(const Disclosure& disclosure) const {
 }
 
 void anchor_to_session(TelemetrySnapshot& snapshot, const SessionMetadata& session,
-                       uint64_t first_monotonic_us) {
+                       std::optional<uint64_t> first_monotonic_us) {
     if (snapshot.utc_timestamp_us) return;  // already has a real one
+    // A proto frame reaches here with no UTC stamp only because it declared
+    // its own invalid (zero utc_timestamp_accuracy) -- this anchor's
+    // monotonic-clock assumptions are validated for v3 only, and re-stamping
+    // a frame that explicitly said "invalid" would be a confident wrong time,
+    // worse than the omission the caller asked for.
+    if (snapshot.source_format != ParrotFormat::V3) return;
     if (!session.media_date_epoch_s) return;
+    if (!first_monotonic_us) return;  // origin sample's extraction/parse failed
     // The monotonic clock can run backwards relative to the first sample only
     // if the caller passed a later frame as the origin; guard rather than wrap.
-    const uint64_t elapsed_us =
-        snapshot.monotonic_us > first_monotonic_us ? snapshot.monotonic_us - first_monotonic_us : 0;
+    const uint64_t elapsed_us = snapshot.monotonic_us > *first_monotonic_us
+                                     ? snapshot.monotonic_us - *first_monotonic_us
+                                     : 0;
     snapshot.utc_timestamp_us =
         static_cast<uint64_t>(*session.media_date_epoch_s) * 1000000ULL + elapsed_us;
 }

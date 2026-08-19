@@ -7,6 +7,26 @@
 
 ## 2026-08-19
 
+* **`anchor_to_session` no longer stamps a proto frame that declared its own
+  UTC invalid, and no longer treats a failed origin sample as clock zero.**
+  Fixes issue #7. The anchor's early return only checked
+  `snapshot.utc_timestamp_us` being already set; a proto frame with
+  `utc_timestamp_accuracy == 0` reaches `from_proto` with that field
+  deliberately left empty (the schema's own "invalid" signal), and both
+  pipelines called `anchor_to_session` unconditionally — so it got stamped
+  from `media_date + camera-monotonic-elapsed` anyway, an anchor whose
+  assumptions (monotonic clock zeroed at recording start, media date == first
+  frame's wall time) are validated for v3 only. Now gated on
+  `snapshot.source_format == ParrotFormat::V3`. Separately,
+  `first_monotonic_us` changed from `uint64_t` (silently 0 when the origin
+  sample's extraction or parse failed) to `std::optional<uint64_t>`
+  (`std::nullopt` on that failure), so an unknown clock origin now disables
+  anchoring instead of being treated as zero. New tests in
+  `transform_test.cpp`: `check_anchor_skips_proto_declared_invalid`,
+  `check_anchor_skips_unknown_origin`, `check_anchor_v3_with_known_origin`
+  (the last of which had no prior coverage at all — `anchor_to_session` was
+  untested on its happy path before this).
+
 * **Re-vendored `minimp4.h` onto upstream's overflow fix, closing issues #27
   and #28.** [ADR 0012](decisions/0012-revendor-minimp4-overflow-fix.md).
 

@@ -44,6 +44,12 @@ mismatch OOB read (#28), both fixed upstream in the same fuzzing-driven
 hardening pass. See [ADR 0012](../context/decisions/0012-revendor-minimp4-overflow-fix.md).
 Also unreleased, alongside the fixes above.
 
+`anchor_to_session` no longer stamps Item 2 for a proto frame that declared
+its own UTC invalid, and no longer treats a failed origin sample's monotonic
+clock as zero — both fixed issue #7's finding that the anchor's early return
+did not check the recording's format or the origin sample's success. Also
+unreleased.
+
 The one substantive feature piece left is **fork 4, Tier 2 geometry fidelity**
 — see [ROADMAP](./ROADMAP.md) § Open forks.
 

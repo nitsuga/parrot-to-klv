@@ -9,6 +9,7 @@
 #include "misbklv/codec.hpp"
 #include "misbklv/packet.hpp"
 #include "misbklv/registries.hpp"
+#include "session_metadata.hpp"
 #include "telemetry.hpp"
 #include "transform.hpp"
 
@@ -395,6 +396,62 @@ void check_unknown_utc_is_not_invented() {
     check(!klv.packet.empty(), "packet is still produced without the mandatory Item 2");
 }
 
+void check_anchor_skips_proto_declared_invalid() {
+    // A proto frame that declared its own UTC invalid (zero accuracy) must
+    // stay unanchored: anchor_to_session's monotonic-clock assumptions are
+    // validated for v3 only, and re-stamping it from the session media date
+    // would be a confident wrong time -- worse than the omission the frame
+    // itself asked for. Regression test for issue #7: anchor_to_session used
+    // to early-return only on "already has a real timestamp", so it happily
+    // anchored this case too.
+    ParrotProtoFrame frame;
+    frame.drone_quat = identity();
+    frame.frame_quat = identity();
+    frame.utc_timestamp_us = 1770000000000000;
+    frame.utc_timestamp_accuracy = 0;  // the schema's "invalid" signal
+    frame.camera_timestamp_us = 5000000;
+    auto snapshot = from_proto(frame);
+    check(!snapshot.utc_timestamp_us.has_value(), "precondition: UTC starts unset");
+
+    SessionMetadata session;
+    session.media_date_epoch_s = 1700000000;
+    anchor_to_session(snapshot, session, uint64_t{0});
+
+    check(!snapshot.utc_timestamp_us.has_value(),
+          "a proto frame with declared-invalid UTC is not anchored from session data");
+}
+
+void check_anchor_skips_unknown_origin() {
+    // If the origin (first) sample's own extraction or parse failed, its
+    // monotonic clock reading is unknown -- the caller must pass
+    // std::nullopt, and the anchor must leave Item 2 absent rather than treat
+    // the unknown origin as zero, which would carry a wrong clock base into
+    // every frame's timestamp. Regression test for issue #7's "related"
+    // finding: first_monotonic_us used to default to a bare 0.
+    auto snapshot = base_v3_snapshot();
+    check(!snapshot.utc_timestamp_us.has_value(), "precondition: v3 starts with no UTC");
+
+    SessionMetadata session;
+    session.media_date_epoch_s = 1700000000;
+    anchor_to_session(snapshot, session, std::nullopt);
+
+    check(!snapshot.utc_timestamp_us.has_value(),
+          "an unknown origin sample leaves Item 2 unanchored rather than assuming a zero clock");
+}
+
+void check_anchor_v3_with_known_origin() {
+    // The case anchor_to_session exists for: a v3 frame's monotonic clock,
+    // anchored to the session's media date with a real origin reading.
+    auto snapshot = base_v3_snapshot();  // frame_timestamp_us = 33333
+    SessionMetadata session;
+    session.media_date_epoch_s = 1700000000;
+    anchor_to_session(snapshot, session, uint64_t{3333});  // 30000 us elapsed
+
+    check(snapshot.utc_timestamp_us.has_value(), "a v3 frame with session data is anchored");
+    check(*snapshot.utc_timestamp_us == uint64_t{1700000000} * 1000000ULL + 30000,
+          "anchored timestamp is media_date_epoch_s plus elapsed monotonic microseconds");
+}
+
 void check_narrow_angle_specials() {
     // Item 6 is ±20 degrees; a quadcopter exceeds that in ordinary flight, and
     // 0601 says signal it with 0x8000 rather than clamping.
@@ -730,6 +787,9 @@ int main() {
     check_image_source_sensor();
     check_image_source_inference();
     check_unknown_utc_is_not_invented();
+    check_anchor_skips_proto_declared_invalid();
+    check_anchor_skips_unknown_origin();
+    check_anchor_v3_with_known_origin();
     check_narrow_angle_specials();
     check_attitude_clamped();
     check_attitude_in_range_is_untouched();
