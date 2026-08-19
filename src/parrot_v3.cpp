@@ -170,6 +170,7 @@ std::string to_string(ParrotV3Error error) {
         case ParrotV3Error::TooShort: return "sample shorter than the v3 base structure";
         case ParrotV3Error::BadIdentifier: return "leading identifier is not 0x5033";
         case ParrotV3Error::LengthMismatch: return "declared length disagrees with the sample";
+        case ParrotV3Error::InvalidQuaternion: return "quaternion is not unit norm";
     }
     return "unknown error";
 }
@@ -217,6 +218,15 @@ std::optional<ParrotV3Frame> parse_v3(std::span<const uint8_t> sample, ParrotV3E
     frame.drone_quat = read_quat(sample, 28);
     frame.frame_base_quat = read_quat(sample, 36);
     frame.frame_quat = read_quat(sample, 44);
+
+    const auto is_unit_norm = [](const Quaternion& q) {
+        const double n = q.norm();
+        return !std::isnan(n) && std::abs(n - 1.0) <= 0.01;
+    };
+    if (!is_unit_norm(frame.drone_quat) || !is_unit_norm(frame.frame_base_quat) ||
+        !is_unit_norm(frame.frame_quat)) {
+        return fail(ParrotV3Error::InvalidQuaternion);
+    }
 
     frame.exposure_time_ms = be16(sample, 52) / kQ8_8;
     frame.gain = be16(sample, 54);

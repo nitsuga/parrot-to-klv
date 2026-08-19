@@ -147,9 +147,10 @@ struct ParrotV3Frame {
 
 /// Why a sample failed to parse.
 enum class ParrotV3Error {
-    TooShort,        ///< fewer bytes than the base structure needs
-    BadIdentifier,   ///< leading id is not 0x5033
-    LengthMismatch,  ///< declared length disagrees with the buffer
+    TooShort,           ///< fewer bytes than the base structure needs
+    BadIdentifier,      ///< leading id is not 0x5033
+    LengthMismatch,     ///< declared length disagrees with the buffer
+    InvalidQuaternion,  ///< quaternion norm deviates from unit norm
 };
 
 std::string to_string(ParrotV3Error error);

@@ -208,6 +208,52 @@ void test_malformed() {
     truncated[0] = 0x50;
     truncated[1] = 0x33;
     check(!parse_v3(truncated, &err).has_value(), "truncated base rejected");
+
+    // Non-unit quaternion norm (all zeros -> norm 0.0).
+    std::vector<uint8_t> zero_quat(kParrotV3BaseSize, 0);
+    zero_quat[0] = 0x50;
+    zero_quat[1] = 0x33;
+    zero_quat[2] = 0x00;
+    zero_quat[3] = 17;  // 4 + 17*4 = 72 bytes
+    check(!parse_v3(zero_quat, &err).has_value(), "zero quaternion rejected");
+    check_eq(to_string(err), to_string(ParrotV3Error::InvalidQuaternion),
+             "invalid quaternion error");
+
+    // Quaternion norm boundary tests: tolerance is 0.01 (|norm - 1.0| <= 0.01).
+    // Build a base frame with valid identity quaternions (w = 16384 = 0x4000).
+    std::vector<uint8_t> base_valid(kParrotV3BaseSize, 0);
+    base_valid[0] = 0x50;
+    base_valid[1] = 0x33;
+    base_valid[2] = 0x00;
+    base_valid[3] = 17;
+    // Set drone_quat (28), frame_base_quat (36), frame_quat (44) to identity (w = 0x4000)
+    for (size_t off : {28, 36, 44}) {
+        base_valid[off] = 0x40;
+        base_valid[off + 1] = 0x00;
+    }
+    check(parse_v3(base_valid, &err).has_value(), "valid identity quaternions accepted");
+
+    // Boundary check: w = 16466 (norm = 1.0050, within 0.01 tolerance)
+    auto within_tol = base_valid;
+    within_tol[28] = static_cast<uint8_t>(16466 >> 8);
+    within_tol[29] = static_cast<uint8_t>(16466 & 0xFF);
+    check(parse_v3(within_tol, &err).has_value(), "quaternion norm within 0.01 tolerance accepted");
+
+    // Boundary check: w = 16564 (norm = 1.0110, exceeds 0.01 tolerance)
+    auto over_tol = base_valid;
+    over_tol[28] = static_cast<uint8_t>(16564 >> 8);
+    over_tol[29] = static_cast<uint8_t>(16564 & 0xFF);
+    check(!parse_v3(over_tol, &err).has_value(), "quaternion norm > 1.01 rejected");
+    check_eq(to_string(err), to_string(ParrotV3Error::InvalidQuaternion),
+             "over tolerance invalid quaternion error");
+
+    // Boundary check: w = 16204 (norm = 0.9890, exceeds 0.01 tolerance)
+    auto under_tol = base_valid;
+    under_tol[28] = static_cast<uint8_t>(16204 >> 8);
+    under_tol[29] = static_cast<uint8_t>(16204 & 0xFF);
+    check(!parse_v3(under_tol, &err).has_value(), "quaternion norm < 0.99 rejected");
+    check_eq(to_string(err), to_string(ParrotV3Error::InvalidQuaternion),
+             "under tolerance invalid quaternion error");
 }
 
 }  // namespace
