@@ -7,6 +7,58 @@ tell a user nothing.
 The release workflow publishes the section matching the tag, so a heading here
 must be exactly `## vX.Y.Z`.
 
+## v0.1.6
+
+### Fixed
+
+- **`parrot-scrub` now scrubs session identity and the absolute flight date,
+  not just the geotag.** The `©day` flight timestamp, `©too` serial, `©ART`
+  friendly name, and `©nam` title all used to survive a scrub untouched —
+  a scrubbed video still said who and when. All are now blanked alongside the
+  `©xyz` geotag, and the end-of-run warning no longer overclaims what it left
+  behind. The `--lat`/`--lon`/`--alt` options are also strictly parsed now:
+  an unknown flag, a missing value, an extra positional, a non-numeric value,
+  or an out-of-range latitude/longitude is an error instead of a silently
+  wrong (or garbage) coordinate baked into every sample.
+
+- **All three tools now refuse malformed command lines instead of quietly
+  doing the wrong thing.** Misspelled flags, an option left without its value,
+  and unexpected extra positionals are errors everywhere (`parrot-to-klv`,
+  `parrot-scrub`, `parrot-conform`). In particular a blank `-o ""` no longer
+  silently degrades to inspection mode, and `parrot-conform --label`/`--out`
+  no longer silently ignore those flags in `--scan` mode. **If you script any
+  of the three, a misspelled flag that used to run to completion now exits
+  non-zero.**
+
+- **A conversion no longer leaves a half-written output file.** Interrupting
+  (`Ctrl-C`) or a recording that converts to zero frames discards the output
+  instead of leaving a truncated `.ts` indistinguishable from a finished one.
+  `parrot-to-klv` now handles `SIGINT`/`SIGTERM` so the file is cleaned up on
+  interruption.
+
+- **Invalid telemetry no longer becomes a plausible measurement.** A proto
+  frame with no position fix no longer reports a confident 0°N 0°E; a
+  no-fix frame's ground distance is no longer invented; Item 124 is omitted
+  rather than emitted at its forbidden all-zeros encoding; and a NaN attitude
+  is reported invalid rather than out-of-range.
+
+- **`parrot-to-klv`'s coverage report now covers the whole recording, not
+  just the first frames.** It used to keep the first emitted frame's (or, in
+  inspection mode, the first three samples') coverage, so mid-flight drift —
+  an attitude sentinel appearing later, a thermal extension starting mid-shot,
+  a field dropping in and out — was invisible. It now aggregates every frame
+  and calls out any ST 0601 item that was sometimes present and sometimes
+  absent across the conversion.
+
+- **Both `parrot-conform --scan` and `parrot-to-klv` reject malformed
+  recordings instead of mis-parsing them.** A recording with a bad or
+  out-of-range timezone offset, a calendar-impossible date, a hostile
+  duration, or an unreadable scan entry is reported by name with the real
+  error (in `--scan`, a file that vanishes mid-scan does not stop the rest of
+  the directory, and is no longer shown with a multi-terabyte bogus "file
+  size"). A recording whose telemetry timestamp declared its own UTC invalid
+  is no longer stamped with an invented wall time.
+
 ## v0.1.5
 
 ### Changed

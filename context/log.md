@@ -7,6 +7,17 @@
 
 ## 2026-08-19
 
+* **`v0.1.6` published.** Tagged at `a0fa67d` after PRs #29–#33 and the
+  automated-review-round fixes (#22–#26) merged. This is the first release to
+  carry the whole review-round batch at once: strict/fail-closed CLIs (#13),
+  extraction hardening against hostile/malformed input (#4, plus issues
+  #27/#28 via the re-vendored `minimp4.h`, ADR 0012), transform truthfulness
+  fixes (#6, #7), mux output integrity (#10), coverage aggregation (#15),
+  `--scan` filesystem-error reporting (#14), and scrub identity/date (#12).
+  One user-facing call-out in the release notes: a misspelled CLI flag that
+  used to run to completion now exits non-zero, and an interrupted or
+  zero-frame conversion leaves no half-written output.
+
 * **`parrot-conform --scan` reports filesystem errors instead of silently
   absorbing them.** Fixes issue #14. Three unchecked `std::error_code`s in
   `conform_main.cpp`'s scan-mode loop: `fs::directory_iterator`'s

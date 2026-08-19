@@ -20,61 +20,30 @@ here: [MP4 metadata extraction](../context/mp4-extraction.md),
 surface — flags, output, the scrub and conform workflows — is in
 [`README.md`](../README.md).
 
-**`v0.1.5` is the current release.** It distributes the video-first PMT stream
-order: the output announces the video as stream `0:0` and the KLV as `0:1`, so
-`ffmpeg -map 0:0` selects the video. The mechanism is upstream's (libmisbklv
-ADR 0020 § Stream order, revised 2026-08-12); `mux_test` pins the order.
+**`v0.1.6` is the current release.** It distributes every fix merged since
+`v0.1.5` — an automated review round (issues #3, #4, #6, #7, #10, #12, #13,
+#14, #15) plus the re-vendored `minimp4.h` overflow fix (issues #27/#28, ADR
+0012):
 
-Main additionally carries a build-only libmisbklv pin update (`84c7e366`,
-upstream's 2026-08-17 review-issue wave — gst error-path hygiene, core codec
-hardening) and five merged fixes from an automated review round (issues #3,
-#6, #10, #12; see `context/log.md`'s 2026-08-18/19 entries for detail): a
-scrub identity/date gap, extractor hardening against hostile sample-index
-tables (two PRs — a wrapped bounds check, then NULL-table validation and
-allocation caps), transform fabrication/spec-violation fixes, and a mux
-invariant restore (signal handling, zero-frame conversions). All are
-runtime-behavior changes and together are release-worthy; no release has
-been cut for them yet.
+- **Truthfulness in the transform**: no-fix frames no longer report a confident
+  0°N 0°E, AGL and Item 124 are not fabricated, NaN attitude is invalid not
+  out-of-range, and a proto frame that declared its own UTC invalid is no
+  longer stamped with an invented Item 2.
+- **Strict, fail-closed CLIs**: unknown flags, missing values, and extra
+  positionals are errors across all three tools; `parrot-scrub`'s coordinate
+  options are strictly parsed and range-checked; `parrot-conform --scan`
+  reports filesystem errors by name instead of a bogus "No recordings" or a
+  multi-terabyte size.
+- **A clean, complete output**: an interrupted or zero-frame conversion leaves
+  no half-written `.ts`.
+- **Extraction hardening**: malformed ISO 8601 offsets/dates, hostile `mdhd`
+  durations, unknown `tkhd` versions, wrapping box sizes, and missing/invalid
+  sample tables are rejected rather than mis-parsed.
 
-`external/minimp4/minimp4.h` is now re-vendored onto upstream's current commit
-(`5a212a1`, 2026-07-13), closing the two findings extractor hardening (issue
-#3) found out of reach of any wrapper-boundary check: the `stsz` sample-count
-integer overflow into a heap-buffer-overflow write (#27) and the stts/stsz
-mismatch OOB read (#28), both fixed upstream in the same fuzzing-driven
-hardening pass. See [ADR 0012](../context/decisions/0012-revendor-minimp4-overflow-fix.md).
-Also unreleased, alongside the fixes above.
-
-`anchor_to_session` no longer stamps Item 2 for a proto frame that declared
-its own UTC invalid, and no longer treats a failed origin sample's monotonic
-clock as zero — both fixed issue #7's finding that the anchor's early return
-did not check the recording's format or the origin sample's success. Also
-unreleased.
-
-Extraction no longer silently mis-parses four classes of malformed input
-(issue #4): a malformed/out-of-range ISO 8601 UTC offset, a calendar-
-impossible date, a hostile `mdhd` duration overflowing `duration_us`'s
-computation, and a `tkhd` version past the one ISO/IEC 14496-12 defines. Also
-unreleased.
-
-All three CLIs now share `parrot-to-klv`'s option-parsing discipline (issue
-#13): unknown flag, missing value, and extra positional are errors, never
-silently ignored. `parrot-scrub`'s `--lat`/`--lon`/`--alt` gained strict,
-range-checked parsing, closing a real undefined-behavior path (`std::atof`
-letting NaN reach `std::lround()`). Also unreleased.
-
-Coverage reporting now aggregates across every frame instead of keeping only
-the first (issue #15): the muxed report and the CLI's inspection summary used
-to each discard everything past the first frame's (or, for the CLI, the
-first three samples'), hiding mid-recording drift like an attitude sentinel
-appearing later or a thermal extension starting mid-flight. See
-[transform-stage](../context/transform-stage.md) § Aggregated across a
-recording. Also unreleased.
-
-`parrot-conform --scan` now reports filesystem errors instead of silently
-absorbing them (issue #14): a permission-denied scan directory used to
-report "No recordings" rather than the real cause, and a vanished or
-unreadable file printed a multi-terabyte garbage size instead of the actual
-stat failure. Also unreleased.
+The output MPEG-TS keeps the video-first PMT stream order introduced in
+`v0.1.5`: the video is stream `0:0` and the KLV `0:1`, so `ffmpeg -map 0:0`
+selects the video. (The mechanism is upstream's, libmisbklv ADR 0020 § Stream
+order; `mux_test` pins it.)
 
 The one substantive feature piece left is **fork 4, Tier 2 geometry fidelity**
 — see [ROADMAP](./ROADMAP.md) § Open forks.
