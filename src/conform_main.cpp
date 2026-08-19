@@ -89,21 +89,63 @@ int emit(const ConformanceReport& report, const fs::path& out, bool check) {
 int main(int argc, char* argv[]) {
     std::string scan_dir, reports_dir, input, label, out;
     bool check = false;
+    bool label_given = false;
+    bool out_given = false;
 
     for (int i = 1; i < argc; ++i) {
         const std::string a = argv[i];
-        const auto next = [&](std::string& dst) { if (i + 1 < argc) dst = argv[++i]; };
-        if (a == "--scan") next(scan_dir);
-        else if (a == "--reports") next(reports_dir);
-        else if (a == "--label") next(label);
-        else if (a == "--out") next(out);
-        else if (a == "--check") check = true;
-        else if (a == "-h" || a == "--help") { usage(argv[0]); return 0; }
-        else if (input.empty()) input = a;
+        // A trailing flag with no value must stop the program, not silently
+        // leave the destination string empty (which reads the same as the
+        // flag never having been passed at all).
+        const auto next = [&](std::string& dst) -> bool {
+            if (i + 1 >= argc) {
+                std::cerr << "Error: " << a << " needs a value.\n";
+                return false;
+            }
+            dst = argv[++i];
+            return true;
+        };
+        if (a == "--scan") {
+            if (!next(scan_dir)) return 1;
+        } else if (a == "--reports") {
+            if (!next(reports_dir)) return 1;
+        } else if (a == "--label") {
+            if (!next(label)) return 1;
+            label_given = true;
+        } else if (a == "--out") {
+            if (!next(out)) return 1;
+            out_given = true;
+        } else if (a == "--check") {
+            check = true;
+        } else if (a == "-h" || a == "--help") {
+            usage(argv[0]);
+            return 0;
+        } else if (!a.empty() && a[0] == '-') {
+            // Unrecognized flags are refused, never silently taken as the
+            // input path (an unknown "--bogus" used to become `input`) or
+            // dropped outright.
+            std::cerr << "Error: unknown option '" << a << "'.\n"
+                      << "Run " << argv[0] << " --help for the options.\n";
+            return 1;
+        } else if (input.empty()) {
+            input = a;
+        } else {
+            std::cerr << "Error: unexpected extra argument '" << a << "'.\n";
+            return 1;
+        }
     }
 
     if (!scan_dir.empty()) {
         if (reports_dir.empty()) { usage(argv[0]); return 2; }
+        // --label and --out each name one report; scan mode processes a
+        // whole directory and names each report from its own file hash, so
+        // neither has a meaning to silently drop here (the old code hardcoded
+        // an empty label into every call, discarding --label with no error).
+        if (label_given || out_given) {
+            std::cerr << "Error: --label/--out apply to single-file mode; --scan names "
+                         "each report from its own file hash.\n";
+            return 1;
+        }
         std::error_code ec;
         if (!fs::is_directory(scan_dir, ec)) {
             std::cout << "No " << scan_dir << " directory — skipping conformance check.\n";

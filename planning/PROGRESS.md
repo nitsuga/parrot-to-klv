@@ -56,6 +56,12 @@ impossible date, a hostile `mdhd` duration overflowing `duration_us`'s
 computation, and a `tkhd` version past the one ISO/IEC 14496-12 defines. Also
 unreleased.
 
+All three CLIs now share `parrot-to-klv`'s option-parsing discipline (issue
+#13): unknown flag, missing value, and extra positional are errors, never
+silently ignored. `parrot-scrub`'s `--lat`/`--lon`/`--alt` gained strict,
+range-checked parsing, closing a real undefined-behavior path (`std::atof`
+letting NaN reach `std::lround()`). Also unreleased.
+
 The one substantive feature piece left is **fork 4, Tier 2 geometry fidelity**
 — see [ROADMAP](./ROADMAP.md) § Open forks.
 

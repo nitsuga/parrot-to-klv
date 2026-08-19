@@ -239,6 +239,75 @@ set_tests_properties(cli_rejects_output_without_path PROPERTIES WILL_FAIL TRUE)
 add_test(NAME cli_rejects_two_inputs COMMAND parrot-to-klv one.mp4 two.mp4)
 set_tests_properties(cli_rejects_two_inputs PROPERTIES WILL_FAIL TRUE)
 
+# parrot-scrub and parrot-conform's argument handling, same rejection
+# discipline and same reasoning as the parrot-to-klv cases above (issue #13):
+# a misspelled flag or an out-of-range coordinate used to run to completion
+# and exit 0 -- for a privacy tool, that meant the location data silently
+# stayed in the output.
+# --bogus comes after both positionals so this actually discriminates: before
+# this fix, an unknown flag past input/output matched neither the flag list
+# nor either positional slot and was silently dropped, so the scrub still ran
+# to completion. (An unknown flag given *first* also used to "work" pre-fix,
+# but only by accident -- old code took it as the input path, which then
+# failed to open as a file for an unrelated reason, so that ordering alone
+# would not have caught this bug.)
+add_test(NAME scrub_rejects_unknown_option
+         COMMAND parrot-scrub
+                 ${CMAKE_SOURCE_DIR}/test/fixtures/parrot_v3.mp4
+                 ${CMAKE_CURRENT_BINARY_DIR}/scrub_cli_reject_out.mp4 --bogus)
+set_tests_properties(scrub_rejects_unknown_option PROPERTIES WILL_FAIL TRUE)
+add_test(NAME scrub_rejects_nan_lat
+         COMMAND parrot-scrub --lat nan
+                 ${CMAKE_SOURCE_DIR}/test/fixtures/parrot_v3.mp4
+                 ${CMAKE_CURRENT_BINARY_DIR}/scrub_cli_reject_out.mp4)
+set_tests_properties(scrub_rejects_nan_lat PROPERTIES WILL_FAIL TRUE)
+add_test(NAME scrub_rejects_out_of_range_lat
+         COMMAND parrot-scrub --lat 200
+                 ${CMAKE_SOURCE_DIR}/test/fixtures/parrot_v3.mp4
+                 ${CMAKE_CURRENT_BINARY_DIR}/scrub_cli_reject_out.mp4)
+set_tests_properties(scrub_rejects_out_of_range_lat PROPERTIES WILL_FAIL TRUE)
+add_test(NAME scrub_rejects_missing_value
+         COMMAND parrot-scrub
+                 ${CMAKE_SOURCE_DIR}/test/fixtures/parrot_v3.mp4
+                 ${CMAKE_CURRENT_BINARY_DIR}/scrub_cli_reject_out.mp4 --lat)
+set_tests_properties(scrub_rejects_missing_value PROPERTIES WILL_FAIL TRUE)
+add_test(NAME scrub_rejects_extra_argument
+         COMMAND parrot-scrub
+                 ${CMAKE_SOURCE_DIR}/test/fixtures/parrot_v3.mp4
+                 ${CMAKE_CURRENT_BINARY_DIR}/scrub_cli_reject_out.mp4 extra)
+set_tests_properties(scrub_rejects_extra_argument PROPERTIES WILL_FAIL TRUE)
+
+# --bogus after the positional, same reasoning as scrub_rejects_unknown_option
+# above: given first, old code took it as `input` and only failed because
+# that path did not exist -- not because it detected the unknown flag.
+add_test(NAME conform_rejects_unknown_option
+         COMMAND parrot-conform
+                 ${CMAKE_SOURCE_DIR}/test/fixtures/parrot_v3.mp4 --bogus)
+set_tests_properties(conform_rejects_unknown_option PROPERTIES WILL_FAIL TRUE)
+# A trailing "--label" with nothing after it: old code's `next()` silently
+# left `label` empty on a missing value, which reads identically to --label
+# never having been passed at all, so single-file mode fell back to its
+# default (hash-based) label and still exited 0.
+add_test(NAME conform_rejects_missing_value
+         COMMAND parrot-conform
+                 ${CMAKE_SOURCE_DIR}/test/fixtures/parrot_v3.mp4 --label)
+set_tests_properties(conform_rejects_missing_value PROPERTIES WILL_FAIL TRUE)
+add_test(NAME conform_rejects_extra_argument
+         COMMAND parrot-conform
+                 ${CMAKE_SOURCE_DIR}/test/fixtures/parrot_v3.mp4 extra)
+set_tests_properties(conform_rejects_extra_argument PROPERTIES WILL_FAIL TRUE)
+# Scans test/fixtures/ itself (it holds real applicable .mp4s) rather than a
+# nonexistent directory: old code's scan-mode loop hardcoded
+# `run_conformance(p.string(), "")` regardless of `--label`, so it needs a
+# scan that actually runs and succeeds to show --label being silently
+# dropped -- a nonexistent --scan dir "succeeds" at WILL_FAIL for the wrong
+# reason (it skips with a nonzero exit before ever reaching that code).
+add_test(NAME conform_rejects_label_with_scan
+         COMMAND parrot-conform --scan ${CMAKE_SOURCE_DIR}/test/fixtures
+                                --reports ${CMAKE_CURRENT_BINARY_DIR}/conform_cli_reject_reports
+                                --label foo)
+set_tests_properties(conform_rejects_label_with_scan PROPERTIES WILL_FAIL TRUE)
+
 add_test(NAME conformance_real_data
          COMMAND parrot-conform --scan ${CMAKE_SOURCE_DIR}/data
                                 --reports ${CMAKE_SOURCE_DIR}/test/conformance
@@ -268,5 +337,10 @@ set_tests_properties(
   mux conformance_real_data
   cli_version cli_help cli_rejects_unknown_option
   cli_rejects_output_without_path cli_rejects_two_inputs
+  scrub_rejects_unknown_option scrub_rejects_nan_lat
+  scrub_rejects_out_of_range_lat scrub_rejects_missing_value
+  scrub_rejects_extra_argument
+  conform_rejects_unknown_option conform_rejects_missing_value
+  conform_rejects_extra_argument conform_rejects_label_with_scan
   packaging_output_guard
   PROPERTIES LABELS parrot)

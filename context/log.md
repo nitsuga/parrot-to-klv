@@ -7,6 +7,29 @@
 
 ## 2026-08-19
 
+* **`parrot-scrub` and `parrot-conform` adopt `parrot-to-klv`'s option-parsing
+  discipline: unknown flag, missing value, and extra positional are all
+  errors now, never silently ignored.** Fixes issue #13. Scrub's `--lat`/
+  `--lon`/`--alt` also gained strict parsing (`strtod` with a full-consumption
+  check, rejecting `12abc`) and a finite-value requirement, closing a real
+  UB path: `std::atof("nan")` reached `std::lround()` unchecked, and casting
+  its NaN-domain-error result to `int32_t` is undefined behavior — for a
+  privacy tool, a mistyped `--lat` used to either write garbage coordinate
+  bits into every sample or (for a misspelled flag like `--zero_media`) exit
+  0 having silently left the real location in place. `--lat`/`--lon` are now
+  also range-checked ([-90, 90] / [-180, 180]). Conform additionally refuses
+  `--label`/`--out` combined with `--scan` (they name one report; scan mode
+  processes a directory and named each report from its own file hash while
+  silently discarding `--label` under the old code). `parrot-to-klv`'s own
+  `-o ""` no longer silently degrades to inspection mode. Nine new CLI-level
+  regression tests (`scrub_rejects_*`, `conform_rejects_*` in
+  `CMakeLists.txt`), each confirmed genuinely discriminant by rebuilding
+  against the pre-fix source and watching every one wrongly exit 0 — three
+  needed a specific argument *ordering* to actually exercise the bug rather
+  than coincidentally erroring for an unrelated reason (an unknown flag
+  given first was taken as the input path pre-fix, which then failed to
+  open as a file either way).
+
 * **Lint pass.** Found two items the ADR 0012 re-vendor left behind:
   `context/mp4-extraction.md`'s "minimp4 traps" section still described the
   `stsz`/`stts` sample-count mismatch as "a residual, unclosed risk" — a

@@ -261,6 +261,15 @@ int main(int argc, char* argv[]) {
                 return 1;
             }
             output = argv[++i];
+            // An empty path is rejected outright rather than left to
+            // `!output.empty()` below, which reads a blank "-o" as no output
+            // requested at all and silently falls back to inspection mode --
+            // a successful-looking no-op for a script that passed one by
+            // mistake.
+            if (output.empty()) {
+                std::cerr << "Error: " << arg << " needs a non-empty path.\n";
+                return 1;
+            }
         } else if (!arg.empty() && arg[0] == '-') {
             // Unrecognized *flags* are refused, never ignored. A silently
             // dropped "--klvv" runs to completion, exits 0, and produces output
