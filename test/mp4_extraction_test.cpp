@@ -212,6 +212,19 @@ void test_oversized_sample_size_is_skipped(const char* dir) {
           "a sample declaring 2 MiB is refused, not allocated");
 }
 
+void test_stsz_count_overflow_is_rejected(const char* dir) {
+    // A metadata track whose 'stsz' declares sample_count near 0x40000000.
+    // Before re-vendoring minimp4.h onto its integer-overflow fix (issue
+    // #27), `sample_count * 4` wrapped in 32-bit arithmetic to a tiny
+    // allocation, and the un-overflowed loop then wrote the full declared
+    // sample_count of entries into it -- a heap buffer overflow write inside
+    // MP4D_open() itself, unreachable by any wrapper-boundary check since it
+    // happens before control ever returns to this project's code. open()
+    // must refuse the file outright.
+    auto extractor = Mp4MetadataExtractor::open(fixture(dir, "parrot_stsz_count_overflow.mp4"));
+    check(!extractor.has_value(), "a track with an overflowing stsz sample_count is rejected");
+}
+
 }  // namespace
 
 int main(int argc, char* argv[]) {
@@ -228,6 +241,7 @@ int main(int argc, char* argv[]) {
     test_out_of_bounds_chunk_offset_is_rejected(dir);
     test_missing_stsc_is_rejected(dir);
     test_oversized_sample_size_is_skipped(dir);
+    test_stsz_count_overflow_is_rejected(dir);
 
     if (g_failures > 0) {
         std::cerr << "\n" << g_failures << " check(s) failed\n";

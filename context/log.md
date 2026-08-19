@@ -7,6 +7,9 @@
 
 ## 2026-08-19
 
+* **Re-vendored `minimp4.h` onto upstream's overflow fix, closing issues #27
+  and #28.** [ADR 0012](decisions/0012-revendor-minimp4-overflow-fix.md).
+
 * **Doc-drift close-out and triage housekeeping.** README's `parrot-scrub`
   blurb now names what scrub removes beyond location — identity and the
   flight's absolute start time (serial, friendly name, title, copyright,

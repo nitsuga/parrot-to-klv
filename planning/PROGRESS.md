@@ -36,11 +36,13 @@ invariant restore (signal handling, zero-frame conversions). All are
 runtime-behavior changes and together are release-worthy; no release has
 been cut for them yet.
 
-Extractor hardening (issue #3) found a further, unfixed heap-overflow-write
-risk inside vendored `external/minimp4/minimp4.h` itself (`stsz`'s sample
-count overflows a 32-bit multiplication before `malloc()`), out of reach of
-any wrapper-boundary check. Patching vendored code is a real decision, not
-a routine fix — filed as its own issue rather than folded in quietly.
+`external/minimp4/minimp4.h` is now re-vendored onto upstream's current commit
+(`5a212a1`, 2026-07-13), closing the two findings extractor hardening (issue
+#3) found out of reach of any wrapper-boundary check: the `stsz` sample-count
+integer overflow into a heap-buffer-overflow write (#27) and the stts/stsz
+mismatch OOB read (#28), both fixed upstream in the same fuzzing-driven
+hardening pass. See [ADR 0012](../context/decisions/0012-revendor-minimp4-overflow-fix.md).
+Also unreleased, alongside the fixes above.
 
 The one substantive feature piece left is **fork 4, Tier 2 geometry fidelity**
 — see [ROADMAP](./ROADMAP.md) § Open forks.

@@ -1,6 +1,6 @@
 # minimp4 - Vendored Dependency
 
-**Version:** commit `4575afb4f69ace25a1a048e25cc86bf8c8d14f2b` (2021-08-20)  
+**Version:** commit `5a212a18dba7dca09543bbc7d65619274fd2931a` (2026-07-13)  
 **Source:** https://github.com/lieff/minimp4  
 **License:** Public Domain (Unlicense) — see [LICENSE](./LICENSE)
 

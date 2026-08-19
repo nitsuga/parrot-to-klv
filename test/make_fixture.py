@@ -785,6 +785,40 @@ def build_oversized_sample_size() -> bytes:
     return ftyp + mdat + moov
 
 
+def build_stsz_count_overflow() -> bytes:
+    """A Parrot metadata track whose 'stsz' declares a sample_count near
+    0x40000000 -- the integer-overflow regression test for issue #27.
+
+    minimp4 computed `sample_count * 4` in native 32-bit arithmetic before
+    the fix landed upstream (commit 5a212a1..df109a3): a count this large
+    wraps that product to a few bytes, so the allocation it drives is far
+    smaller than the (un-overflowed) loop that then fills it -- a heap
+    buffer overflow write, reachable from a few hundred bytes on disk with
+    no real per-sample payload behind the declared count at all (`READ()`
+    clamps to zero-padding once the box's real bytes run out). Fixed by
+    re-vendoring minimp4.h onto that upstream commit, which widens the
+    computation to uint64_t before the size reaches minimp4_bounded_malloc's
+    ceiling. open() must reject this track, not allocate into it.
+    """
+    ftyp = box(b"ftyp", b"isom" + struct.pack(">I", 512) + b"isomiso2avc1mp41")
+    sample = v3_sample(0, timestamp_ext(0))
+    mdat = box(b"mdat", sample)
+    chunk_offset = len(ftyp) + 8
+
+    evil_count = 0x40000000  # sample_count*4 wraps to 0 in 32-bit unsigned math
+    stts = full_box(b"stts", 0, 0, struct.pack(">III", 1, 1, 1000))
+    stsc = full_box(b"stsc", 0, 0, struct.pack(">IIII", 1, 1, 1, 1))
+    stsz = full_box(b"stsz", 0, 0, struct.pack(">II", 0, evil_count))
+    stco = full_box(b"stco", 0, 0, struct.pack(">II", 1, chunk_offset))
+    stbl_box = box(b"stbl", stsd_mett(MIME_PREFIX + "com.parrot.videometadata3")
+                   + stts + stsc + stsz + stco)
+    minf = box(b"minf", full_box(b"nmhd", 0, 0, b"") + dinf() + stbl_box)
+    mdia = box(b"mdia", mdhd(30000, 1000) + hdlr(b"meta", "ParrotMetadata") + minf)
+    trak = box(b"trak", tkhd(1, 1000, 0, 0, 0) + mdia)
+    moov = box(b"moov", mvhd(30000, 1000, 2) + trak)
+    return ftyp + mdat + moov
+
+
 def main() -> int:
     if len(sys.argv) != 2:
         print(__doc__, file=sys.stderr)
@@ -840,6 +874,10 @@ def main() -> int:
         # 'stsz' declares a 2 MiB sample -- the unbounded-allocation
         # regression test for issue #3.
         "parrot_oversized_sample_size.mp4": build_oversized_sample_size(),
+        # 'stsz' declares a sample_count near 0x40000000, overflowing the
+        # 32-bit sample_count*4 allocation size -- the regression test for
+        # issue #27.
+        "parrot_stsz_count_overflow.mp4": build_stsz_count_overflow(),
     }
     # The only fixture whose video track is real H.264 -- the mux stage feeds
     # that stream to gstreamer, which will not accept the dummy bytes above.
