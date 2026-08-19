@@ -288,6 +288,67 @@ std::string CoverageReport::to_text(const Disclosure& disclosure) const {
     return out.str();
 }
 
+void AggregatedCoverage::accumulate(const CoverageReport& frame) {
+    ++frames_counted;
+    for (const auto& [tag, value] : frame.emitted) {
+        (void)value;  // the aggregate counts, it does not carry any one frame's value
+        ++items[tag].emitted;
+    }
+    for (const auto& [tag, reason] : frame.omitted) {
+        ++items[tag].omitted[reason];
+    }
+    for (const auto& field : frame.dropped_fields) {
+        dropped_fields.insert(field);
+    }
+}
+
+std::string AggregatedCoverage::to_text() const {
+    std::size_t width = 0;
+    for (const auto& [tag, counts] : items) width = std::max(width, item_name(tag).size());
+
+    const auto label = [&](uint16_t tag) {
+        std::ostringstream row;
+        row << "    Item " << std::setw(3) << tag << "  " << std::left << std::setw(
+                   static_cast<int>(width)) << std::string(item_name(tag)) << std::right;
+        return row.str();
+    };
+
+    std::ostringstream out;
+    out << "Coverage across " << frames_counted << " frame(s):\n";
+    std::vector<uint16_t> varying;
+    for (const auto& [tag, counts] : items) {
+        uint32_t total_omitted = 0;
+        for (const auto& [reason, count] : counts.omitted) total_omitted += count;
+
+        out << label(tag) << "  emitted " << counts.emitted << "/" << frames_counted;
+        if (total_omitted > 0) {
+            out << ", omitted " << total_omitted << "/" << frames_counted << " (";
+            bool first = true;
+            for (const auto& [reason, count] : counts.omitted) {
+                if (!first) out << "; ";
+                out << to_string(reason) << ": " << count;
+                first = false;
+            }
+            out << ")";
+        }
+        out << "\n";
+        if (counts.emitted > 0 && total_omitted > 0) varying.push_back(tag);
+    }
+    if (!varying.empty()) {
+        out << "  " << varying.size()
+            << " item(s) were sometimes emitted and sometimes omitted across the recording:";
+        for (uint16_t tag : varying) out << " " << tag;
+        out << "\n";
+    }
+    if (!dropped_fields.empty()) {
+        out << "  dropped " << dropped_fields.size()
+            << " Parrot field(s) with no ST 0601 item across the recording:\n   ";
+        for (const auto& field : dropped_fields) out << " " << field;
+        out << "\n";
+    }
+    return out.str();
+}
+
 void anchor_to_session(TelemetrySnapshot& snapshot, const SessionMetadata& session,
                        std::optional<uint64_t> first_monotonic_us) {
     if (snapshot.utc_timestamp_us) return;  // already has a real one

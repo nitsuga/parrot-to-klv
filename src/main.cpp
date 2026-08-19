@@ -111,7 +111,8 @@ void print_frame(const ParrotProtoFrame& f, bool with_location) {
     std::cout << std::defaultfloat;
 }
 
-/// Decode every sample of one format, printing the first few.
+/// Decode every sample of one format, printing the first few, plus a coverage
+/// summary aggregated across every decoded sample when `--klv` is passed.
 ///
 /// Templated over the frame type so v3 and proto share the loop: the formats
 /// differ in what a frame *is*, not in how a track is walked.
@@ -122,6 +123,10 @@ int decode_all(Mp4MetadataExtractor& extractor, const SessionMetadata& session,
     uint32_t decoded = 0;
     uint32_t failed = 0;
     const uint32_t to_show = std::min(3u, extractor.sample_count());
+    // Coverage across every decoded sample, not just the first few printed in
+    // full below -- an attitude sentinel or a mid-flight extension change is
+    // otherwise invisible past sample 2.
+    AggregatedCoverage totals;
 
     // The first sample's clock is the origin the session media date anchors to.
     // Left empty (never defaulted to zero) if the origin sample's own
@@ -149,19 +154,29 @@ int decode_all(Mp4MetadataExtractor& extractor, const SessionMetadata& session,
             continue;
         }
         ++decoded;
+        // Computed for every sample when --klv is on (not just the ones shown
+        // in full below) so `totals` covers the whole recording.
+        std::optional<Klv0601Frame> klv;
+        if (show_klv) {
+            auto snapshot = normalize(*frame);
+            // v3 frames carry only a monotonic clock; the session's media
+            // date is what turns it into wall time.
+            anchor_to_session(snapshot, session, first_monotonic_us);
+            klv = to_0601(snapshot, &session, options);
+            totals.accumulate(klv->coverage);
+        }
         if (i < to_show) {
             std::cout << "  Sample " << i << " (" << sample->data.size() << " bytes):\n";
             print_frame(*frame, disclosure.location);
-            if (show_klv) {
-                auto snapshot = normalize(*frame);
-                // v3 frames carry only a monotonic clock; the session's media
-                // date is what turns it into wall time.
-                anchor_to_session(snapshot, session, first_monotonic_us);
-                const auto klv = to_0601(snapshot, &session, options);
-                std::cout << "    -> ST 0601 packet: " << klv.packet.size() << " bytes\n"
-                          << klv.coverage.to_text(disclosure);
+            if (klv) {
+                std::cout << "    -> ST 0601 packet: " << klv->packet.size() << " bytes\n"
+                          << klv->coverage.to_text(disclosure);
             }
         }
+    }
+
+    if (show_klv && totals.frames_counted > 0) {
+        std::cout << "\n" << totals.to_text();
     }
 
     std::cout << "\nDecoded " << decoded << " of " << extractor.sample_count() << " samples";
@@ -318,7 +333,7 @@ int main(int argc, char* argv[]) {
             std::cout << ", no video track in the source\n";
         }
         if (show_klv) {
-            std::cout << "\n" << report.coverage.to_text({with_location, with_identity});
+            std::cout << "\n" << report.coverage.to_text();
         }
         return 0;
     }

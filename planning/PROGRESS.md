@@ -62,6 +62,14 @@ silently ignored. `parrot-scrub`'s `--lat`/`--lon`/`--alt` gained strict,
 range-checked parsing, closing a real undefined-behavior path (`std::atof`
 letting NaN reach `std::lround()`). Also unreleased.
 
+Coverage reporting now aggregates across every frame instead of keeping only
+the first (issue #15): the muxed report and the CLI's inspection summary used
+to each discard everything past the first frame's (or, for the CLI, the
+first three samples'), hiding mid-recording drift like an attitude sentinel
+appearing later or a thermal extension starting mid-flight. See
+[transform-stage](../context/transform-stage.md) § Aggregated across a
+recording. Also unreleased.
+
 The one substantive feature piece left is **fork 4, Tier 2 geometry fidelity**
 — see [ROADMAP](./ROADMAP.md) § Open forks.
 

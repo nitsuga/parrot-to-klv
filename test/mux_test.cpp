@@ -343,7 +343,9 @@ void check_conversion(const std::string& name, const std::string& mp4,
           name + ": emitted " + std::to_string(report.frames_emitted) + " packets, expected " +
               std::to_string(expected.packets.size()));
     check(report.frames_skipped == 0, name + ": skipped a sample it should have converted");
-    check(!report.coverage.emitted.empty(), name + ": reported no coverage for the conversion");
+    check(!report.coverage.items.empty(), name + ": reported no coverage for the conversion");
+    check(report.coverage.frames_counted == report.frames_emitted,
+          name + ": coverage covers every emitted frame, not just the first");
 
     // 1. Both streams reached the PMT. A KLV-only output is the failure mode
     //    the video branch exists to prevent, so it is asserted, not assumed.

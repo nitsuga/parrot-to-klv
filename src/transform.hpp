@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <map>
 #include <optional>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -80,6 +81,42 @@ struct CoverageReport {
     /// 40/41 target position) and *which airframe flew it* (Item 4, the
     /// serial). Pass a policy that opts in only to what the caller asked for.
     std::string to_text(const Disclosure& disclosure = {}) const;
+};
+
+/// Coverage across every frame of a conversion, not just one.
+///
+/// A single `CoverageReport` describes one frame; the mapping is not
+/// guaranteed static across a recording — an out-of-range attitude sentinel,
+/// a thermal extension starting mid-flight, or a field dropping in and out
+/// all change which items a *given* frame emits or omits. Reporting only the
+/// first frame's coverage (as both the muxed report and the CLI's inspection
+/// summary used to) hides exactly that drift. Aggregating trades the
+/// per-frame rendered *value* for a per-frame *count*, since a value has no
+/// single answer across a whole recording but a count does.
+struct AggregatedCoverage {
+    /// How many frames emitted a tag, and how many omitted it — broken down
+    /// by reason, since the reason can itself vary frame to frame (e.g.
+    /// `SourceAbsent` on some frames, `InvalidSourceValue` on others).
+    struct TagCounts {
+        uint32_t emitted = 0;
+        std::map<OmissionReason, uint32_t> omitted;
+    };
+    std::map<uint16_t, TagCounts> items;
+    /// Union of dropped Parrot fields across every frame counted.
+    std::set<std::string> dropped_fields;
+    /// How many frames' coverage went into this aggregate.
+    uint32_t frames_counted = 0;
+
+    /// Fold one frame's coverage into the running totals.
+    void accumulate(const CoverageReport& frame);
+
+    /// Human-readable summary: one line per tag with its emit/omit counts,
+    /// plus a called-out list of tags that were sometimes emitted and
+    /// sometimes omitted — the direct answer to "did the mapping change
+    /// partway through this flight?". No `Disclosure` policy: unlike
+    /// `CoverageReport::to_text()`, nothing here renders an actual sensitive
+    /// *value*, only counts.
+    std::string to_text() const;
 };
 
 /// Opt-ins that relax the mapping's default "never state what the recording did

@@ -18,9 +18,11 @@ struct MuxReport {
     uint32_t samples_seen = 0;      ///< metadata samples the track declared
     uint32_t frames_emitted = 0;    ///< ST 0601 packets muxed into the output
     uint32_t frames_skipped = 0;    ///< samples that did not decode to a packet
-    /// Coverage of the first emitted frame — the mapping is the same for every
-    /// frame of a recording, so one report characterizes the conversion.
-    CoverageReport coverage;
+    /// Coverage across every emitted frame, not just the first — the mapping
+    /// is not guaranteed static across a recording (an out-of-range attitude
+    /// sentinel, a thermal extension starting mid-flight, a field dropping
+    /// in and out), and a single frame's snapshot would hide that drift.
+    AggregatedCoverage coverage;
     /// The video track's sample entry format ('avc1', 'hvc1', …), 0 if none.
     uint32_t video_sample_entry = 0;
     /// Whether the output's video carries ST 0604 Precision Time Stamps.

@@ -7,6 +7,33 @@
 
 ## 2026-08-19
 
+* **Coverage reporting now aggregates across every frame instead of keeping
+  only the first.** Fixes issue #15. `mux.cpp`'s `MuxReport::coverage` used
+  to hold the first emitted frame's `CoverageReport` only (`if
+  (report.frames_emitted == 0) report.coverage = ...`), and
+  `parrot-to-klv`'s inspection mode (`--klv`) only ever computed/printed
+  coverage for the first three samples shown — both despite `to_0601()`
+  producing a fresh `CoverageReport` every frame that was simply discarded.
+  Mid-recording drift (an attitude out-of-range sentinel appearing later, a
+  thermal extension starting mid-flight, a field dropping in and out) was
+  invisible in both surfaces, contradicting the "coverage is per-frame"
+  claim in `context/transform-stage.md`.
+
+  New `AggregatedCoverage` in `transform.{hpp,cpp}`: folds each frame's
+  `CoverageReport` into per-tag emitted/omitted counts (the omitted side
+  broken down by `OmissionReason`, since the reason can itself vary frame to
+  frame) plus a union of dropped Parrot fields. `to_text()` calls out every
+  tag that was sometimes emitted and sometimes omitted across the counted
+  frames — the direct answer to "did the mapping change partway through this
+  flight?" No `Disclosure` policy on its `to_text()`: a count carries no
+  sensitive value the way a per-frame rendered value does.
+
+  `mux_to_ts()` now accumulates every emitted frame's coverage.
+  `decode_all()` in `main.cpp` now computes `to_0601()` for every decoded
+  sample when `--klv` is passed (not just the first three shown in full) and
+  prints the resulting aggregate once at the end. See
+  [transform-stage](transform-stage.md) § Aggregated across a recording.
+
 * **`parrot-scrub` and `parrot-conform` adopt `parrot-to-klv`'s option-parsing
   discipline: unknown flag, missing value, and extra positional are all
   errors now, never silently ignored.** Fixes issue #13. Scrub's `--lat`/

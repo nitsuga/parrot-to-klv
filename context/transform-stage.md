@@ -170,6 +170,34 @@ risks: `Disclosure::location` covers Items 13/14 and 40/41 (where the flight
 was), `Disclosure::identity` covers Item 4 (which airframe flew it). The CLI
 spells them `--with-location` and `--with-identity`.
 
+### Aggregated across a recording, not just one frame
+
+The mapping is not guaranteed static across a recording: an out-of-range
+attitude sentinel (Item 6/7) can appear only partway through, a v3 thermal
+extension can start mid-flight, or the stationary/moving switch behind Item
+112 can flip. A single frame's `CoverageReport` describes that one frame; it
+used to be the only coverage either report surface kept (issue #15) — the
+muxed report held just the first emitted frame's, and the CLI's inspection
+summary printed coverage for only the first three samples, so drift like this
+was invisible past sample 2.
+
+`AggregatedCoverage::accumulate()` folds every frame's `CoverageReport` into
+running per-tag counts instead: how many frames emitted a tag, how many
+omitted it (broken down by `OmissionReason`, since the reason can itself vary
+frame to frame), and the union of dropped Parrot fields across the whole run.
+Its `to_text()` calls out every tag that was **sometimes emitted and sometimes
+omitted** across the counted frames — the direct answer to "did the mapping
+change partway through this flight?" A value has no single answer across a
+whole recording, so the aggregate trades the per-frame rendered value for a
+count; it carries no `Disclosure` policy because a count reveals nothing a
+value would.
+
+`mux_to_ts()`'s `MuxReport::coverage` accumulates every emitted frame.
+`parrot-to-klv`'s inspection mode (`--klv`, no `-o`) still prints the first
+three samples' `CoverageReport` in full, but additionally computes `to_0601()`
+for *every* decoded sample (not just the three shown) and prints the resulting
+`AggregatedCoverage::to_text()` once at the end.
+
 ## What it deliberately does not do
 
 - **Tier 2 derived geometry** (Items 21/22/23/24/25/57/78/82–89) needs a

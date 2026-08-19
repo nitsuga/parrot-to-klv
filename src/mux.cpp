@@ -101,7 +101,7 @@ void convert_all(Mp4MetadataExtractor& extractor, const SessionMetadata& session
             ++report.frames_skipped;
             continue;
         }
-        if (report.frames_emitted == 0) report.coverage = std::move(klv.coverage);
+        report.coverage.accumulate(klv.coverage);
         emit(klv.packet, sample->timestamp_us);
     }
 }

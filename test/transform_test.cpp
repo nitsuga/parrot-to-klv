@@ -580,6 +580,54 @@ void check_course_angle_omitted_when_stationary() {
           "stationary course is not rendered as absent source data");
 }
 
+void check_aggregated_coverage_flags_varying_items() {
+    // One frame with the aircraft moving (Item 112 course angle emitted), one
+    // stationary (Item 112 omitted, UndefinedForFrame) -- the "did the
+    // mapping change partway through this flight?" case AggregatedCoverage
+    // exists to surface. Regression test for issue #15: a muxed report or the
+    // CLI's inspection summary used to keep only the first frame's coverage,
+    // so this kind of mid-recording drift was invisible.
+    auto moving = base_v3_snapshot();  // north_mps=6, east_mps=8 by default
+    const auto moving_klv = to_0601(moving);
+    check(moving_klv.coverage.emitted.count(112) == 1,
+          "precondition: course angle emitted while moving");
+
+    auto stationary = base_v3_snapshot();
+    stationary.north_mps = 0.0;
+    stationary.east_mps = 0.0;
+    const auto stationary_klv = to_0601(stationary);
+    check(stationary_klv.coverage.omitted.count(112) == 1,
+          "precondition: course angle omitted while stationary");
+
+    AggregatedCoverage totals;
+    totals.accumulate(moving_klv.coverage);
+    totals.accumulate(stationary_klv.coverage);
+
+    check(totals.frames_counted == 2, "both frames counted");
+    check(totals.items.count(112) == 1, "Item 112 tracked in the aggregate");
+    check(totals.items.at(112).emitted == 1, "Item 112 emitted in one of the two frames");
+    check(totals.items.at(112).omitted.count(OmissionReason::UndefinedForFrame) == 1 &&
+              totals.items.at(112).omitted.at(OmissionReason::UndefinedForFrame) == 1,
+          "Item 112 omitted (undefined for frame) in the other");
+
+    const std::string text = totals.to_text();
+    check(text.find("Coverage across 2 frame(s)") != std::string::npos,
+          "the summary states how many frames it covers");
+    check(text.find("emitted 1/2") != std::string::npos,
+          "the report shows the emitted fraction, not a single frame's snapshot");
+    check(text.find("sometimes emitted and sometimes omitted") != std::string::npos,
+          "the report calls out items that varied across the recording");
+
+    // An item consistently emitted (or consistently omitted) across every
+    // counted frame is not spuriously flagged as varying.
+    AggregatedCoverage consistent;
+    consistent.accumulate(moving_klv.coverage);
+    consistent.accumulate(moving_klv.coverage);
+    check(consistent.to_text().find("sometimes emitted and sometimes omitted") ==
+              std::string::npos,
+          "an item with the same status in every frame is not flagged as varying");
+}
+
 void check_invalid_horizontal_velocity(double invalid, bool north_is_invalid,
                                        const std::string& label) {
     // Go through the proto normalization boundary: malformed values arriving
@@ -795,6 +843,7 @@ int main() {
     check_attitude_in_range_is_untouched();
     check_status_enums();
     check_course_angle_omitted_when_stationary();
+    check_aggregated_coverage_flags_varying_items();
     check_velocity_rejection_policy();
     check_finite_codec_rejection_policy();
     check_air_speed_rejection_policy(-1.0, "negative air speed");
