@@ -124,8 +124,16 @@ void parse_tkhd(FILE* file, const BoxHeader& box, Mp4TrackDescription& track) {
     if (!read_u32(file, version_and_flags)) {
         return;
     }
-    // creation_time and modification_time widen with version 1.
-    const int64_t times_bytes = (version_and_flags >> 24) == 1 ? 16 : 8;
+    // creation_time and modification_time widen with version 1. ISO/IEC
+    // 14496-12 defines no tkhd version past 1; a version > 1 has an unknown
+    // field layout here (Parrot never writes one), so reject rather than
+    // guess -- reading version 0's 8-byte offset from a wider header would
+    // land mid-field and yield a garbage track_id.
+    const uint8_t version = static_cast<uint8_t>(version_and_flags >> 24);
+    if (version > 1) {
+        return;
+    }
+    const int64_t times_bytes = version == 1 ? 16 : 8;
     if (std::fseek(file, times_bytes, SEEK_CUR) != 0) {
         return;
     }

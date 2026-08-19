@@ -98,6 +98,77 @@ void check_iso8601() {
     check(!parse_iso8601_to_epoch("2018-13-06T18:12:52+02:00").has_value(),
           "month 13 is rejected rather than normalized");
     check(!parse_iso8601_to_epoch("2018-10-06").has_value(), "a date with no time is rejected");
+
+    // Regression tests for issue #4: a malformed or out-of-range offset used
+    // to leave offset_s at 0 and still succeed, anchoring every frame's Item 2
+    // hours off instead of failing loudly.
+    check(!parse_iso8601_to_epoch("2018-10-06T18:12:52+02").has_value(),
+          "an offset missing its minutes is rejected, not silently treated as +00:00");
+    check(!parse_iso8601_to_epoch("2018-10-06T18:12:52+99:99").has_value(),
+          "an offset outside a real UTC range is rejected");
+    check(!parse_iso8601_to_epoch("2018-10-06T18:12:52+24:00").has_value(),
+          "an offset hour of exactly 24 is rejected");
+
+    // Regression test for issue #4: timegm silently normalizes a
+    // calendar-impossible date (glibc turns 2018-02-31 into 2018-03-03)
+    // instead of rejecting it; the range checks above only catch values no
+    // calendar has at all (day 32, month 13), not ones impossible in the
+    // specific month named.
+    check(!parse_iso8601_to_epoch("2018-02-31T12:00:00+00:00").has_value(),
+          "February 31st is rejected rather than normalized to March 3rd");
+
+    // Regression test for a PR #30 review finding: `%2d` happily parses a
+    // sign, so "18:-1:52" scans successfully with minute == -1. timegm then
+    // normalizes it to hour 17, minute 59 -- still within the same day, so
+    // the calendar round-trip check above (which only compares
+    // year/month/day) does not catch it. A negative hour/minute/second must
+    // be rejected directly, the same way month 13 and day 32 already are.
+    //
+    // Of the three, only the minute case is cleanly isolated to this fix:
+    // a negative hour crosses a day boundary on normalization, so it was
+    // already caught by the day/month round-trip check above even before
+    // this fix; a negative second happens to also get rejected by this
+    // function's offset-count validation, because find_first_of("+-", ...)
+    // finds the second's own '-' before the real trailing offset and feeds
+    // a bogus tail to the offset parser, which fails its != 2 check. Both
+    // are kept as regression tests -- they pin real, correct behavior --
+    // but are not each independent proof of *this* fix the way the minute
+    // case is.
+    check(!parse_iso8601_to_epoch("2018-10-06T18:-1:52+00:00").has_value(),
+          "a negative minute is rejected rather than normalized into the previous hour");
+    check(!parse_iso8601_to_epoch("2018-10-06T-1:12:52+00:00").has_value(),
+          "a negative hour is rejected rather than normalized into the previous day");
+    check(!parse_iso8601_to_epoch("2018-10-06T18:12:-1+00:00").has_value(),
+          "a negative second is rejected rather than normalized into the previous minute");
+}
+
+void check_hostile_largesize_is_rejected(const std::string& fixture_dir) {
+    // A '©ART' box declaring a 64-bit largesize near UINT64_MAX, sitting
+    // after a real '©day' tag in the same ilst -- a hardening test for issue
+    // #4's `read_box` finding. `read_box`'s old `pos + size > limit` bounds
+    // check computed in size_t could wrap for a size this large; the fixed
+    // `size > limit - pos` cannot. Note this is a defense-in-depth test, not
+    // a provable pre/post divergence: given this box's fixed 16-byte
+    // largesize header, the wrapped sum can only ever land at or below
+    // body_begin, so `entry_text`'s own `body_begin < body_end` guard
+    // already absorbs this exact shape even without the read_box fix --
+    // confirmed empirically, both before and after the fix report the same
+    // result here. The fix is still correct (a bounds check should not rely
+    // on a downstream guard it does not control) and this test pins that the
+    // malformed box does not corrupt parsing of the real tag next to it.
+    FILE* file = std::fopen((fixture_dir + "/hostile_read_box_largesize.mp4").c_str(), "rb");
+    if (!file) {
+        std::cerr << "FAIL: cannot open hostile_read_box_largesize.mp4\n";
+        ++g_failures;
+        return;
+    }
+    const SessionMetadata session = parse_session_metadata(file);
+    std::fclose(file);
+
+    check(session.media_date && *session.media_date == "2018-10-06T18:12:52+02:00",
+          "the real tag before the hostile box still parses");
+    check(!session.friendly_name.has_value(),
+          "a box with a wrapping largesize is not read as a valid '©ART'");
 }
 
 void check_anchoring() {
@@ -189,6 +260,7 @@ int main(int argc, char** argv) {
     }
     check_fixture(argv[1]);
     check_iso8601();
+    check_hostile_largesize_is_rejected(argv[1]);
     check_anchoring();
     check_session_items();
 

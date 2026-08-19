@@ -49,6 +49,15 @@ def mdhd(timescale: int, duration: int) -> bytes:
                     + struct.pack(">HH", 0x55C4, 0))              # 'und', pre_defined
 
 
+def mdhd_v1(timescale: int, duration: int) -> bytes:
+    """Version 1 'mdhd': 64-bit creation/modification time and duration,
+    the only shape that can carry a duration minimp4 splits into
+    duration_hi/duration_lo -- version 0's duration is a bare 32-bit field.
+    """
+    return full_box(b"mdhd", 1, 0, struct.pack(">QQIQ", 0, 0, timescale, duration)
+                    + struct.pack(">HH", 0x55C4, 0))              # 'und', pre_defined
+
+
 def hdlr(handler: bytes, name: str) -> bytes:
     return full_box(b"hdlr", 0, 0, struct.pack(">I", 0) + handler + b"\x00" * 12
                     + name.encode() + b"\x00")
@@ -819,6 +828,119 @@ def build_stsz_count_overflow() -> bytes:
     return ftyp + mdat + moov
 
 
+def build_hostile_mdhd_duration() -> bytes:
+    """A Parrot metadata track whose 'mdhd' (version 1, 64-bit duration)
+    declares a duration near UINT64_MAX -- the integer-overflow regression
+    test for issue #4.
+
+    `duration_hi<<32|duration_lo, times 1'000'000` used to be computed in
+    native uint64_t arithmetic before dividing by timescale, wrapping to
+    garbage for any declared duration past ~1.8e13 units -- reachable from a
+    hostile 'mdhd' with no real payload elsewhere. `duration_us` must come out
+    bounded to a sane ceiling instead of wrapped.
+    """
+    ftyp = box(b"ftyp", b"isom" + struct.pack(">I", 512) + b"isomiso2avc1mp41")
+    sample = v3_sample(0, timestamp_ext(0))
+    mdat = box(b"mdat", sample)
+    chunk_offset = len(ftyp) + 8
+
+    stbl_box = box(b"stbl", stsd_mett(MIME_PREFIX + "com.parrot.videometadata3")
+                   + full_box(b"stts", 0, 0, struct.pack(">III", 1, 1, 1000))
+                   + full_box(b"stsc", 0, 0, struct.pack(">IIII", 1, 1, 1, 1))
+                   + full_box(b"stsz", 0, 0, struct.pack(">II", 0, 1) + struct.pack(">I", len(sample)))
+                   + full_box(b"stco", 0, 0, struct.pack(">II", 1, chunk_offset)))
+    minf = box(b"minf", full_box(b"nmhd", 0, 0, b"") + dinf() + stbl_box)
+    mdia = box(b"mdia", mdhd_v1(1, 0xFFFFFFFFFFFFFFFF)
+               + hdlr(b"meta", "ParrotMetadata") + minf)
+    trak = box(b"trak", tkhd(1, 1000, 0, 0, 0) + mdia)
+    moov = box(b"moov", mvhd(30000, 1000, 2) + trak)
+    return ftyp + mdat + moov
+
+
+def build_tkhd_version_2() -> bytes:
+    """A Parrot metadata track whose 'tkhd' declares version 2, with 64-bit
+    creation/modification times (like version 1) rather than version 0's
+    32-bit ones -- the unknown-layout regression test for issue #4.
+
+    ISO/IEC 14496-12 defines no tkhd version past 1; the old code treated any
+    version other than 1 as version 0's 8-byte time layout, so a version-2
+    box with wider (16-byte) times had its track_id read 8 bytes into the
+    wrong field. This fixture plants a sentinel (0xDEADBEEF) in the first
+    half of 'modification_time' (body offset 12, reached by seeking
+    body_begin+4 -- past version_and_flags -- then 8 more bytes), exactly
+    where the old 8-byte-times assumption would misread it as track_id,
+    while the real track_id (1) sits 8 bytes further out at body offset 20,
+    where only the correct 16-byte-times offset reaches it. open() must
+    still succeed (version only affects box-scan's supplementary track_id,
+    not minimp4's own independent parse), but box-scan must not report *any*
+    track_id for this track rather than the sentinel -- the whole point of
+    rejecting a version it does not know the layout of.
+    """
+    ftyp = box(b"ftyp", b"isom" + struct.pack(">I", 512) + b"isomiso2avc1mp41")
+    samples = [v3_sample(i, timestamp_ext(33333 * i)) for i in range(2)]
+    mdat = box(b"mdat", b"".join(samples))
+    chunk_offset = len(ftyp) + 8
+
+    stbl_box = box(b"stbl", stsd_mett(MIME_PREFIX + "com.parrot.videometadata3")
+                   + full_box(b"stts", 0, 0, struct.pack(">III", 1, 2, 1000))
+                   + full_box(b"stsc", 0, 0, struct.pack(">IIII", 1, 1, 1, 1))
+                   + full_box(b"stsz", 0, 0, struct.pack(">II", 0, 2)
+                              + struct.pack(">II", len(samples[0]), len(samples[1])))
+                   + full_box(b"stco", 0, 0, struct.pack(">II", 1, chunk_offset)))
+    minf = box(b"minf", full_box(b"nmhd", 0, 0, b"") + dinf() + stbl_box)
+    mdia = box(b"mdia", mdhd(30000, 2000) + hdlr(b"meta", "ParrotMetadata") + minf)
+    tkhd_v2 = full_box(
+        b"tkhd", 2, 7,
+        struct.pack(">Q", 0)                       # creation_time (8 bytes, like v1)
+        + struct.pack(">I", 0xDEADBEEF) + struct.pack(">I", 0)  # modification_time,
+                                                     # sentinel in its high 4 bytes
+                                                     # (body offset 12 -- where the
+                                                     # old 8-byte-times bug reads)
+        + struct.pack(">I", 1)                      # track_id -- only correct at the
+                                                     # 16-byte-times offset (offset 20)
+        + struct.pack(">I", 0)                      # reserved
+        + struct.pack(">I", 2000)                   # duration
+        + b"\x00" * 8
+        + struct.pack(">hhhh", 0, 0, 0, 0)
+        + UNITY_MATRIX
+        + struct.pack(">II", 0, 0))
+    trak = box(b"trak", tkhd_v2 + mdia)
+    moov = box(b"moov", mvhd(30000, 2000, 2) + trak)
+    return ftyp + mdat + moov
+
+
+def build_hostile_read_box_largesize() -> bytes:
+    """moov/udta/meta/ilst carrying one real tag ('©day'), followed by a
+    hostile '©ART' box whose 64-bit largesize is set near UINT64_MAX -- a
+    hardening/defense-in-depth fixture for issue #4's `read_box` finding.
+
+    session_metadata's own `read_box` used to bounds-check a child against
+    the in-memory 'moov' buffer with `pos + size > limit`, computed in
+    size_t, which can wrap for a size this large. The fixed check
+    ('size > limit - pos') cannot wrap. For this box's specific shape (a
+    64-bit largesize always has a fixed 16-byte header), the wrapped sum can
+    only ever land at or below body_begin, so a downstream guard
+    (`entry_text`'s `body_begin < body_end`) already happens to absorb this
+    exact case even pre-fix -- see the discussion in session_metadata_test's
+    `check_hostile_largesize_is_rejected`. The fix is still correct
+    (a bounds check should not rely on a downstream guard it does not
+    control); this fixture exists to pin that the malformed box does not
+    corrupt the real '©day' tag immediately before it.
+    """
+    ftyp = box(b"ftyp", b"isom" + struct.pack(">I", 512) + b"isomiso2avc1mp41")
+    day = ilst_entry(b"\xa9day", "2018-10-06T18:12:52+02:00")
+    # A largesize box: 32-bit size field = 1 (the "read the next 8 bytes"
+    # marker), type '\xa9ART', then an 8-byte size near UINT64_MAX. No real
+    # payload follows -- the box claims to run far past the end of the file.
+    hostile_artist = (struct.pack(">I", 1) + b"\xa9ART" +
+                      struct.pack(">Q", 0xFFFFFFFFFFFFFFF0))
+    ilst = box(b"ilst", day + hostile_artist)
+    meta = box(b"meta", struct.pack(">I", 0) + ilst)
+    udta = box(b"udta", meta)
+    moov = box(b"moov", mvhd(30000, 1000, 1) + udta)
+    return ftyp + moov
+
+
 def main() -> int:
     if len(sys.argv) != 2:
         print(__doc__, file=sys.stderr)
@@ -878,6 +1000,15 @@ def main() -> int:
         # 32-bit sample_count*4 allocation size -- the regression test for
         # issue #27.
         "parrot_stsz_count_overflow.mp4": build_stsz_count_overflow(),
+        # 'mdhd' (v1) declares a duration near UINT64_MAX -- the
+        # integer-overflow regression test for issue #4.
+        "parrot_hostile_mdhd_duration.mp4": build_hostile_mdhd_duration(),
+        # 'tkhd' declares version 2, which this project's box scan does not
+        # know the layout of -- the regression test for issue #4.
+        "parrot_tkhd_version_2.mp4": build_tkhd_version_2(),
+        # A '©ART' box declares a 64-bit largesize near UINT64_MAX -- the
+        # size_t-wrap regression test for issue #4.
+        "hostile_read_box_largesize.mp4": build_hostile_read_box_largesize(),
     }
     # The only fixture whose video track is real H.264 -- the mux stage feeds
     # that stream to gstreamer, which will not accept the dummy bytes above.

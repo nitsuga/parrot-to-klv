@@ -225,6 +225,43 @@ void test_stsz_count_overflow_is_rejected(const char* dir) {
     check(!extractor.has_value(), "a track with an overflowing stsz sample_count is rejected");
 }
 
+void test_hostile_mdhd_duration_is_bounded(const char* dir) {
+    // A version-1 'mdhd' declaring a duration near UINT64_MAX. Before issue
+    // #4's fix, `duration_hi<<32|duration_lo, times 1'000'000` overflowed
+    // uint64_t in native arithmetic before ever dividing by timescale,
+    // wrapping duration_us to arbitrary garbage instead of a bounded value.
+    auto extractor = Mp4MetadataExtractor::open(fixture(dir, "parrot_hostile_mdhd_duration.mp4"));
+    check(extractor.has_value(), "a track with a hostile mdhd duration still opens");
+    if (!extractor) return;
+    // Mirrors mp4_metadata_extractor.cpp's kMaxSaneDurationUs (100 years in
+    // microseconds), not exported: this fixture's near-UINT64_MAX declared
+    // duration must clamp to that ceiling rather than wrap.
+    constexpr uint64_t kMaxSaneDurationUs = 100ULL * 365 * 24 * 3600 * 1'000'000;
+    check(extractor->track_info().duration_us == kMaxSaneDurationUs,
+          "an overflowing duration multiply is clamped to the sane ceiling, not wrapped");
+}
+
+void test_tkhd_version_2_track_id_not_misread(const char* dir) {
+    // A 'tkhd' declaring version 2, with 64-bit times like version 1 rather
+    // than version 0's 32-bit ones. The old code treated any version other
+    // than 1 as version 0's 8-byte time layout, so it read track_id 8 bytes
+    // into the wrong field -- this fixture plants a sentinel there
+    // (0xDEADBEEF) to catch exactly that misread; the real track_id (1) sits
+    // where only the correct 16-byte-times offset would find it.
+    FILE* file = std::fopen(fixture(dir, "parrot_tkhd_version_2.mp4").c_str(), "rb");
+    check(file != nullptr, "fixture opens");
+    if (!file) return;
+    const auto tracks = scan_mp4_tracks(file);
+    std::fclose(file);
+
+    check_eq(tracks.size(), size_t{1}, "track count");
+    if (tracks.size() != 1) return;
+    check(tracks[0].track_id != uint32_t{0xDEADBEEF},
+          "a version-2 tkhd's track_id is not misread from the wrong offset");
+    check_eq(tracks[0].track_id, uint32_t{0},
+             "a tkhd version this code does not know is rejected, not guessed at");
+}
+
 }  // namespace
 
 int main(int argc, char* argv[]) {
@@ -242,6 +279,8 @@ int main(int argc, char* argv[]) {
     test_missing_stsc_is_rejected(dir);
     test_oversized_sample_size_is_skipped(dir);
     test_stsz_count_overflow_is_rejected(dir);
+    test_hostile_mdhd_duration_is_bounded(dir);
+    test_tkhd_version_2_track_id_not_misread(dir);
 
     if (g_failures > 0) {
         std::cerr << "\n" << g_failures << " check(s) failed\n";

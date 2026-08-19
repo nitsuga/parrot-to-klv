@@ -57,7 +57,11 @@ bool read_box(const std::vector<uint8_t>& buf, size_t pos, size_t limit, Box& ou
         // Extends to the end of the enclosing box.
         size = limit - pos;
     }
-    if (size < header || pos + size > limit) return false;
+    // size - header - limit are all size_t; `pos + size > limit` can wrap for
+    // a hostile 64-bit largesize near UINT64_MAX. `size > limit - pos` cannot:
+    // pos <= limit is already guaranteed above (the pos+8/pos+16 > limit
+    // checks), so limit - pos never underflows.
+    if (size < header || size > limit - pos) return false;
     out.body_begin = pos + header;
     out.body_end = pos + static_cast<size_t>(size);
     return true;
@@ -116,7 +120,13 @@ std::optional<int64_t> parse_iso8601_to_epoch(const std::string& text) {
         return std::nullopt;
     }
     if (separator != 'T' && separator != ' ') return std::nullopt;
-    if (month < 1 || month > 12 || day < 1 || day > 31 || hour > 23 || minute > 59 || second > 60) {
+    // Lower bounds matter as much as upper ones: `%2d` happily parses a sign,
+    // so "18:-1:52" scans successfully with minute == -1. Without this,
+    // timegm's normalization (-1 minutes becomes hour-1, minute 59) can land
+    // on a still-plausible time that the calendar round-trip check below
+    // does not catch when it stays within the same day.
+    if (month < 1 || month > 12 || day < 1 || day > 31 || hour < 0 || hour > 23 || minute < 0 ||
+        minute > 59 || second < 0 || second > 60) {
         return std::nullopt;
     }
 
@@ -131,19 +141,35 @@ std::optional<int64_t> parse_iso8601_to_epoch(const std::string& text) {
     // nothing to do with when the flight happened.
     const std::time_t utc = timegm(&tm);
     if (utc == static_cast<std::time_t>(-1)) return std::nullopt;
+    // glibc's timegm normalizes an out-of-range struct in place rather than
+    // rejecting it -- "2018-02-31" silently becomes 2018-03-03. The fields
+    // above are still range-checked (month/day/hour/minute/second), which
+    // only rules out values no calendar has at all; a date impossible in
+    // *this* calendar (day 31 of a 28-day February) is caught here by
+    // comparing against what timegm actually normalized to.
+    if (tm.tm_mon != month - 1 || tm.tm_mday != day || tm.tm_year != year - 1900) {
+        return std::nullopt;
+    }
 
     // Apply the trailing offset, if any: "+02:00" means the wall-clock reading
-    // is two hours ahead of UTC, so UTC is two hours earlier.
+    // is two hours ahead of UTC, so UTC is two hours earlier. An offset that
+    // fails to parse or falls outside a real UTC offset's range must reject
+    // the whole timestamp rather than silently fall back to +00:00 -- that
+    // would anchor every frame's Item 2 at a confidently wrong wall time.
     const size_t time_end = text.find(separator);
     const size_t offset_pos = text.find_first_of("+-", time_end == std::string::npos ? 0 : time_end);
     int64_t offset_s = 0;
     if (offset_pos != std::string::npos) {
         int offset_hour = 0, offset_minute = 0;
-        if (std::sscanf(text.c_str() + offset_pos + 1, "%2d:%2d", &offset_hour, &offset_minute) ==
+        if (std::sscanf(text.c_str() + offset_pos + 1, "%2d:%2d", &offset_hour, &offset_minute) !=
             2) {
-            offset_s = (static_cast<int64_t>(offset_hour) * 3600) + (offset_minute * 60);
-            if (text[offset_pos] == '-') offset_s = -offset_s;
+            return std::nullopt;
         }
+        if (offset_hour < 0 || offset_hour > 23 || offset_minute < 0 || offset_minute > 59) {
+            return std::nullopt;
+        }
+        offset_s = (static_cast<int64_t>(offset_hour) * 3600) + (offset_minute * 60);
+        if (text[offset_pos] == '-') offset_s = -offset_s;
     }
     return static_cast<int64_t>(utc) - offset_s;
 }

@@ -50,6 +50,12 @@ clock as zero — both fixed issue #7's finding that the anchor's early return
 did not check the recording's format or the origin sample's success. Also
 unreleased.
 
+Extraction no longer silently mis-parses four classes of malformed input
+(issue #4): a malformed/out-of-range ISO 8601 UTC offset, a calendar-
+impossible date, a hostile `mdhd` duration overflowing `duration_us`'s
+computation, and a `tkhd` version past the one ISO/IEC 14496-12 defines. Also
+unreleased.
+
 The one substantive feature piece left is **fork 4, Tier 2 geometry fidelity**
 — see [ROADMAP](./ROADMAP.md) § Open forks.
 

@@ -7,6 +7,38 @@
 
 ## 2026-08-19
 
+* **Extraction stage no longer silently mis-parses four classes of malformed
+  input.** Fixes issue #4. `parse_iso8601_to_epoch`
+  (`session_metadata.cpp`) now rejects a malformed or out-of-range UTC offset
+  (`+02` with no minutes, `+99:99`) instead of leaving it at 0 and still
+  succeeding — the exact silently-wrong-anchor failure the function's own
+  header comment says it avoids — and rejects a calendar-impossible date
+  (`2018-02-31`) by comparing against what `timegm` actually normalized it to
+  (glibc silently turns it into `2018-03-03` rather than erroring).
+  `mp4_metadata_extractor.cpp`'s `duration_us` (informational only; nothing
+  else reads it) no longer wraps for a hostile `mdhd` duration near
+  `UINT64_MAX` — `duration_units * 1'000'000` is checked against its own
+  overflow threshold before the multiply, clamped to a new
+  `kMaxSaneDurationUs` (100 years) ceiling rather than computed in a
+  non-standard 128-bit type. `session_metadata.cpp`'s `read_box` bounds check
+  changed from `pos + size > limit` (size_t addition that can wrap for a
+  hostile 64-bit largesize) to `size > limit - pos` (cannot wrap, since
+  `pos <= limit` is already guaranteed) — empirically this exact box shape
+  turns out to be absorbed downstream by `entry_text`'s own
+  `body_begin < body_end` guard either way, so the fix is correctness
+  hygiene rather than a provable pre/post divergence; see
+  `check_hostile_largesize_is_rejected`'s comment in
+  `session_metadata_test.cpp`. `mp4_box_scan.cpp`'s `parse_tkhd` now rejects
+  (rather than mis-parses as version 0's 8-byte time layout) a `tkhd`
+  declaring a version past 1, which ISO/IEC 14496-12 does not define; Parrot
+  never writes one, so this only affects diagnostics. New regression tests
+  and fixtures for all four (`check_iso8601`'s new cases,
+  `test_hostile_mdhd_duration_is_bounded`,
+  `test_tkhd_version_2_track_id_not_misread`,
+  `check_hostile_largesize_is_rejected`), each confirmed genuinely
+  discriminant against the pre-fix code under ASan/UBSan except the
+  `read_box` one (documented above).
+
 * **`anchor_to_session` no longer stamps a proto frame that declared its own
   UTC invalid, and no longer treats a failed origin sample as clock zero.**
   Fixes issue #7. The anchor's early return only checked

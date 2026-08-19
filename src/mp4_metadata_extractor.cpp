@@ -8,6 +8,7 @@
 #define MINIMP4_IMPLEMENTATION
 #include "minimp4.h"
 
+#include <algorithm>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -86,6 +87,14 @@ constexpr uint32_t kMaxSaneSampleCount = 10'000'000;
 /// reaches `resize()` before the short-read check below ever gets a chance to
 /// reject it.
 constexpr uint32_t kMaxSaneFrameBytes = 1 * 1024 * 1024;
+
+/// A generous ceiling on the informational `duration_us` this project reports
+/// (100 years in microseconds) -- not a real limit, just a bound the
+/// multiply-then-divide below can be clamped to instead of silently wrapping.
+/// `mdhd`'s duration is a bare 64-bit value a hostile file can set to
+/// 2^64-1; `duration_hi<<32|duration_lo, times 1e6` overflows uint64_t well
+/// before that.
+constexpr uint64_t kMaxSaneDurationUs = 100ULL * 365 * 24 * 3600 * 1'000'000;
 
 /// True when a track's sample-index tables are self-consistent enough for
 /// `MP4D_frame_offset()` to be called safely.
@@ -233,11 +242,23 @@ std::optional<Mp4MetadataExtractor> Mp4MetadataExtractor::open(const std::string
     extractor.track_info_.mime_type = described.mime_format;
     extractor.track_info_.format = *format;
     extractor.track_info_.sample_count = track.sample_count;
-    extractor.track_info_.duration_us =
-        track.timescale > 0
-            ? ((static_cast<uint64_t>(track.duration_hi) << 32 | track.duration_lo) * 1000000ULL) /
-                  track.timescale
-            : 0;
+    if (track.timescale > 0) {
+        const uint64_t duration_units =
+            (static_cast<uint64_t>(track.duration_hi) << 32) | track.duration_lo;
+        // duration_units * 1'000'000 can exceed UINT64_MAX for a hostile mdhd
+        // (any duration_units past ~1.8e13) before the division ever brings
+        // it back down. Check against the multiply's own overflow threshold
+        // first, rather than compute in a wider type (no standard C++ 128-bit
+        // integer) and clamp after the fact.
+        constexpr uint64_t kMaxMultiplyableUnits = UINT64_MAX / 1'000'000ULL;
+        extractor.track_info_.duration_us =
+            duration_units > kMaxMultiplyableUnits
+                ? kMaxSaneDurationUs
+                : std::min<uint64_t>(duration_units * 1'000'000ULL / track.timescale,
+                                     kMaxSaneDurationUs);
+    } else {
+        extractor.track_info_.duration_us = 0;
+    }
 
     std::cout << "Found metadata track " << track_idx << ":" << std::endl;
     std::cout << "  MIME type: " << described.mime_format << std::endl;
