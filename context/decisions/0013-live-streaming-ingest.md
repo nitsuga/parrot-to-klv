@@ -13,7 +13,7 @@ sources:
     resource: ../../references/Embedded Video Metadata - 8.4.2.html
     title: Parrot Embedded Video Metadata — "Integration in the RTP stream"
   - id: libmisbklv-0031
-    resource: https://github.com/nitsuga/libmisbklv
+    resource: https://github.com/nitsuga/libmisbklv/blob/main/context/decisions/0031-live-streaming-surface.md
     title: "libmisbklv ADR 0031 (fork 28, proposed) — Vendor-neutral live streaming surface"
 ---
 
@@ -24,8 +24,8 @@ direct box scan ([[0001-mp4-extraction-approach]]) → the v3/proto formats
 decoded ([[0003-protobuf-dependency]], [[0004-shared-telemetry-snapshot]]) →
 mapped to ST 0601 in the transform → remuxed by libmisbklv's `KlvSink` with a
 `video_source` and `Sei0604::Generate` into an MPEG-TS file ([[mux-stage]]).
-Real-time streaming and an integration API are currently listed out of scope in
-[`../../planning/ROADMAP.md`](../../planning/ROADMAP.md).
+Real-time streaming is currently listed out of scope and the integration API
+is deferred in [`../../planning/ROADMAP.md`](../../planning/ROADMAP.md).
 
 We now want both directions live: **stream in a live video source** (Parrot
 drones send over RTSP) and **output a live MPEG-TS over UDP multicast**.

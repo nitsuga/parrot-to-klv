@@ -81,8 +81,8 @@ register).
   only. The generic live mux/pacing/multicast surface comes from libmisbklv
   (their fork 28 / ADR 0031, proposed); parrot-to-klv owns the RTSP pull, the
   Parrot RTP header-extension capture, the existing v3/proto decode, and the
-  transform. No new shared repo; the "real-time streaming out of scope" line
-  below changes once implemented.
+  transform. No new shared repo; the "real-time streaming out of scope" line in
+  § Scope changes once implemented.
 
 Genuinely open (undeliberated) forks get a line here until they have an ADR;
 once decided they move to the [register](../context/decisions/index.md) and leave
