@@ -562,6 +562,113 @@ static bool test_real_decode() {
     return true;
 }
 
+static bool test_continuous_live() {
+    std::cout << "test_continuous_live\n";
+    parrot_to_klv::parrot_extension_clear();
+    std::string enc = pick_encoder();
+    if (enc.empty()) {
+        std::cout << "  SKIP: no encoder available\n";
+        return true;
+    }
+    const std::string out = "/tmp/live_continuous.ts";
+    std::filesystem::remove(out);
+    parrot_to_klv::LiveIngestConfig cfg;
+    // Unbounded live pipeline (no num-buffers) — must run until run_duration
+    cfg.rtsp_uri = "pipeline:videotestsrc is-live=true ! videoconvert ! video/x-raw,width=320,height=240,framerate=30/1 ! " + enc + " ! h264parse";
+    cfg.udp_sink = "file:" + out;
+    cfg.run_duration = std::chrono::milliseconds(2000);
+    auto t0 = std::chrono::steady_clock::now();
+    auto r = parrot_to_klv::live_ingest(cfg);
+    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+                       std::chrono::steady_clock::now() - t0)
+                       .count();
+    if (!r) {
+        std::cerr << "  continuous live_ingest failed: " << static_cast<int>(r.error()) << "\n";
+        return false;
+    }
+    if (elapsed < 1800 || elapsed > 4000) {
+        std::cerr << "  continuous elapsed unexpected: " << elapsed << " ms (want ~2000)\n";
+        std::filesystem::remove(out);
+        return false;
+    }
+    if (!std::filesystem::exists(out)) {
+        std::cerr << "  continuous output not created\n";
+        return false;
+    }
+    auto sz = std::filesystem::file_size(out);
+    if (sz < 1000) {
+        std::cerr << "  continuous output too small: " << sz << "\n";
+        std::filesystem::remove(out);
+        return false;
+    }
+    size_t count = 0;
+    for (auto& m : misbklv::KlvStream(out)) { (void)m; ++count; }
+    if (count == 0) {
+        std::cerr << "  continuous expected at least 1 KLV packet, got 0\n";
+        std::filesystem::remove(out);
+        return false;
+    }
+    // Unbounded pipeline with no injected telemetry should have produced dummy.
+    // With Generate live, dummy PTS at 3s may be culled if run_duration is 2s
+    // (mux paces by PTS vs running_time), so accept 2 or 3.
+    if (count < 2 || count > 3) {
+        std::cerr << "  continuous dummy count unexpected: " << count << " (want 2..3)\n";
+        std::filesystem::remove(out);
+        return false;
+    }
+    std::cout << "  ok (" << sz << " bytes, " << count << " packets, " << elapsed << " ms)\n";
+    std::filesystem::remove(out);
+
+    // Late-arrival real decode during continuous window: verify the loop drains
+    // extensions that arrive after the sink is already running.
+    {
+        std::filesystem::remove(out);
+        parrot_to_klv::parrot_extension_clear();
+        auto extractor = parrot_to_klv::Mp4MetadataExtractor::open(g_fixture_dir + "/parrot_v3.mp4");
+        if (!extractor) {
+            std::cerr << "  cannot open v3 fixture for late-arrival test\n";
+            return false;
+        }
+        auto s0 = extractor->extract_sample(0);
+        if (!s0) {
+            std::cerr << "  cannot extract sample for late-arrival\n";
+            return false;
+        }
+        parrot_to_klv::LiveIngestConfig cfg2;
+        cfg2.rtsp_uri = "pipeline:videotestsrc is-live=true ! videoconvert ! video/x-raw,width=320,height=240,framerate=30/1 ! " + enc + " ! h264parse";
+        cfg2.udp_sink = "file:" + out;
+        cfg2.run_duration = std::chrono::milliseconds(2000);
+        // Run live_ingest in background, push after 400ms
+        std::thread bg([&cfg2]() { (void)parrot_to_klv::live_ingest(cfg2); });
+        std::this_thread::sleep_for(std::chrono::milliseconds(400));
+        // Push real v3 payload with PTS
+        std::vector<uint8_t> payload_u8(s0->data.begin(), s0->data.end());
+        parrot_to_klv::parrot_extension_push_for_test(
+            std::span<const uint8_t>(payload_u8.data(), payload_u8.size()), 1'000'000'000ULL);
+        bg.join();
+        size_t cnt = 0;
+        std::vector<int64_t> pts;
+        for (misbklv::Message& m : misbklv::KlvStream(out)) {
+            ++cnt;
+            pts.push_back(m.pts());
+        }
+        std::filesystem::remove(out);
+        if (cnt < 3) {
+            std::cerr << "  late-arrival expected at least 3 packets (2..3 dummy + 1 real), got " << cnt << "\n";
+            return false;
+        }
+        bool has_real_pts = false;
+        for (auto p : pts) if (p >= 900'000'000LL && p <= 1'100'000'000LL) has_real_pts = true;
+        if (!has_real_pts) {
+            std::cerr << "  late-arrival missing real PTS near 1s\n";
+            return false;
+        }
+        std::cout << "  late-arrival ok (" << cnt << " packets)\n";
+    }
+    parrot_to_klv::parrot_extension_clear();
+    return true;
+}
+
 int main(int argc, char* argv[]) {
     // Save fixture dir before gst_init strips arguments.
     g_fixture_dir = resolve_fixture_dir(argc, argv);
@@ -574,6 +681,7 @@ int main(int argc, char* argv[]) {
     ok &= test_pipeline_hermetic();
     ok &= test_rtsp_unreachable();
     ok &= test_real_decode();
+    ok &= test_continuous_live();
     if (ok) {
         std::cout << "live_rtp_test: all ok\n";
         return 0;

@@ -21,11 +21,8 @@ include(FetchContent)
 FetchContent_Declare(
   misbklv
   GIT_REPOSITORY git@github.com:nitsuga/libmisbklv.git
-  # Video-first PMT stream order: the video muxer pad is reserved while the
-  # pipeline is NULL so it takes the lower ES PID (libmisbklv ADR 0020
-  # § Stream order, revised 2026-08-12).
-  # Live streaming surface (ADR 0031) now available — see ADR 0013.
-  GIT_TAG 4a28859511c7b4c5117959335afd4e845f3e7313
+  # Live Generate for H.264 (RTSP/pipeline SEI probe) — ADR 0013 follow-up.
+  GIT_TAG 4ac014a4b7a5defaf87485008164e7681fc0c836
 )
 FetchContent_MakeAvailable(misbklv)
 
@@ -147,6 +144,11 @@ target_link_libraries(parrot_mux PUBLIC
   parrot_extract
   misbklv::gst  # libmisbklv with GStreamer support
 )
+# Live ingest's continuous loop checks the shared interrupt flag set by
+# request_mux_interrupt() (SIGINT handling). That flag lives in parrot_mux,
+# so parrot_live links it. The link is added here after parrot_mux is defined
+# because CMake needs the target to exist.
+target_link_libraries(parrot_live PRIVATE parrot_mux)
 
 # Extraction sources, shared by the tool and its tests.
 add_library(parrot_extract STATIC

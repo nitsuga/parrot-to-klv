@@ -74,5 +74,6 @@ MuxReport mux_to_ts(const std::string& input, const std::string& output,
 /// inside a single sample's push (backpressure on the sink) is not seen until
 /// that call returns — this is cooperative, not preemptive, cancellation.
 void request_mux_interrupt();
+bool is_mux_interrupted();
 
 }  // namespace parrot_to_klv

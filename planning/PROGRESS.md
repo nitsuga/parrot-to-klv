@@ -60,23 +60,20 @@ The output MPEG-TS keeps the video-first PMT stream order introduced in
 selects the video. (The mechanism is upstream's, libmisbklv ADR 0020 § Stream
 order; `mux_test` pins it.)
 
-Live streaming placement (fork 13 / [ADR 0013](../context/decisions/0013-live-streaming-ingest.md)) is now **accepted**: libmisbklv's live surface (fork 28/ADR 0031) is accepted and pinned at `4a28859`, so implementation is unblocked.
+Live streaming placement (fork 13 / [ADR 0013](../context/decisions/0013-live-streaming-ingest.md)) is now **accepted**: libmisbklv's live surface (fork 28/ADR 0031) is accepted and pinned at `4ac014a` (live Generate probe), so implementation is unblocked.
 
 The one substantive feature piece left is **fork 4, Tier 2 geometry fidelity**
 — see [ROADMAP](./ROADMAP.md) § Open forks.
 
 ## In progress
 
-- Live ingest real decode on `feature/live-decode` (fork 13 / [ADR 0013](../context/decisions/0013-live-streaming-ingest.md)): `ParrotRtpHeaderExtension` now captures PTS (`CapturedExtension{ payload, pts_ns }`, FIFO bounded 128) and `live_ingest()` drains via `parrot_v3`/`parrot_proto` (proto coalesced across split packets, 1 MiB cap) → `TelemetrySnapshot` → `to_0601` with `TransformOptions`/`SessionMetadata` and `Message::set_pts(running_time)`. `pipeline:` hermetic still emits dummy when no extensions; `rtsp://` now decodes real P1/P2/P3/Pb payloads. One-shot startup drain only — continuous live loop (drive-until-EOS) is next slice.
+- Live ingest continuous loop + Generate on `feature/live-continuous-generate` (fork 13 / [ADR 0013](../context/decisions/0013-live-streaming-ingest.md)): `live_ingest()` now drives a continuous loop (`run_duration` or until `is_mux_interrupted()` / SIGINT) draining the FIFO with 10 ms sleep, late arrivals included, and `KlvSink` is opened with `Sei0604::Generate` so live H.264 carries ST 0604 via the same `h264parse` probe wired for file (RTSP depay `h264parse` src and pipeline bin ghost src pad). `LiveIngestConfig::run_duration` (default 0 = one-shot for backward compat) allows hermetic 2 s continuous test; `parrot_live` now links `parrot_mux` for the shared interrupt flag. `live_rtp_test` covers the 2 s unbounded pipeline and late-arrival real decode.
 
 ## Next
 
 1. Return to fork 4, Tier 2 geometry fidelity, in [ROADMAP](./ROADMAP.md).
-2. Wire live `Sei0604::Generate` probe for H.264 (currently `Preserve`) per ADR 0013 Known gaps.
 
 ## Known gaps
-
-- Live H.264 output via `live_ingest` currently uses `Sei0604::Preserve` (no ST 0604 SEI) — the H.264 SEI generate probe is only wired for file video sources; live loses KLV↔video time sync until the probe is added for live branches. See [ADR 0013](../context/decisions/0013-live-streaming-ingest.md).
 - **Non-H.264 output carries no ST 0604.** Generation is H.264-only upstream, so
   an H.265 source converts but is unstamped
   ([ADR 0007](../context/decisions/0007-h265-vs-st0604-generation.md)). Moot for

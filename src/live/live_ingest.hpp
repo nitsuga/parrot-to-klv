@@ -2,6 +2,7 @@
 // Licensed under the Apache License, Version 2.0
 #pragma once
 
+#include <chrono>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -38,6 +39,15 @@ struct LiveIngestConfig {
     // pipeline: dummy path remain immediate (no 600 ms poll) when no
     // extensions are present.
     std::vector<CapturedExtension> test_injected_extensions;
+
+    // Continuous mode: how long live_ingest should drive before closing.
+    // 0 means one-shot (drain once then close) for backward compatibility
+    // and fast hermetic tests. For RTSP live or is-live unbounded pipeline,
+    // set to e.g., 2s in tests to verify drive-until-stop. Production live
+    // ingest will run until g_interrupt_requested (SIGINT) when this is 0
+    // but the video_source is live unbounded — callers that want indefinite
+    // drive should set a long duration or rely on interrupt.
+    std::chrono::milliseconds run_duration{0};
 };
 
 // Live ingest: validate cfg, register Parrot RTP header extension, create a
