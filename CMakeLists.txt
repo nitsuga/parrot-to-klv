@@ -347,12 +347,13 @@ add_test(NAME conform_reports_stat_failure
 # Every add_test above appears here. A new test that does not is simply absent
 # from CI, so keep the list in step — that is the one thing this arrangement
 # asks for in exchange for not enumerating someone else's tests to exclude.
+#
+# The two shell-script tests below (packaging_output_guard and
+# conformance_real_data) are not compiled by CMake, so ASan/UBSan
+# instrumentation buys them nothing; they keep the plain "parrot" label.
 set_tests_properties(
   mp4_extraction parrot_v3 parrot_proto session_metadata transform
-  parrot_scrub conformance
-  PROPERTIES LABELS "parrot;parrot-sanitize")
-set_tests_properties(
-  mux conformance_real_data cli_converts_fixture
+  parrot_scrub conformance mux cli_converts_fixture
   cli_version cli_help cli_rejects_unknown_option
   cli_rejects_output_without_path cli_rejects_two_inputs
   scrub_rejects_unknown_option scrub_rejects_nan_lat
@@ -361,5 +362,7 @@ set_tests_properties(
   conform_rejects_unknown_option conform_rejects_missing_value
   conform_rejects_extra_argument conform_rejects_label_with_scan
   conform_reports_stat_failure
-  packaging_output_guard
-  PROPERTIES LABELS parrot)
+  PROPERTIES LABELS "parrot;parrot-sanitize")
+set_tests_properties(
+  conformance_real_data packaging_output_guard
+  PROPERTIES LABELS "parrot")

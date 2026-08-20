@@ -100,9 +100,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # The sanitizer subset does not run the mux path, so it needs the build
-      # headers for libmisbklv's optional GStreamer backend but no runtime
-      # plugins.
+      # -dev packages for the build (libmisbklv's gstreamer backend links
+      # gstreamer-1.0, gstreamer-app-1.0 and gstreamer-codecparsers-1.0); the
+      # plugin packages for the run.
       - name: Install build dependencies
         run: |
           install_dependencies() {
@@ -114,7 +114,9 @@ jobs:
               -o Acquire::https::Timeout=30 install -y --no-install-recommends \
               cmake g++ pkg-config \
               libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
-              libgstreamer-plugins-bad1.0-dev
+              libgstreamer-plugins-bad1.0-dev \
+              gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
+              gstreamer1.0-plugins-bad
           }
 
           if ! install_dependencies; then
@@ -156,12 +158,9 @@ jobs:
           -DPARROT_SANITIZE=ON
 
       - name: Build sanitizer test targets
-        run: >-
-          cmake --build build-sanitizers -j"$(nproc)" --target
-          mp4_extraction_test parrot_v3_test parrot_proto_test
-          session_metadata_test transform_test parrot_scrub_test conformance_test
+        run: cmake --build build-sanitizers -j"$(nproc)"
 
-      - name: Test sanitizer subset
+      - name: Test sanitizer suite
         env:
           ASAN_OPTIONS: abort_on_error=1:detect_leaks=1
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1

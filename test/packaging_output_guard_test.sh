@@ -66,6 +66,7 @@ expect_refusal fake_repo_child staging_output_guard_validate "$fake_repo/not-sta
 expect_refusal fake_repo_lexical staging_output_guard_validate "$fake_repo/staging/../not-staging"
 ln -s "$fake_repo" "$tmp/fake-repo-alias"
 expect_refusal fake_repo_symlink staging_output_guard_validate "$tmp/fake-repo-alias/not-staging"
+expect_refusal fake_repo_staging_itself staging_output_guard_validate "$fake_repo/staging"
 expect_accept fake_staging staging_output_guard_validate "$fake_repo/staging/artifact"
 expect_accept temp_artifact staging_output_guard_validate "$tmp/artifacts/nested/artifact"
 
@@ -77,6 +78,15 @@ staging_output_guard_reset "$safe_output"
 [ -d "$safe_output" ] || fail "reset did not recreate the safe output directory"
 [ -z "$(find "$safe_output" -mindepth 1 -print -quit)" ] ||
   fail "reset did not clear the safe output directory"
+
+# reset must refuse and preserve files when protected inputs overlap.
+unsafe_reset="$fake_repo/staging/unsafe-reset"
+unsafe_input="$unsafe_reset/protected-input"
+mkdir -p "$unsafe_input"
+touch "$unsafe_reset/sentinel" "$unsafe_input/input-sentinel"
+expect_refusal reset_overlaps_protected_input staging_output_guard_reset "$unsafe_reset" "$unsafe_input"
+[ -f "$unsafe_reset/sentinel" ] || fail "reset deleted output despite protected input overlap"
+[ -f "$unsafe_input/input-sentinel" ] || fail "reset deleted protected input"
 
 # The scripts must reject before pkg-config or a container engine is touched.
 # Their outputs overlap disposable protected inputs, and the sentinels prove no

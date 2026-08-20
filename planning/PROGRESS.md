@@ -40,6 +40,21 @@ surface — flags, output, the scrub and conform workflows — is in
   durations, unknown `tkhd` versions, wrapping box sizes, and missing/invalid
   sample tables are rejected rather than mis-parsed.
 
+**Post-`v0.1.6` hardening is merged on `main` but unreleased, with PR #39
+ready to merge on top of it.** The `main` batch since the tag: v3 decode
+validity (unit-norm quaternions, exact declared length, short extensions
+recorded as skipped — issues #8/#9), strict `stsd` MIME-type parameter parsing
+(issue #5), output-write reliability (scrub/conform writes are
+`fwrite`-checked and a failed write unlinks the output; the mux preflights its
+destination — issues #11/#19/#17), and a CLI end-to-end suite that runs the
+real binary and asserts the `KLVA` descriptor and ST 0604 SEI in its output.
+PR #39 adds the CI half: the mux and CLI now run under ASan/UBSan, the
+conformance decode-failure report path is pinned, the packaging guards now
+cover the staging directory itself and protected-input overlap, the
+`parrot-sanitize` label means compiled-C++ tests only, and the audio fixture
+is pinned to ffmpeg 6.1.1 (byte-reproducible). Detail — files, tests, errors —
+in the 2026-08-20 [log](../context/log.md) entry.
+
 The output MPEG-TS keeps the video-first PMT stream order introduced in
 `v0.1.5`: the video is stream `0:0` and the KLV `0:1`, so `ffmpeg -map 0:0`
 selects the video. (The mechanism is upstream's, libmisbklv ADR 0020 § Stream
@@ -50,7 +65,8 @@ The one substantive feature piece left is **fork 4, Tier 2 geometry fidelity**
 
 ## In progress
 
-- Nothing mid-flight.
+- Nothing mid-flight; PR #39 (sanitizer, conformance, and packaging hardening)
+  is staged on the `fix/tier-3-hardening-16-20-21` branch awaiting push/merge.
 
 ## Next
 

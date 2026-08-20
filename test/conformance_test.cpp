@@ -140,6 +140,20 @@ void test_non_v3_is_reported_not_guessed() {
     check(!foreign.ok, "non-Parrot file reports an error");
 }
 
+void test_report_records_decode_failures() {
+    const auto report =
+        run_conformance(fixture("parrot_v3_video_undecodable_metadata.mp4"), "undecodable");
+    check(report.ok, "conformance run completes on partially or fully failing file");
+    check_eq(report.sample_count, uint32_t{8}, "sample count");
+    check_eq(report.decoded, uint32_t{0}, "no samples decoded");
+    check_eq(report.failed, uint32_t{8}, "all 8 samples failed to decode");
+    check(!report.decode_errors.empty(), "decode errors recorded");
+    check_eq(report.decode_errors.size(), size_t{1}, "one error type recorded");
+    const std::string json = to_json(report);
+    check(json.find("\"failed\": 8") != std::string::npos, "JSON output includes failed count");
+    check(json.find("\"decode_errors\"") != std::string::npos, "JSON output includes decode_errors");
+}
+
 }  // namespace
 
 int main(int argc, char* argv[]) {
@@ -153,6 +167,7 @@ int main(int argc, char* argv[]) {
     test_report_captures_what_matters();
     test_report_is_deterministic();
     test_non_v3_is_reported_not_guessed();
+    test_report_records_decode_failures();
 
     if (g_failures > 0) {
         std::cerr << "\n" << g_failures << " check(s) failed\n";
