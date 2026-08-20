@@ -13,11 +13,11 @@ namespace {
 // FIFO, bounded — drop oldest when full.
 constexpr size_t kMaxCaptured = 128;
 std::mutex g_mu;
-std::deque<std::vector<std::byte>> g_captured;
+std::deque<CapturedExtension> g_captured;
 
 }  // namespace
 
-std::optional<std::vector<std::byte>> parrot_extension_pop_next() {
+std::optional<CapturedExtension> parrot_extension_pop_next() {
     std::lock_guard<std::mutex> lk(g_mu);
     if (g_captured.empty()) return std::nullopt;
     auto v = std::move(g_captured.front());
@@ -33,6 +33,29 @@ void parrot_extension_clear() {
 size_t parrot_extension_count() {
     std::lock_guard<std::mutex> lk(g_mu);
     return g_captured.size();
+}
+
+void parrot_extension_push_for_test(std::span<const uint8_t> payload, uint64_t pts_ns) {
+    CapturedExtension cap;
+    cap.payload.reserve(payload.size());
+    for (auto b : payload) cap.payload.push_back(static_cast<std::byte>(b));
+    cap.pts_ns = pts_ns;
+    std::lock_guard<std::mutex> lk(g_mu);
+    if (g_captured.size() >= kMaxCaptured) {
+        g_captured.pop_front();
+    }
+    g_captured.push_back(std::move(cap));
+}
+
+void parrot_extension_push_for_test(std::span<const std::byte> payload, uint64_t pts_ns) {
+    CapturedExtension cap;
+    cap.payload = std::vector<std::byte>(payload.begin(), payload.end());
+    cap.pts_ns = pts_ns;
+    std::lock_guard<std::mutex> lk(g_mu);
+    if (g_captured.size() >= kMaxCaptured) {
+        g_captured.pop_front();
+    }
+    g_captured.push_back(std::move(cap));
 }
 
 }  // namespace parrot_to_klv
@@ -74,14 +97,22 @@ static gssize parrot_write(GstRTPHeaderExtension* /*ext*/,
 static gboolean parrot_read(GstRTPHeaderExtension* /*ext*/,
                             GstRTPHeaderExtensionFlags /*read_flags*/,
                             const guint8* data, gsize size,
-                            GstBuffer* /*buffer*/) {
-    // Capture the raw extension bytes for testing. In the full implementation
-    // this will be decoded via parrot_v3 / parrot_proto and transformed to
-    // TelemetrySnapshot -> to_0601.
-    std::vector<std::byte> bytes;
-    bytes.reserve(size);
+                            GstBuffer* buffer) {
+    parrot_to_klv::CapturedExtension cap;
+    cap.payload.reserve(size);
     for (gsize i = 0; i < size; ++i) {
-        bytes.push_back(static_cast<std::byte>(data[i]));
+        cap.payload.push_back(static_cast<std::byte>(data[i]));
+    }
+    // Assumption: RTP buffer PTS at header-extension read equals reception
+    // running_time per ADR 0013/ADR 0021; if rtspsrc buffering or
+    // RTP-timestamp mode diverges, live KLV will drift from video. Hermetic
+    // test injects PTS directly so cannot validate — validate against real/mock
+    // RTSP source in follow-up.
+    if (buffer != nullptr) {
+        GstClockTime pts = GST_BUFFER_PTS(buffer);
+        cap.pts_ns = pts;
+    } else {
+        cap.pts_ns = GST_CLOCK_TIME_NONE;
     }
     {
         std::lock_guard<std::mutex> lk(parrot_to_klv::g_mu);
@@ -89,7 +120,7 @@ static gboolean parrot_read(GstRTPHeaderExtension* /*ext*/,
         if (parrot_to_klv::g_captured.size() >= parrot_to_klv::kMaxCaptured) {
             parrot_to_klv::g_captured.pop_front();
         }
-        parrot_to_klv::g_captured.push_back(std::move(bytes));
+        parrot_to_klv::g_captured.push_back(std::move(cap));
     }
     return TRUE;
 }

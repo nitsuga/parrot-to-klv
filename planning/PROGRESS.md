@@ -67,12 +67,12 @@ The one substantive feature piece left is **fork 4, Tier 2 geometry fidelity**
 
 ## In progress
 
-- Live ingest wiring on `feature/live-consumer-pin` (fork 13 / [ADR 0013](../context/decisions/0013-live-streaming-ingest.md)): `pipeline:` hermetic path now pushes KLV via `KlvSink` with live `video_source` and multicast knobs; RTSP URI is forwarded and fails gracefully with `Unsupported` within 5 s while the Parrot RTP header-extension remains registered. Header-extension capture → existing v3/proto decode → `TelemetrySnapshot` → `to_0601` is the next slice.
+- Live ingest real decode on `feature/live-decode` (fork 13 / [ADR 0013](../context/decisions/0013-live-streaming-ingest.md)): `ParrotRtpHeaderExtension` now captures PTS (`CapturedExtension{ payload, pts_ns }`, FIFO bounded 128) and `live_ingest()` drains via `parrot_v3`/`parrot_proto` (proto coalesced across split packets, 1 MiB cap) → `TelemetrySnapshot` → `to_0601` with `TransformOptions`/`SessionMetadata` and `Message::set_pts(running_time)`. `pipeline:` hermetic still emits dummy when no extensions; `rtsp://` now decodes real P1/P2/P3/Pb payloads. One-shot startup drain only — continuous live loop (drive-until-EOS) is next slice.
 
 ## Next
 
-1. Complete live RTP header-extension → decode → transform wiring for `rtsp://` (consume `parrot_extension_pop_next()` (FIFO, bounded) bytes via `parrot_v3`/`parrot_proto` instead of dummy snapshots).
-2. Return to fork 4, Tier 2 geometry fidelity, in [ROADMAP](./ROADMAP.md).
+1. Return to fork 4, Tier 2 geometry fidelity, in [ROADMAP](./ROADMAP.md).
+2. Wire live `Sei0604::Generate` probe for H.264 (currently `Preserve`) per ADR 0013 Known gaps.
 
 ## Known gaps
 
