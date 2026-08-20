@@ -5,6 +5,115 @@
      a fuller entry per significant implementation. Routine ingests/lint go here
      too. This is the ONLY home for history — PROGRESS.md is present-tense only. -->
 
+## 2026-08-20
+
+* **PR #39: the mux and CLI now run under sanitizers in CI.** Fixes issue #16.
+  `build.yml`'s sanitizer job installs the runtime GStreamer plugin packages
+  (`gstreamer1.0-plugins-base/good/bad`) alongside the `-dev` headers — the
+  previous subset excluded the mux path, so no runtime plugins were needed —
+  and builds every target rather than a hand-picked test list. `CMakeLists.txt`
+  moved `mux`, `cli_converts_fixture`, and all the CLI `--help`/`--version`/
+  rejection tests onto the shared `parrot;parrot-sanitize` label, so ASan+UBSan
+  now instrument the output-writing and argument-parsing paths too.
+
+* **PR #39: the conformance report's decode-failure path is pinned, and fixture
+  reproducibility is documented.** Fixes issue #20. `conformance_test` gained
+  `test_report_records_decode_failures`: against the fully-undecodable
+  `parrot_v3_video_undecodable_metadata.mp4` fixture the report must complete
+  with `ok` true, 8 samples / 0 decoded / 8 failed, exactly one recorded
+  `decode_errors` type, and both `failed` and `decode_errors` present in the
+  `to_json()` output the CLI prints — the JSON is the contract, not the struct.
+  `make_fixture.py`'s docstring now states that metadata-only fixtures are
+  byte-reproducible across environments while generated-video/audio fixtures
+  depend on the ffmpeg/AAC encoder version.
+
+* **PR #39: packaging guard boundaries hardened.** Fixes issue #21.
+  `packaging_output_guard_test.sh` gained two cases:
+  `staging_output_guard_validate` now refuses the staging directory itself
+  (the one pathological target still passing next to the repo-relative and
+  symlink refusals), and `staging_output_guard_reset` refuses a target whose
+  tree contains a protected input — the sentinels prove the refusal deletes
+  neither the output nor the protected input beneath it.
+
+* **`parrot-sanitize` tightened to compiled C++ tests only (24, down from
+  26).** `packaging_output_guard` and `conformance_real_data` are shell
+  scripts, not CMake-compiled binaries, so ASan/UBSan instrumentation buys them
+  nothing; they keep the plain `parrot` label and the sanitizer suite now means
+  what it says — every instrumentable test, and nothing that cannot be
+  instrumented.
+
+* **Audio fixture regenerated under ffmpeg 6.1.1 and pinned to it.**
+  `parrot_v3_video_audio.mp4` now carries bytes produced by ffmpeg
+  `6.1.1-3ubuntu5` (sha256 `f993d7d9…`), verified byte-reproducible across
+  repeated runs with that build; `make_fixture.py` records that any other
+  ffmpeg version emits different AAC bytes, so a rebuild on another host can no
+  longer silently swap the committed fixture.
+
+* **Output writes are now checked end-to-end, and the CLI gains a true
+  end-to-end test.** Fixes issues #11, #19, and #17 in one batch:
+  - `parrot-scrub` and `parrot-conform`'s report writer switched from
+    `std::ofstream` to `fwrite` + `fflush` + checked `fclose`, unlinking the
+    half-written output on any failure; scrub additionally `fsync`s on
+    Unix-like hosts so a reported-clean output is actually on disk — a privacy
+    tool's "success" cannot leave a truncated file behind.
+  - `mux_to_ts` preflights its destination before constructing the GStreamer
+    sink: an output path that is a directory, whose parent does not exist, or
+    whose parent is not a directory now fails with a specific message instead
+    of libmisbklv's opaque "media pipeline failed" (issue #11). `mux_test`
+    pins the nonexistent-parent diagnostic.
+  - New `test/cli_test.cpp` runs the real `parrot-to-klv` binary against the v3
+    and proto video fixtures and asserts exit 0, a non-empty output, the `KLVA`
+    registration descriptor, and — for the v3 conversion — the
+    `MISPmicrosectime` ST 0604 SEI (issue #19); inspection mode with disclosure
+    flags exits 0. New `test/cli_reject_test.sh` replaces the bare-`WILL_FAIL`
+    CLI rejections: each case must exit non-zero *and* print the expected
+    diagnostic, so a rejection failing for the wrong reason is caught.
+  - `mp4_extraction_test` gained `test_malformed_and_truncated_inputs` (issue
+    #17): truncation at 16 boundaries, a `moov` box size declared past EOF, a
+    truncated `mdat` payload, and a single-byte corruption sweep — all green
+    under the sanitizer build, so a hostile file must not so much as tickle UB.
+
+* **MIME type parameter strictly parsed for format detection.** Fixes issue #5.
+  `format_from_mime` used to substring-match `com.parrot.videometadata`
+  anywhere in the `stsd` string, so the magic string inside an unrelated
+  parameter (a `comment=` or `other=` value) was enough to pick a format. It
+  now splits on `;`, matches the `type=` parameter name case-insensitively,
+  trims whitespace, accepts single- and double-quoted values, and requires an
+  exact identifier match — `videometadata3` yes, `videometadata3_extra` no.
+  The function is now declared in `mp4_metadata_extractor.hpp` and covered by
+  a positive/negative matrix in `mp4_extraction_test.cpp`.
+
+* **Short v3 extensions are recorded as skipped, and declared length is
+  enforced exactly.** Fixes issue #9. `parse_v3` previously dropped a truncated
+  timestamp/automation/thermal extension silently; each now reports through the
+  new `skipped_extension_ids` list, and a sample whose declared length is
+  *shorter* than its buffer is rejected (`declared != sample.size()`) instead
+  of parsing the base structure and ignoring the trailing bytes.
+  `parrot_v3_test` covers the three truncated-extension shapes and the
+  under-long boundary case.
+
+* **v3 decode rejects quaternions that are not unit norm.** Fixes issue #8.
+  `parse_v3` now validates all three quaternions (drone, frame base, frame)
+  against `|norm − 1| ≤ 0.01` and returns the new
+  `ParrotV3Error::InvalidQuaternion` otherwise — an all-zero quaternion (norm
+  0) previously decoded into garbage attitude with no error at all. Tests pin
+  the accepted identity values and both sides of the tolerance boundary.
+
+* **Proto and session-metadata assertions hardened.** Fixes issue #18. The
+  proto fixture check now requires the tracking target itself, not just the
+  tracking block, and `session_metadata_test`'s ISO 8601 cases check the
+  `optional` before dereferencing it — a parse regression fails as "does not
+  parse" instead of dereferencing an empty `optional` or quietly skipping the
+  value check.
+
+* **CI dependency installation gained an APT mirror fallback and
+  interrupted-transaction recovery.** `build.yml`'s install steps now retry
+  with bounded timeouts and `Acquire::Retries`, fall back from the default
+  mirror to `archive.ubuntu.com` when the first attempt fails, and — after a
+  timed-out install — run `dpkg --configure -a` plus `apt --fix-broken
+  install` before retrying, so a runner interrupted mid-APT no longer poisons
+  the next run with an unlocked dpkg state.
+
 ## 2026-08-19
 
 * **`v0.1.6` published.** Tagged at `a0fa67d` after PRs #29–#33 and the
