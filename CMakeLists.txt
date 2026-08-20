@@ -22,7 +22,7 @@ FetchContent_Declare(
   misbklv
   GIT_REPOSITORY git@github.com:nitsuga/libmisbklv.git
   # Live Generate gated on H.264 caps (non-H.264 produces unstamped H.265) — ADR 0013.
-  GIT_TAG 85aedf4f5f49a7825babdd19ab0ee9aca47b3b00
+  GIT_TAG 93bf30d9a933b2b11117f5b199fd5c56cc3be33a
 )
 FetchContent_MakeAvailable(misbklv)
 
