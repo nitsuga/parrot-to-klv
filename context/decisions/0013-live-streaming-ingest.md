@@ -67,8 +67,9 @@ Split on the dependency line, keeping the arrow `parrot-to-klv → libmisbklv`:
      via `h264parse` + `on_h264_buffer_inject_sei`); live H.264 therefore
      carries no ST 0604 SEI until the probe is added. This is a real gap: live
      loses the KLV↔video time sync that file mode has), pushing each packet on
-     the depay buffer's PTS. `pipeline:` is a test-only escape hatch for
-     hermetic tests, not a user-facing input (see Consequences).
+     the depay buffer's PTS. `pipeline:` is a test-only hermetic escape hatch
+     for hermetic tests, gated at the CLI by `PARROT_TEST_ALLOW_PIPELINE`
+     (see Consequences).
 - The decoders + transform transfer **unchanged** — that is what the shared
   snapshot [[0004-shared-telemetry-snapshot]] was shaped for.
 - Live is a **second mode** (its own input/CLI path), not a replacement for
@@ -125,8 +126,10 @@ decision; the live surface it depends on is the pin.
   `Generate` probe (`h264parse` + `on_h264_buffer_inject_sei`) is only wired
   for file video sources; live loses KLV↔video time sync until the probe is
   added for live branches. See Known gaps in PROGRESS.md.
-- `pipeline:` video_source is a test-only escape hatch for hermetic tests,
-  not a user-facing input.
+- `pipeline:` video_source is a test-only hermetic escape hatch for hermetic
+  tests, gated at the CLI by `PARROT_TEST_ALLOW_PIPELINE` (library validation
+  still accepts it so direct `live_ingest({rtsp_uri="pipeline:..."})` hermetic
+  tests pass without env).
 - libmisbklv ADR 0031 is now accepted (4a28859), so implementation is unblocked.
 
 # Assumptions / open questions

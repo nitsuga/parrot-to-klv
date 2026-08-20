@@ -25,11 +25,6 @@ std::optional<std::vector<std::byte>> parrot_extension_pop_next() {
     return v;
 }
 
-std::optional<std::vector<std::byte>> parrot_extension_pop_last() {
-    // Compatibility alias — also FIFO (pop_front) to avoid scrambling order.
-    return parrot_extension_pop_next();
-}
-
 void parrot_extension_clear() {
     std::lock_guard<std::mutex> lk(g_mu);
     g_captured.clear();

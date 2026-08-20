@@ -29,7 +29,6 @@ bool register_parrot_extension();
 // will decode these bytes via parrot_v3 / parrot_proto, but for the stub we
 // just store raw bytes to prove the read path is wired.
 std::optional<std::vector<std::byte>> parrot_extension_pop_next();
-std::optional<std::vector<std::byte>> parrot_extension_pop_last();  // alias for pop_next (FIFO); kept for compatibility
 void parrot_extension_clear();
 size_t parrot_extension_count();
 

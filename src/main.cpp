@@ -15,6 +15,7 @@
 #include <csignal>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <iomanip>
 #include <iostream>
 #include <optional>
@@ -289,7 +290,7 @@ int main(int argc, char* argv[]) {
                 return 1;
             }
         } else if (arg == "--live-rtsp") {
-            // pipeline: is test-only escape hatch for hermetic tests; not a user-facing live input
+            // pipeline: is test-only hermetic escape hatch; CLI gates it via PARROT_TEST_ALLOW_PIPELINE
             if (i + 1 >= argc) {
                 std::cerr << "Error: --live-rtsp needs a URI.\n";
                 return 1;
@@ -298,6 +299,14 @@ int main(int argc, char* argv[]) {
             if (live_rtsp.empty()) {
                 std::cerr << "Error: --live-rtsp needs a non-empty URI.\n";
                 return 1;
+            }
+            if (live_rtsp.rfind("pipeline:", 0) == 0) {
+                if (!std::getenv("PARROT_TEST_ALLOW_PIPELINE")) {
+                    std::fprintf(stderr,
+                                 "error: pipeline: video_source is test-only; set "
+                                 "PARROT_TEST_ALLOW_PIPELINE=1 to allow\n");
+                    return 1;
+                }
             }
         } else if (arg == "--live-udp") {
             if (i + 1 >= argc) {

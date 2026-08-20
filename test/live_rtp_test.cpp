@@ -159,21 +159,6 @@ static bool test_fifo_order() {
             return false;
         }
     }
-    // Compatibility alias should also be FIFO
-    parrot_to_klv::parrot_extension_clear();
-    gst_rtp_header_extension_set_id(ext, 2);
-    const guint8 p3[] = {0x50, 0x32, 0xAA};
-    const guint8 p4[] = {0x50, 0x62, 0xBB};
-    buf = gst_buffer_new();
-    gst_rtp_header_extension_read(ext, GST_RTP_HEADER_EXTENSION_ONE_BYTE, p3, sizeof(p3), buf);
-    gst_rtp_header_extension_read(ext, GST_RTP_HEADER_EXTENSION_ONE_BYTE, p4, sizeof(p4), buf);
-    gst_buffer_unref(buf);
-    auto alias_first = parrot_to_klv::parrot_extension_pop_last();
-    if (!alias_first || alias_first->size() != sizeof(p3)) {
-        std::cerr << "  alias fifo failed\n";
-        gst_object_unref(ext);
-        return false;
-    }
     parrot_to_klv::parrot_extension_clear();
     gst_object_unref(ext);
     std::cout << "  ok\n";
