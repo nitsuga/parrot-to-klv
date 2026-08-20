@@ -25,6 +25,7 @@ diverge; one fork can span several ADRs).
 | 10 | [0010 — A container image as a second deliverable, built from the bundle](./0010-container-deliverable.md) | accepted |
 | 11 | [0011 — Inferring Item 11 for formats that state no spectrum](./0011-inferred-image-source-sensor.md) | accepted |
 | 12 | [0012 — Re-vendor minimp4.h onto upstream's overflow fix rather than patch it locally](./0012-revendor-minimp4-overflow-fix.md) | accepted |
+| 13 | [0013 — Live ingest and multicast output — vendor extraction stays here, generic mux comes from libmisbklv](./0013-live-streaming-ingest.md) | accepted |
 
 _ADR 0001 predates formal fork numbering (no fork #): chosen direct MP4 parsing
 over GStreamer qtdemux based on investigation._

@@ -60,6 +60,8 @@ The output MPEG-TS keeps the video-first PMT stream order introduced in
 selects the video. (The mechanism is upstream's, libmisbklv ADR 0020 § Stream
 order; `mux_test` pins it.)
 
+Live streaming placement (fork 13 / [ADR 0013](../context/decisions/0013-live-streaming-ingest.md)) is now **accepted**: libmisbklv's live surface (fork 28/ADR 0031) is accepted and pinned at `4a28859`, so implementation is unblocked.
+
 The one substantive feature piece left is **fork 4, Tier 2 geometry fidelity**
 — see [ROADMAP](./ROADMAP.md) § Open forks.
 
@@ -71,10 +73,7 @@ The one substantive feature piece left is **fork 4, Tier 2 geometry fidelity**
 ## Next
 
 1. Return to fork 4, Tier 2 geometry fidelity, in [ROADMAP](./ROADMAP.md).
-2. Review the proposed live-streaming fork (fork 13 /
-   [ADR 0013](../context/decisions/0013-live-streaming-ingest.md)) — placement
-   only: generic mux from libmisbklv's proposed ADR 0031, vendor RTSP/RTP-
-   extension/decode stays here. Nothing implemented until that dependency lands.
+2. Implement live ingest + multicast output (fork 13 / [ADR 0013](../context/decisions/0013-live-streaming-ingest.md)): RTSP pull + GstRTPHeaderExtension capture (P1/P2/P3/Pb) → existing v3/proto decode → TelemetrySnapshot → KlvSink{ sink="udp:239...:port", realtime=true, video_source="rtspsrc…", multicast knobs } — libmisbklv surface now available (4a28859).
 
 ## Known gaps
 

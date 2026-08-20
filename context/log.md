@@ -7,6 +7,8 @@
 
 ## 2026-08-20
 
+* **Accepted live ingest + multicast output (fork 13 — [ADR 0013](./decisions/0013-live-streaming-ingest.md))**: libmisbklv live surface (fork 28/ADR 0031) now accepted (pin 4a28859), so placement is accepted and implementation unblocked. Dependency was proposed; now it is the pin.
+
 * **Proposed live ingest + multicast output, split by ownership** (fork 13 —
   [ADR 0013](./decisions/0013-live-streaming-ingest.md)): libmisbklv owns the
   generic live mux/pacing/multicast surface (their fork 28 / ADR 0031,

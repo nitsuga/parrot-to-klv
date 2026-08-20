@@ -2,19 +2,19 @@
 type: Decision
 title: Live ingest and multicast output — vendor extraction stays here, generic mux comes from libmisbklv
 description: Split the live-streaming work on the dependency line — libmisbklv owns the generic live mux/pacing/multicast surface, parrot-to-klv owns the RTSP pull, the Parrot RTP header-extension capture, the existing v3/proto decode, and the transform
-decision_status: proposed
+decision_status: accepted
 fork: 13
 tags: [decision, streaming, live, rtsp, mux, phase-4]
 generated:
   by: claude/opus-5
-  at: 2026-08-20T00:00:00Z
+  at: 2026-08-20T21:30:00Z
 sources:
   - id: parrot-vmeta-html
     resource: ../../references/Embedded Video Metadata - 8.4.2.html
     title: Parrot Embedded Video Metadata — "Integration in the RTP stream"
   - id: libmisbklv-0031
-    resource: https://github.com/nitsuga/libmisbklv/blob/main/context/decisions/0031-live-streaming-surface.md
-    title: "libmisbklv ADR 0031 (fork 28, proposed) — Vendor-neutral live streaming surface"
+    resource: https://github.com/nitsuga/libmisbklv/blob/4a28859511c7b4c5117959335afd4e845f3e7313/context/decisions/0031-live-streaming-surface.md
+    title: "libmisbklv ADR 0031 (fork 28, accepted) — Vendor-neutral live streaming surface"
 ---
 
 # Context
@@ -38,14 +38,14 @@ the first packet of each frame; only the frame capture timestamp is in the ES
 RTCP SDES / SDP.[^parrot-vmeta-html] A plain `rtspsrc ! rtph264depay` consumes
 those extensions and drops them, so an "RTSP → TS handoff" loses the metadata.
 
-Meanwhile libmisbklv is **proposing the generic half of the problem** (their
-fork 28 / ADR 0031, proposed): a `video_source` that accepts a GStreamer
+Meanwhile libmisbklv is **providing the generic half of the problem** (their
+fork 28 / ADR 0031, now accepted at 4a28859): a `video_source` that accepts a GStreamer
 URI/description, multicast sink knobs, and `realtime` + a video source no longer
 rejected.[^libmisbklv-0031] That is the mux/pacing/multicast surface both Parrot
 and DJI converters share; the only thing that differs per vendor is the
 metadata transport + decode, which is precisely what this project owns.
 
-# Decision (proposed)
+# Decision
 
 Split on the dependency line, keeping the arrow `parrot-to-klv → libmisbklv`:
 
@@ -73,9 +73,9 @@ Split on the dependency line, keeping the arrow `parrot-to-klv → libmisbklv`:
   future consumer of the same libmisbklv surface with its own decode —
   parrot-to-klv is the reference for what that shared surface must be.
 
-This ADR is `proposed` and **records only the placement decision** — no
-implementation, and nothing merges/implements until libmisbklv's ADR 0031 is
-accepted.
+This placement is now **accepted** — libmisbklv ADR 0031 is now accepted
+(4a28859), so implementation is unblocked. This ADR records the placement
+decision; the live surface it depends on is the pin.
 
 # Alternatives considered
 
@@ -115,7 +115,7 @@ accepted.
 - No new GStreamer dependency beyond what libmisbklv's gst facade already
   implies; no protobuf/minimp4 dependency added here (both already decided in
   [[0003-protobuf-dependency]]).
-- Implementation is gated on libmisbklv ADR 0031 being accepted.
+- libmisbklv ADR 0031 is now accepted (4a28859), so implementation is unblocked.
 
 # Assumptions / open questions
 
@@ -139,5 +139,5 @@ accepted.
   live unchanged.
 - [[0006-inherited-st0604-sei-injection]] — the SEI `Generate` decision the live
   path reuses.
-- libmisbklv ADR 0031 (fork 28, proposed) — the generic live surface this
+- libmisbklv ADR 0031 (fork 28, accepted at 4a28859) — the generic live surface this
   depends on (see `sources[libmisbklv-0031]`).
