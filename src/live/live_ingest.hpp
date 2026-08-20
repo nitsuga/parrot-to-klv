@@ -2,10 +2,13 @@
 // Licensed under the Apache License, Version 2.0
 #pragma once
 
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <variant>
+#include <vector>
 
+#include "live/parrot_rtp_header_extension.hpp"
 #include "misbklv/types.hpp"
 #include "session_metadata.hpp"
 #include "transform.hpp"
@@ -28,6 +31,13 @@ struct LiveIngestConfig {
     // When absent, defaults are used (no session, default TransformOptions).
     std::optional<SessionMetadata> session;
     TransformOptions transform_options;
+
+    // Test-only: when non-empty, injected deterministically after the entry
+    // queue clear. This makes hermetic real-decode tests deterministic
+    // without an async thread racing the poll window, and lets the normal
+    // pipeline: dummy path remain immediate (no 600 ms poll) when no
+    // extensions are present.
+    std::vector<CapturedExtension> test_injected_extensions;
 };
 
 // Live ingest: validate cfg, register Parrot RTP header extension, create a

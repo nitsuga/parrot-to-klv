@@ -176,6 +176,13 @@ misbklv::Result<std::monostate> live_ingest(const LiveIngestConfig& cfg) {
     // Clear any residual captures from prior sessions or late RTSP pushes after
     // the previous close() so they do not bleed across sessions.
     parrot_extension_clear();
+    // Test-only deterministic injection: when cfg carries payloads, populate
+    // the FIFO after the clear so the immediate drain sees them without an
+    // async poll. Production cfg leaves this empty.
+    for (const auto& cap : cfg.test_injected_extensions) {
+        parrot_extension_push_for_test(std::span<const std::byte>(cap.payload.data(), cap.payload.size()),
+                                       cap.pts_ns);
+    }
 
     // Ensure the Parrot header extension is registered so a future RTSP pull
     // via rtspsrc can negotiate it through extmap. Registration is idempotent.
@@ -210,7 +217,10 @@ misbklv::Result<std::monostate> live_ingest(const LiveIngestConfig& cfg) {
     std::vector<std::byte> proto_coalesce;
     uint64_t proto_coalesce_pts = GST_CLOCK_TIME_NONE;
 
-    // Immediate drain for test-pushed payloads (simulate capture).
+    bool is_rtsp = starts_with(video_src, "rtsp://") || starts_with(video_src, "rtsps://");
+    bool is_pipeline = starts_with(video_src, "pipeline:");
+
+    // Immediate drain for captured or test-injected payloads.
     while (auto cap = parrot_extension_pop_next()) {
         if (try_decode_and_emit(*cap, sink, session_ptr, cfg.transform_options,
                                 emitted_real, proto_coalesce, proto_coalesce_pts)) {
@@ -219,17 +229,12 @@ misbklv::Result<std::monostate> live_ingest(const LiveIngestConfig& cfg) {
     }
 
     // For rtsp://, extensions arrive asynchronously after KlvSink starts its
-    // internal rtspsrc pipeline. Poll briefly for late arrivals without blocking
-    // hermetic pipeline tests (which have no extensions). One-shot startup
-    // poll only — drains for ~600ms (+200ms on activity) then closes; continuous
-    // drive-until-EOS loop is remaining work for a working live path.
-    bool is_rtsp = starts_with(video_src, "rtsp://") || starts_with(video_src, "rtsps://");
-    // Poll for both rtsp:// and hermetic pipeline: when no extensions were
-    // immediately available. For rtsp this catches the first packets after
-    // rtspsrc negotiates; for pipeline hermetic it allows the test helper
-    // push_for_test that arrives after the entry clear to be observed (the
-    // one-shot poll is the only window; see entry clear above).
-    if (emitted_real == 0) {
+    // internal rtspsrc pipeline. Poll briefly for late arrivals. For
+    // pipeline: hermetic path, never poll — metadata-less pipeline must emit
+    // dummy immediately rather than waiting ~600 ms. Hermetic real-decode
+    // tests inject via cfg.test_injected_extensions and are already drained
+    // above without polling.
+    if (is_rtsp && emitted_real == 0) {
         auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(600);
         while (std::chrono::steady_clock::now() < deadline) {
             bool had = false;
@@ -252,8 +257,7 @@ misbklv::Result<std::monostate> live_ingest(const LiveIngestConfig& cfg) {
             if (emitted_real > 0 && parrot_extension_count() == 0) break;
         }
         // If polling timed out with no data, emitted_real stays 0 — fall through
-        // to dummy only for pipeline: path. For rtsp:// with no data, we leave
-        // emitted_real==0 and will not emit dummy (real stream would have no KLV).
+        // to not emit dummy for rtsp:// (real stream would have no KLV).
     }
 
     if (emitted_real > 0) {
@@ -265,7 +269,6 @@ misbklv::Result<std::monostate> live_ingest(const LiveIngestConfig& cfg) {
     // For rtsp:// unreachable, we already returned via sink.error(); for
     // reachable rtsp:// that genuinely had no metadata, emitting nothing is
     // also reasonable, but preserve dummy for pipeline: hermetic compatibility.
-    bool is_pipeline = starts_with(video_src, "pipeline:");
     if (!is_pipeline && is_rtsp) {
         // Reachable RTSP but no metadata — no dummy, just close (may produce
         // file with video only via KlvSink's video branch).

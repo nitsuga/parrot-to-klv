@@ -367,6 +367,14 @@ static std::string resolve_fixture_dir(int argc, char** argv) {
     return {};
 }
 
+static parrot_to_klv::CapturedExtension make_cap(std::span<const uint8_t> data, uint64_t pts_ns) {
+    parrot_to_klv::CapturedExtension cap;
+    cap.payload.reserve(data.size());
+    for (auto b : data) cap.payload.push_back(static_cast<std::byte>(b));
+    cap.pts_ns = pts_ns;
+    return cap;
+}
+
 static bool test_real_decode() {
     std::cout << "test_real_decode\n";
     parrot_to_klv::parrot_extension_clear();
@@ -407,27 +415,18 @@ static bool test_real_decode() {
             return false;
         }
 
-        // live_ingest now clears the queue at entry (prevents bleed from
-        // prior sessions / late pushes). Push asynchronously after it has
-        // cleared and opened the sink so the one-shot poll sees them.
-        parrot_to_klv::parrot_extension_clear();
-        auto s0_copy = *s0;
-        auto s1_copy = *s1;
-        std::thread v3_pusher([s0_copy, s1_copy]() {
-            std::this_thread::sleep_for(std::chrono::milliseconds(30));
-            parrot_to_klv::parrot_extension_push_for_test(
-                std::span<const uint8_t>(s0_copy.data.data(), s0_copy.data.size()), 1'000'000'000ULL);
-            parrot_to_klv::parrot_extension_push_for_test(
-                std::span<const uint8_t>(s1_copy.data.data(), s1_copy.data.size()), 2'000'000'000ULL);
-        });
-
         const std::string out = "/tmp/live_real_v3.ts";
         std::filesystem::remove(out);
         parrot_to_klv::LiveIngestConfig cfg;
         cfg.rtsp_uri = pipeline_desc_for(enc);
         cfg.udp_sink = "file:" + out;
+        // Deterministic injection — no async thread. live_ingest populates the
+        // queue after its entry clear and drains immediately, so no 600 ms poll.
+        cfg.test_injected_extensions.push_back(
+            make_cap(std::span<const uint8_t>(s0->data.data(), s0->data.size()), 1'000'000'000ULL));
+        cfg.test_injected_extensions.push_back(
+            make_cap(std::span<const uint8_t>(s1->data.data(), s1->data.size()), 2'000'000'000ULL));
         auto r = parrot_to_klv::live_ingest(cfg);
-        v3_pusher.join();
         if (!r) {
             std::cerr << "  v3 live_ingest failed: " << static_cast<int>(r.error()) << "\n";
             return false;
@@ -443,8 +442,7 @@ static bool test_real_decode() {
             std::cerr << "  v3 expected 2 KLV packets, got " << count << "\n";
             return false;
         }
-        // PTS should be the pushed running_time (1s, 2s), not dummy spacing from fallback.
-        // Allow small drift but check absolute near pushed value.
+        // PTS should be the injected running_time (1s, 2s), not dummy spacing.
         if (pts[0] < 900'000'000LL || pts[0] > 1'100'000'000LL) {
             std::cerr << "  v3 pts[0] unexpected: " << pts[0] << "\n";
             return false;
@@ -480,20 +478,14 @@ static bool test_real_decode() {
             return false;
         }
 
-        parrot_to_klv::parrot_extension_clear();
-        auto s0p_copy = *s0;
-        std::thread proto_pusher([s0p_copy]() {
-            std::this_thread::sleep_for(std::chrono::milliseconds(30));
-            parrot_to_klv::parrot_extension_push_for_test(
-                std::span<const uint8_t>(s0p_copy.data.data(), s0p_copy.data.size()), 3'000'000'000ULL);
-        });
         const std::string out = "/tmp/live_real_proto.ts";
         std::filesystem::remove(out);
         parrot_to_klv::LiveIngestConfig cfg;
         cfg.rtsp_uri = pipeline_desc_for(enc);
         cfg.udp_sink = "file:" + out;
+        cfg.test_injected_extensions.push_back(
+            make_cap(std::span<const uint8_t>(s0->data.data(), s0->data.size()), 3'000'000'000ULL));
         auto r = parrot_to_klv::live_ingest(cfg);
-        proto_pusher.join();
         if (!r) {
             std::cerr << "  proto live_ingest failed: " << static_cast<int>(r.error()) << "\n";
             return false;
@@ -532,25 +524,16 @@ static bool test_real_decode() {
         std::vector<uint8_t> part1(s0->data.begin(), s0->data.begin() + half);
         std::vector<uint8_t> part2(s0->data.begin() + half, s0->data.end());
 
-        parrot_to_klv::parrot_extension_clear();
-        std::vector<uint8_t> part1_copy = part1;
-        std::vector<uint8_t> part2_copy = part2;
-        std::thread split_pusher([part1_copy, part2_copy]() {
-            std::this_thread::sleep_for(std::chrono::milliseconds(30));
-            parrot_to_klv::parrot_extension_push_for_test(
-                std::span<const uint8_t>(part1_copy.data(), part1_copy.size()), 4'000'000'000ULL);
-            // Second fragment shortly after first to test coalesce across packets.
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
-            parrot_to_klv::parrot_extension_push_for_test(
-                std::span<const uint8_t>(part2_copy.data(), part2_copy.size()), 4'000'000'000ULL + 1000000);
-        });
         const std::string out = "/tmp/live_real_proto_split.ts";
         std::filesystem::remove(out);
         parrot_to_klv::LiveIngestConfig cfg;
         cfg.rtsp_uri = pipeline_desc_for(enc);
         cfg.udp_sink = "file:" + out;
+        cfg.test_injected_extensions.push_back(
+            make_cap(std::span<const uint8_t>(part1.data(), part1.size()), 4'000'000'000ULL));
+        cfg.test_injected_extensions.push_back(
+            make_cap(std::span<const uint8_t>(part2.data(), part2.size()), 4'000'000'000ULL + 1000000));
         auto r = parrot_to_klv::live_ingest(cfg);
-        split_pusher.join();
         if (!r) {
             std::cerr << "  proto split live_ingest failed: " << static_cast<int>(r.error()) << "\n";
             return false;
