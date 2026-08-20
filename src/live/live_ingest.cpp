@@ -87,6 +87,11 @@ bool try_decode_and_emit(const CapturedExtension& cap, misbklv::KlvSink& sink,
             auto msg_res = misbklv::Message::parse(
                 std::as_bytes(std::span<const uint8_t>(klv.packet)));
             if (!msg_res) return false;
+            // Assumption: RTP buffer PTS at header-extension read equals reception
+            // running_time per ADR 0013/ADR 0021; if rtspsrc buffering or
+            // RTP-timestamp mode diverges, live KLV will drift from video. Hermetic
+            // test injects PTS directly so cannot validate — validate against real/mock
+            // RTSP source in follow-up.
             int64_t pts_ns;
             if (cap.pts_ns != GST_CLOCK_TIME_NONE) {
                 pts_ns = static_cast<int64_t>(cap.pts_ns);
@@ -130,6 +135,11 @@ bool try_decode_and_emit(const CapturedExtension& cap, misbklv::KlvSink& sink,
             proto_coalesce_pts = GST_CLOCK_TIME_NONE;
             return false;
         }
+        // Assumption: RTP buffer PTS at header-extension read equals reception
+        // running_time per ADR 0013/ADR 0021; if rtspsrc buffering or
+        // RTP-timestamp mode diverges, live KLV will drift from video. Hermetic
+        // test injects PTS directly so cannot validate — validate against real/mock
+        // RTSP source in follow-up.
         int64_t pts_ns;
         if (proto_coalesce_pts != GST_CLOCK_TIME_NONE) {
             pts_ns = static_cast<int64_t>(proto_coalesce_pts);
@@ -162,6 +172,10 @@ misbklv::Result<std::monostate> live_ingest(const LiveIngestConfig& cfg) {
     if (!is_valid_video_source(cfg.rtsp_uri)) {
         return misbklv::Result<std::monostate>::err(misbklv::Error::Unsupported);
     }
+
+    // Clear any residual captures from prior sessions or late RTSP pushes after
+    // the previous close() so they do not bleed across sessions.
+    parrot_extension_clear();
 
     // Ensure the Parrot header extension is registered so a future RTSP pull
     // via rtspsrc can negotiate it through extmap. Registration is idempotent.
@@ -206,9 +220,16 @@ misbklv::Result<std::monostate> live_ingest(const LiveIngestConfig& cfg) {
 
     // For rtsp://, extensions arrive asynchronously after KlvSink starts its
     // internal rtspsrc pipeline. Poll briefly for late arrivals without blocking
-    // hermetic pipeline tests (which have no extensions).
+    // hermetic pipeline tests (which have no extensions). One-shot startup
+    // poll only — drains for ~600ms (+200ms on activity) then closes; continuous
+    // drive-until-EOS loop is remaining work for a working live path.
     bool is_rtsp = starts_with(video_src, "rtsp://") || starts_with(video_src, "rtsps://");
-    if (is_rtsp && emitted_real == 0) {
+    // Poll for both rtsp:// and hermetic pipeline: when no extensions were
+    // immediately available. For rtsp this catches the first packets after
+    // rtspsrc negotiates; for pipeline hermetic it allows the test helper
+    // push_for_test that arrives after the entry clear to be observed (the
+    // one-shot poll is the only window; see entry clear above).
+    if (emitted_real == 0) {
         auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(600);
         while (std::chrono::steady_clock::now() < deadline) {
             bool had = false;

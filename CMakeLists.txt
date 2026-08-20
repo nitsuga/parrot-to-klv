@@ -358,7 +358,7 @@ add_test(NAME conform_reports_stat_failure
 
 add_executable(live_rtp_test test/live_rtp_test.cpp)
 target_link_libraries(live_rtp_test PRIVATE parrot_live)
-add_test(NAME live_rtp COMMAND live_rtp_test)
+add_test(NAME live_rtp COMMAND live_rtp_test ${CMAKE_SOURCE_DIR}/test/fixtures)
 
 # libmisbklv is a subproject, so `ctest` here runs its suite too — useful
 # locally as an early warning when the pin moves, but several of its tests need

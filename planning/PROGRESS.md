@@ -67,7 +67,7 @@ The one substantive feature piece left is **fork 4, Tier 2 geometry fidelity**
 
 ## In progress
 
-- Live ingest real decode on `feature/live-decode` (fork 13 / [ADR 0013](../context/decisions/0013-live-streaming-ingest.md)): `ParrotRtpHeaderExtension` now captures PTS (`CapturedExtension{ payload, pts_ns }`, FIFO bounded 128) and `live_ingest()` drains via `parrot_v3`/`parrot_proto` (proto coalesced across split packets, 1 MiB cap) → `TelemetrySnapshot` → `to_0601` with `TransformOptions`/`SessionMetadata` and `Message::set_pts(running_time)`. `pipeline:` hermetic still emits dummy when no extensions; `rtsp://` now decodes real P1/P2/P3/Pb payloads.
+- Live ingest real decode on `feature/live-decode` (fork 13 / [ADR 0013](../context/decisions/0013-live-streaming-ingest.md)): `ParrotRtpHeaderExtension` now captures PTS (`CapturedExtension{ payload, pts_ns }`, FIFO bounded 128) and `live_ingest()` drains via `parrot_v3`/`parrot_proto` (proto coalesced across split packets, 1 MiB cap) → `TelemetrySnapshot` → `to_0601` with `TransformOptions`/`SessionMetadata` and `Message::set_pts(running_time)`. `pipeline:` hermetic still emits dummy when no extensions; `rtsp://` now decodes real P1/P2/P3/Pb payloads. One-shot startup drain only — continuous live loop (drive-until-EOS) is next slice.
 
 ## Next
 

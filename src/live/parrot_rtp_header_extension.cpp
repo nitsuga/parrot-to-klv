@@ -103,6 +103,11 @@ static gboolean parrot_read(GstRTPHeaderExtension* /*ext*/,
     for (gsize i = 0; i < size; ++i) {
         cap.payload.push_back(static_cast<std::byte>(data[i]));
     }
+    // Assumption: RTP buffer PTS at header-extension read equals reception
+    // running_time per ADR 0013/ADR 0021; if rtspsrc buffering or
+    // RTP-timestamp mode diverges, live KLV will drift from video. Hermetic
+    // test injects PTS directly so cannot validate — validate against real/mock
+    // RTSP source in follow-up.
     if (buffer != nullptr) {
         GstClockTime pts = GST_BUFFER_PTS(buffer);
         cap.pts_ns = pts;

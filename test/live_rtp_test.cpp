@@ -5,7 +5,9 @@
 #include "live/parrot_rtp_header_extension.hpp"
 
 #include <cassert>
+#include <cstdio>
 #include <chrono>
+#include <thread>
 #include <filesystem>
 #include <iostream>
 #include <span>
@@ -333,19 +335,17 @@ static bool test_rtsp_unreachable() {
     return true;
 }
 
-static std::string find_fixture_dir() {
-    const char* candidates[] = {
-        "/home/eric/workspaces/parrot-to-klv/test/fixtures",
-        "test/fixtures",
-        "../test/fixtures",
-        "./test/fixtures",
-        nullptr};
-    for (int i = 0; candidates[i] != nullptr; ++i) {
-        if (std::filesystem::exists(std::string(candidates[i]) + "/parrot_v3.mp4")) {
-            return candidates[i];
+static std::string g_fixture_dir;
+
+static std::string resolve_fixture_dir(int argc, char** argv) {
+    // Preferred: argv[1] passed from CMake add_test, like all other tests.
+    if (argc > 1) {
+        std::string cand = argv[1];
+        if (std::filesystem::exists(cand + "/parrot_v3.mp4")) {
+            return cand;
         }
     }
-    // Try relative to binary location via /proc/self/exe
+    // Fallback for direct binary invocation: walk from /proc/self/exe.
     try {
         auto exe = std::filesystem::read_symlink("/proc/self/exe");
         auto dir = exe.parent_path();
@@ -357,16 +357,23 @@ static std::string find_fixture_dir() {
             dir = dir.parent_path();
         }
     } catch (...) {}
+    // Last resort: relative paths for manual runs from build dir.
+    const char* rel_candidates[] = {"test/fixtures", "../test/fixtures", "./test/fixtures", nullptr};
+    for (int i = 0; rel_candidates[i] != nullptr; ++i) {
+        if (std::filesystem::exists(std::string(rel_candidates[i]) + "/parrot_v3.mp4")) {
+            return rel_candidates[i];
+        }
+    }
     return {};
 }
 
 static bool test_real_decode() {
     std::cout << "test_real_decode\n";
     parrot_to_klv::parrot_extension_clear();
-    std::string fixture_dir = find_fixture_dir();
+    std::string fixture_dir = g_fixture_dir;
     if (fixture_dir.empty()) {
-        std::cout << "  SKIP: fixture dir not found\n";
-        return true;
+        std::fprintf(stderr, "FATAL: fixture dir not found (pass as argv[1] or run from build tree)\n");
+        std::abort();
     }
     std::string enc = pick_encoder();
     if (enc.empty()) {
@@ -400,11 +407,19 @@ static bool test_real_decode() {
             return false;
         }
 
+        // live_ingest now clears the queue at entry (prevents bleed from
+        // prior sessions / late pushes). Push asynchronously after it has
+        // cleared and opened the sink so the one-shot poll sees them.
         parrot_to_klv::parrot_extension_clear();
-        parrot_to_klv::parrot_extension_push_for_test(
-            std::span<const uint8_t>(s0->data.data(), s0->data.size()), 1'000'000'000ULL);
-        parrot_to_klv::parrot_extension_push_for_test(
-            std::span<const uint8_t>(s1->data.data(), s1->data.size()), 2'000'000'000ULL);
+        auto s0_copy = *s0;
+        auto s1_copy = *s1;
+        std::thread v3_pusher([s0_copy, s1_copy]() {
+            std::this_thread::sleep_for(std::chrono::milliseconds(30));
+            parrot_to_klv::parrot_extension_push_for_test(
+                std::span<const uint8_t>(s0_copy.data.data(), s0_copy.data.size()), 1'000'000'000ULL);
+            parrot_to_klv::parrot_extension_push_for_test(
+                std::span<const uint8_t>(s1_copy.data.data(), s1_copy.data.size()), 2'000'000'000ULL);
+        });
 
         const std::string out = "/tmp/live_real_v3.ts";
         std::filesystem::remove(out);
@@ -412,6 +427,7 @@ static bool test_real_decode() {
         cfg.rtsp_uri = pipeline_desc_for(enc);
         cfg.udp_sink = "file:" + out;
         auto r = parrot_to_klv::live_ingest(cfg);
+        v3_pusher.join();
         if (!r) {
             std::cerr << "  v3 live_ingest failed: " << static_cast<int>(r.error()) << "\n";
             return false;
@@ -465,14 +481,19 @@ static bool test_real_decode() {
         }
 
         parrot_to_klv::parrot_extension_clear();
-        parrot_to_klv::parrot_extension_push_for_test(
-            std::span<const uint8_t>(s0->data.data(), s0->data.size()), 3'000'000'000ULL);
+        auto s0p_copy = *s0;
+        std::thread proto_pusher([s0p_copy]() {
+            std::this_thread::sleep_for(std::chrono::milliseconds(30));
+            parrot_to_klv::parrot_extension_push_for_test(
+                std::span<const uint8_t>(s0p_copy.data.data(), s0p_copy.data.size()), 3'000'000'000ULL);
+        });
         const std::string out = "/tmp/live_real_proto.ts";
         std::filesystem::remove(out);
         parrot_to_klv::LiveIngestConfig cfg;
         cfg.rtsp_uri = pipeline_desc_for(enc);
         cfg.udp_sink = "file:" + out;
         auto r = parrot_to_klv::live_ingest(cfg);
+        proto_pusher.join();
         if (!r) {
             std::cerr << "  proto live_ingest failed: " << static_cast<int>(r.error()) << "\n";
             return false;
@@ -512,17 +533,24 @@ static bool test_real_decode() {
         std::vector<uint8_t> part2(s0->data.begin() + half, s0->data.end());
 
         parrot_to_klv::parrot_extension_clear();
-        parrot_to_klv::parrot_extension_push_for_test(
-            std::span<const uint8_t>(part1.data(), part1.size()), 4'000'000'000ULL);
-        parrot_to_klv::parrot_extension_push_for_test(
-            std::span<const uint8_t>(part2.data(), part2.size()), 4'000'000'000ULL + 1000000);
-
+        std::vector<uint8_t> part1_copy = part1;
+        std::vector<uint8_t> part2_copy = part2;
+        std::thread split_pusher([part1_copy, part2_copy]() {
+            std::this_thread::sleep_for(std::chrono::milliseconds(30));
+            parrot_to_klv::parrot_extension_push_for_test(
+                std::span<const uint8_t>(part1_copy.data(), part1_copy.size()), 4'000'000'000ULL);
+            // Second fragment shortly after first to test coalesce across packets.
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            parrot_to_klv::parrot_extension_push_for_test(
+                std::span<const uint8_t>(part2_copy.data(), part2_copy.size()), 4'000'000'000ULL + 1000000);
+        });
         const std::string out = "/tmp/live_real_proto_split.ts";
         std::filesystem::remove(out);
         parrot_to_klv::LiveIngestConfig cfg;
         cfg.rtsp_uri = pipeline_desc_for(enc);
         cfg.udp_sink = "file:" + out;
         auto r = parrot_to_klv::live_ingest(cfg);
+        split_pusher.join();
         if (!r) {
             std::cerr << "  proto split live_ingest failed: " << static_cast<int>(r.error()) << "\n";
             return false;
@@ -552,6 +580,8 @@ static bool test_real_decode() {
 }
 
 int main(int argc, char* argv[]) {
+    // Save fixture dir before gst_init strips arguments.
+    g_fixture_dir = resolve_fixture_dir(argc, argv);
     gst_init(&argc, &argv);
     bool ok = true;
     ok &= test_extension_registered();

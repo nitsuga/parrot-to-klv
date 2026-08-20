@@ -44,11 +44,4 @@ size_t parrot_extension_count();
 void parrot_extension_push_for_test(std::span<const uint8_t> payload, uint64_t pts_ns = GST_CLOCK_TIME_NONE);
 void parrot_extension_push_for_test(std::span<const std::byte> payload, uint64_t pts_ns = GST_CLOCK_TIME_NONE);
 
-// Backward compatibility shim for older tests that expected vector<byte>.
-inline std::optional<std::vector<std::byte>> parrot_extension_pop_payload_only() {
-    auto cap = parrot_extension_pop_next();
-    if (!cap) return std::nullopt;
-    return cap->payload;
-}
-
 }  // namespace parrot_to_klv
