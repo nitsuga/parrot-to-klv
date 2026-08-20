@@ -93,6 +93,12 @@ differently (see [[transform-stage]] § Item 2).
 **One metadata sample becomes one KLV packet.** Parrot writes one metadata
 sample per video frame, so this yields per-frame KLV without any resampling.
 
+> **File mode only.** This describes MP4-file conversion. The proposed live path
+> ([ADR 0013](decisions/0013-live-streaming-ingest.md), fork 13) anchors KLV PTS
+> to reception running time — matching libmisbklv
+> [ADR 0021](https://github.com/nitsuga/libmisbklv/blob/main/context/decisions/0021-read-path-timestamps.md)
+> live semantics — not to a metadata track.
+
 ## Push in order, and let the muxer push back
 
 The muxer waits on the slower pad and the KLV appsrc blocks, so `emit()` applies
