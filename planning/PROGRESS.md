@@ -71,6 +71,10 @@ The one substantive feature piece left is **fork 4, Tier 2 geometry fidelity**
 ## Next
 
 1. Return to fork 4, Tier 2 geometry fidelity, in [ROADMAP](./ROADMAP.md).
+2. Review the proposed live-streaming fork (fork 13 /
+   [ADR 0013](../context/decisions/0013-live-streaming-ingest.md)) — placement
+   only: generic mux from libmisbklv's proposed ADR 0031, vendor RTSP/RTP-
+   extension/decode stays here. Nothing implemented until that dependency lands.
 
 ## Known gaps
 
