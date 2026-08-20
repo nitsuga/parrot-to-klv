@@ -28,7 +28,7 @@ bool is_valid_sink(const std::string& s) {
 
 bool is_valid_video_source(const std::string& s) {
     return starts_with(s, "rtsp://") || starts_with(s, "rtsps://") ||
-           starts_with(s, "pipeline:");
+           starts_with(s, "pipeline:");  // pipeline: is test-only escape hatch for hermetic tests; not documented for end users
 }
 
 TelemetrySnapshot make_dummy_snapshot(int idx) {

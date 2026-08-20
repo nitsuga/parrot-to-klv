@@ -289,6 +289,7 @@ int main(int argc, char* argv[]) {
                 return 1;
             }
         } else if (arg == "--live-rtsp") {
+            // pipeline: is test-only escape hatch for hermetic tests; not a user-facing live input
             if (i + 1 >= argc) {
                 std::cerr << "Error: --live-rtsp needs a URI.\n";
                 return 1;
@@ -334,6 +335,7 @@ int main(int argc, char* argv[]) {
         LiveIngestConfig cfg;
         cfg.rtsp_uri = live_rtsp;
         cfg.udp_sink = live_udp;
+        // TODO: surface Result when live ingest is un-stubbed (deferred per PR 44 review #4) — main currently discards Result and always exits 0 for live path
         (void)live_ingest(cfg);
         std::cout << "live ingest not yet implemented — stub\n";
         return 0;

@@ -61,8 +61,14 @@ Split on the dependency line, keeping the arrow `parrot-to-klv → libmisbklv`:
      to `to_0601()`.
   3. `KlvSink{ sink="udp:239.x.x.x:port", realtime=true,
      video_source="<the rtspsrc…!rtph264depay…!h264parse path>",
-     sei_0604=Generate, <multicast knobs> }`, pushing each packet on the depay
-     buffer's PTS.
+     sei_0604=Preserve, <multicast knobs> }` (`Preserve` for the initial live
+     path — `Generate` probe not yet wired for live video sources (`pipeline:`
+     and RTSP branches lack the H.264 SEI injection probe that file path has
+     via `h264parse` + `on_h264_buffer_inject_sei`); live H.264 therefore
+     carries no ST 0604 SEI until the probe is added. This is a real gap: live
+     loses the KLV↔video time sync that file mode has), pushing each packet on
+     the depay buffer's PTS. `pipeline:` is a test-only escape hatch for
+     hermetic tests, not a user-facing input (see Consequences).
 - The decoders + transform transfer **unchanged** — that is what the shared
   snapshot [[0004-shared-telemetry-snapshot]] was shaped for.
 - Live is a **second mode** (its own input/CLI path), not a replacement for
@@ -115,6 +121,12 @@ decision; the live surface it depends on is the pin.
 - No new GStreamer dependency beyond what libmisbklv's gst facade already
   implies; no protobuf/minimp4 dependency added here (both already decided in
   [[0003-protobuf-dependency]]).
+- Live H.264 currently uses `Sei0604::Preserve` (no ST 0604 SEI) — the H.264 SEI
+  `Generate` probe (`h264parse` + `on_h264_buffer_inject_sei`) is only wired
+  for file video sources; live loses KLV↔video time sync until the probe is
+  added for live branches. See Known gaps in PROGRESS.md.
+- `pipeline:` video_source is a test-only escape hatch for hermetic tests,
+  not a user-facing input.
 - libmisbklv ADR 0031 is now accepted (4a28859), so implementation is unblocked.
 
 # Assumptions / open questions
@@ -137,7 +149,8 @@ decision; the live surface it depends on is the pin.
   metadata = vendor path, video = libmisbklv.
 - [[0004-shared-telemetry-snapshot]] — why the decoders + transform transfer to
   live unchanged.
-- [[0006-inherited-st0604-sei-injection]] — the SEI `Generate` decision the live
-  path reuses.
+- [[0006-inherited-st0604-sei-injection]] — the SEI `Generate` decision file
+  mode uses; live currently uses `Preserve` because the `Generate` probe is
+  not yet wired for live video sources (see Decision bullet 3).
 - libmisbklv ADR 0031 (fork 28, accepted at 4a28859) — the generic live surface this
   depends on (see `sources[libmisbklv-0031]`).

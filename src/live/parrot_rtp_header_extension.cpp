@@ -3,23 +3,31 @@
 
 #include "live/parrot_rtp_header_extension.hpp"
 
+#include <deque>
 #include <mutex>
 #include <vector>
 
 namespace parrot_to_klv {
 namespace {
 
+// FIFO, bounded — drop oldest when full.
+constexpr size_t kMaxCaptured = 128;
 std::mutex g_mu;
-std::vector<std::vector<std::byte>> g_captured;
+std::deque<std::vector<std::byte>> g_captured;
 
 }  // namespace
 
-std::optional<std::vector<std::byte>> parrot_extension_pop_last() {
+std::optional<std::vector<std::byte>> parrot_extension_pop_next() {
     std::lock_guard<std::mutex> lk(g_mu);
     if (g_captured.empty()) return std::nullopt;
-    auto v = std::move(g_captured.back());
-    g_captured.pop_back();
+    auto v = std::move(g_captured.front());
+    g_captured.pop_front();
     return v;
+}
+
+std::optional<std::vector<std::byte>> parrot_extension_pop_last() {
+    // Compatibility alias — also FIFO (pop_front) to avoid scrambling order.
+    return parrot_extension_pop_next();
 }
 
 void parrot_extension_clear() {
@@ -82,6 +90,10 @@ static gboolean parrot_read(GstRTPHeaderExtension* /*ext*/,
     }
     {
         std::lock_guard<std::mutex> lk(parrot_to_klv::g_mu);
+        // Bounded FIFO — drop oldest when full.
+        if (parrot_to_klv::g_captured.size() >= parrot_to_klv::kMaxCaptured) {
+            parrot_to_klv::g_captured.pop_front();
+        }
         parrot_to_klv::g_captured.push_back(std::move(bytes));
     }
     return TRUE;

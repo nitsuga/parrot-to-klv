@@ -71,11 +71,12 @@ The one substantive feature piece left is **fork 4, Tier 2 geometry fidelity**
 
 ## Next
 
-1. Complete live RTP header-extension → decode → transform wiring for `rtsp://` (consume `parrot_extension_pop_last()` bytes via `parrot_v3`/`parrot_proto` instead of dummy snapshots).
+1. Complete live RTP header-extension → decode → transform wiring for `rtsp://` (consume `parrot_extension_pop_next()` (FIFO, bounded) bytes via `parrot_v3`/`parrot_proto` instead of dummy snapshots).
 2. Return to fork 4, Tier 2 geometry fidelity, in [ROADMAP](./ROADMAP.md).
 
 ## Known gaps
 
+- Live H.264 output via `live_ingest` currently uses `Sei0604::Preserve` (no ST 0604 SEI) — the H.264 SEI generate probe is only wired for file video sources; live loses KLV↔video time sync until the probe is added for live branches. See [ADR 0013](../context/decisions/0013-live-streaming-ingest.md).
 - **Non-H.264 output carries no ST 0604.** Generation is H.264-only upstream, so
   an H.265 source converts but is unstamped
   ([ADR 0007](../context/decisions/0007-h265-vs-st0604-generation.md)). Moot for

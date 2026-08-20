@@ -14,14 +14,6 @@
 
 #include "misbklv/stream.hpp"
 
-// Provide the name the task description uses — the installed gstreamer-rtp
-// header calls it gst_rtp_header_extension_create_from_uri. The task wording
-// says gst_rtp_header_extension_find; alias it so the verification phrase
-// works verbatim.
-static GstRTPHeaderExtension* gst_rtp_header_extension_find(const char* uri) {
-    return gst_rtp_header_extension_create_from_uri(uri);
-}
-
 static bool test_extension_registered() {
     std::cout << "test_extension_registered\n";
     bool ok = parrot_to_klv::register_parrot_extension();
@@ -29,9 +21,11 @@ static bool test_extension_registered() {
         std::cerr << "  register failed\n";
         return false;
     }
-    auto* ext = gst_rtp_header_extension_find(parrot_to_klv::kParrotRtpHeaderExtensionUri);
+    // Verify extension is registered and can be created from URI.
+    auto* ext =
+        gst_rtp_header_extension_create_from_uri(parrot_to_klv::kParrotRtpHeaderExtensionUri);
     if (!ext) {
-        std::cerr << "  find returned null\n";
+        std::cerr << "  create_from_uri returned null\n";
         return false;
     }
     // Verify supported flags advertise at least one form.
@@ -53,9 +47,10 @@ static bool test_read_captures_bytes() {
         std::cerr << "  register failed\n";
         return false;
     }
-    auto* ext = gst_rtp_header_extension_find(parrot_to_klv::kParrotRtpHeaderExtensionUri);
+    auto* ext =
+        gst_rtp_header_extension_create_from_uri(parrot_to_klv::kParrotRtpHeaderExtensionUri);
     if (!ext) {
-        std::cerr << "  find returned null\n";
+        std::cerr << "  create_from_uri returned null\n";
         return false;
     }
     // The RTP stack sets the extension ID via caps before calling read.
@@ -65,7 +60,6 @@ static bool test_read_captures_bytes() {
     // for the stub we just pass opaque bytes.
     const guint8 dummy[] = {0x50, 0x33, 0x00, 0x04, 0x01, 0x02, 0x03, 0x04};
     GstBuffer* buf = gst_buffer_new();
-    // Buffer must be writable for read() check
     gboolean ret = gst_rtp_header_extension_read(ext,
                                                  GST_RTP_HEADER_EXTENSION_ONE_BYTE,
                                                  dummy, sizeof(dummy), buf);
@@ -75,7 +69,7 @@ static bool test_read_captures_bytes() {
         gst_object_unref(ext);
         return false;
     }
-    auto popped = parrot_to_klv::parrot_extension_pop_last();
+    auto popped = parrot_to_klv::parrot_extension_pop_next();
     if (!popped) {
         std::cerr << "  pop returned nullopt\n";
         gst_object_unref(ext);
@@ -94,11 +88,93 @@ static bool test_read_captures_bytes() {
         }
     }
     // Second pop should be empty
-    if (parrot_to_klv::parrot_extension_pop_last().has_value()) {
+    if (parrot_to_klv::parrot_extension_pop_next().has_value()) {
         std::cerr << "  second pop should be empty\n";
         gst_object_unref(ext);
         return false;
     }
+    gst_object_unref(ext);
+    std::cout << "  ok\n";
+    return true;
+}
+
+static bool test_fifo_order() {
+    std::cout << "test_fifo_order\n";
+    parrot_to_klv::parrot_extension_clear();
+    if (!parrot_to_klv::register_parrot_extension()) {
+        std::cerr << "  register failed\n";
+        return false;
+    }
+    auto* ext =
+        gst_rtp_header_extension_create_from_uri(parrot_to_klv::kParrotRtpHeaderExtensionUri);
+    if (!ext) {
+        std::cerr << "  create_from_uri returned null\n";
+        return false;
+    }
+    gst_rtp_header_extension_set_id(ext, 1);
+    const guint8 p1[] = {0x50, 0x31, 0x01};
+    const guint8 p2[] = {0x50, 0x33, 0x02, 0x03};
+    GstBuffer* buf = gst_buffer_new();
+    if (!gst_rtp_header_extension_read(ext, GST_RTP_HEADER_EXTENSION_ONE_BYTE, p1, sizeof(p1), buf)) {
+        std::cerr << "  read p1 failed\n";
+        gst_buffer_unref(buf);
+        gst_object_unref(ext);
+        return false;
+    }
+    if (!gst_rtp_header_extension_read(ext, GST_RTP_HEADER_EXTENSION_ONE_BYTE, p2, sizeof(p2), buf)) {
+        std::cerr << "  read p2 failed\n";
+        gst_buffer_unref(buf);
+        gst_object_unref(ext);
+        return false;
+    }
+    gst_buffer_unref(buf);
+    if (parrot_to_klv::parrot_extension_count() != 2) {
+        std::cerr << "  count expected 2, got " << parrot_to_klv::parrot_extension_count() << "\n";
+        gst_object_unref(ext);
+        return false;
+    }
+    auto first = parrot_to_klv::parrot_extension_pop_next();
+    auto second = parrot_to_klv::parrot_extension_pop_next();
+    if (!first || !second) {
+        std::cerr << "  fifo pop missing\n";
+        gst_object_unref(ext);
+        return false;
+    }
+    if (first->size() != sizeof(p1) || second->size() != sizeof(p2)) {
+        std::cerr << "  fifo size mismatch\n";
+        gst_object_unref(ext);
+        return false;
+    }
+    for (size_t i = 0; i < sizeof(p1); ++i) {
+        if ((*first)[i] != static_cast<std::byte>(p1[i])) {
+            std::cerr << "  fifo p1 byte mismatch at " << i << "\n";
+            gst_object_unref(ext);
+            return false;
+        }
+    }
+    for (size_t i = 0; i < sizeof(p2); ++i) {
+        if ((*second)[i] != static_cast<std::byte>(p2[i])) {
+            std::cerr << "  fifo p2 byte mismatch at " << i << "\n";
+            gst_object_unref(ext);
+            return false;
+        }
+    }
+    // Compatibility alias should also be FIFO
+    parrot_to_klv::parrot_extension_clear();
+    gst_rtp_header_extension_set_id(ext, 2);
+    const guint8 p3[] = {0x50, 0x32, 0xAA};
+    const guint8 p4[] = {0x50, 0x62, 0xBB};
+    buf = gst_buffer_new();
+    gst_rtp_header_extension_read(ext, GST_RTP_HEADER_EXTENSION_ONE_BYTE, p3, sizeof(p3), buf);
+    gst_rtp_header_extension_read(ext, GST_RTP_HEADER_EXTENSION_ONE_BYTE, p4, sizeof(p4), buf);
+    gst_buffer_unref(buf);
+    auto alias_first = parrot_to_klv::parrot_extension_pop_last();
+    if (!alias_first || alias_first->size() != sizeof(p3)) {
+        std::cerr << "  alias fifo failed\n";
+        gst_object_unref(ext);
+        return false;
+    }
+    parrot_to_klv::parrot_extension_clear();
     gst_object_unref(ext);
     std::cout << "  ok\n";
     return true;
@@ -257,6 +333,7 @@ int main(int argc, char* argv[]) {
     bool ok = true;
     ok &= test_extension_registered();
     ok &= test_read_captures_bytes();
+    ok &= test_fifo_order();
     ok &= test_live_ingest_api();
     ok &= test_pipeline_hermetic();
     ok &= test_rtsp_unreachable();
