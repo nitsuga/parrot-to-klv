@@ -88,8 +88,24 @@ if(PARROT_SANITIZE)
     -fsanitize=address,undefined)
 endif()
 
+# Live ingest needs gstreamer-rtp for GstRTPHeaderExtension.
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(GSTREAMER_RTP REQUIRED gstreamer-rtp-1.0)
+
+add_library(parrot_live STATIC
+  src/live/parrot_rtp_header_extension.cpp
+  src/live/live_ingest.cpp
+)
+target_link_libraries(parrot_live PUBLIC parrot_extract misbklv::gst)
+target_include_directories(parrot_live PUBLIC ${CMAKE_SOURCE_DIR}/src)
+target_include_directories(parrot_live SYSTEM PUBLIC ${GSTREAMER_RTP_INCLUDE_DIRS})
+target_link_directories(parrot_live PUBLIC ${GSTREAMER_RTP_LIBRARY_DIRS})
+target_link_libraries(parrot_live PUBLIC ${GSTREAMER_RTP_LIBRARIES})
+target_compile_options(parrot_live PUBLIC ${GSTREAMER_RTP_CFLAGS_OTHER})
+
 # Project source files
 add_executable(parrot-to-klv src/main.cpp)
+target_link_libraries(parrot-to-klv PRIVATE parrot_live)
 
 # Turns a real recording into a shareable fixture by replacing its coordinates.
 add_executable(parrot-scrub src/scrub_main.cpp)
@@ -340,6 +356,10 @@ add_test(NAME conform_reports_stat_failure
                  $<TARGET_FILE:parrot-conform>
                  ${CMAKE_SOURCE_DIR}/test/fixtures)
 
+add_executable(live_rtp_test test/live_rtp_test.cpp)
+target_link_libraries(live_rtp_test PRIVATE parrot_live)
+add_test(NAME live_rtp COMMAND live_rtp_test)
+
 # libmisbklv is a subproject, so `ctest` here runs its suite too — useful
 # locally as an early warning when the pin moves, but several of its tests need
 # hundreds of megabytes of git-lfs media that this project has no reason to
@@ -362,7 +382,7 @@ set_tests_properties(
   scrub_rejects_extra_argument
   conform_rejects_unknown_option conform_rejects_missing_value
   conform_rejects_extra_argument conform_rejects_label_with_scan
-  conform_reports_stat_failure
+  conform_reports_stat_failure live_rtp
   PROPERTIES LABELS "parrot;parrot-sanitize")
 set_tests_properties(
   conformance_real_data packaging_output_guard
