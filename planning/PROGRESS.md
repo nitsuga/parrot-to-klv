@@ -67,13 +67,12 @@ The one substantive feature piece left is **fork 4, Tier 2 geometry fidelity**
 
 ## In progress
 
-- Nothing mid-flight; PR #39 (sanitizer, conformance, and packaging hardening)
-  is staged on the `fix/tier-3-hardening-16-20-21` branch awaiting push/merge.
+- Live ingest wiring on `feature/live-consumer-pin` (fork 13 / [ADR 0013](../context/decisions/0013-live-streaming-ingest.md)): `pipeline:` hermetic path now pushes KLV via `KlvSink` with live `video_source` and multicast knobs; RTSP URI is forwarded and fails gracefully with `Unsupported` within 5 s while the Parrot RTP header-extension remains registered. Header-extension capture → existing v3/proto decode → `TelemetrySnapshot` → `to_0601` is the next slice.
 
 ## Next
 
-1. Return to fork 4, Tier 2 geometry fidelity, in [ROADMAP](./ROADMAP.md).
-2. Implement live ingest + multicast output (fork 13 / [ADR 0013](../context/decisions/0013-live-streaming-ingest.md)): RTSP pull + GstRTPHeaderExtension capture (P1/P2/P3/Pb) → existing v3/proto decode → TelemetrySnapshot → KlvSink{ sink="udp:239...:port", realtime=true, video_source="rtspsrc…", multicast knobs } — libmisbklv surface now available (4a28859).
+1. Complete live RTP header-extension → decode → transform wiring for `rtsp://` (consume `parrot_extension_pop_last()` bytes via `parrot_v3`/`parrot_proto` instead of dummy snapshots).
+2. Return to fork 4, Tier 2 geometry fidelity, in [ROADMAP](./ROADMAP.md).
 
 ## Known gaps
 

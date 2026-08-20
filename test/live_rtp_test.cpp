@@ -5,10 +5,14 @@
 #include "live/parrot_rtp_header_extension.hpp"
 
 #include <cassert>
+#include <chrono>
+#include <filesystem>
 #include <iostream>
 
 #include <gst/gst.h>
 #include <gst/rtp/gstrtphdrext.h>
+
+#include "misbklv/stream.hpp"
 
 // Provide the name the task description uses — the installed gstreamer-rtp
 // header calls it gst_rtp_header_extension_create_from_uri. The task wording
@@ -105,23 +109,146 @@ static bool test_live_ingest_api() {
     parrot_to_klv::LiveIngestConfig cfg;
     cfg.rtsp_uri = "rtsp://192.168.0.1/live";
     cfg.udp_sink = "udp:239.255.0.1:5000";
+    auto t0 = std::chrono::steady_clock::now();
     auto r = parrot_to_klv::live_ingest(cfg);
+    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+                       std::chrono::steady_clock::now() - t0)
+                       .count();
     if (r) {
         std::cerr << "  expected Unsupported error, got ok\n";
         return false;
     }
     if (r.error() != misbklv::Error::Unsupported) {
-        std::cerr << "  unexpected error code\n";
+        std::cerr << "  unexpected error code: " << static_cast<int>(r.error()) << "\n";
         return false;
     }
-    // Empty config should also be Unsupported
+    // Should fail within 7 s (5 s RTSP timeout + overhead), not hang.
+    if (elapsed > 7000) {
+        std::cerr << "  rtsp unreachable took too long: " << elapsed << " ms\n";
+        return false;
+    }
+    std::cout << "  rtsp unreachable correctly Unsupported in " << elapsed << " ms\n";
+    // Empty config should be Unsupported (validation before network).
     parrot_to_klv::LiveIngestConfig empty;
     auto r2 = parrot_to_klv::live_ingest(empty);
     if (r2) {
         std::cerr << "  empty cfg expected error\n";
         return false;
     }
+    if (r2.error() != misbklv::Error::Unsupported) {
+        std::cerr << "  empty cfg expected Unsupported, got " << static_cast<int>(r2.error()) << "\n";
+        return false;
+    }
     std::cout << "  ok\n";
+    return true;
+}
+
+static std::string pick_encoder() {
+    const char* candidates[] = {"openh264enc", "x264enc", "avenc_h264", "x265enc"};
+    for (auto* name : candidates) {
+        GstElementFactory* f = gst_element_factory_find(name);
+        if (f) {
+            gst_object_unref(f);
+            return name;
+        }
+    }
+    return {};
+}
+static std::string pipeline_desc_for(const std::string& enc) {
+    if (enc == "x265enc") {
+        return "pipeline:videotestsrc is-live=true num-buffers=30 ! videoconvert ! video/x-raw,width=320,height=240,framerate=30/1 ! " + enc + " ! h265parse";
+    }
+    return "pipeline:videotestsrc is-live=true num-buffers=30 ! videoconvert ! video/x-raw,width=320,height=240,framerate=30/1 ! " + enc + " ! h264parse";
+}
+static bool test_pipeline_hermetic() {
+    std::cout << "test_pipeline_hermetic\n";
+    std::string enc = pick_encoder();
+    if (enc.empty()) {
+        std::cout << "  SKIP: no H264/H265 encoder available\n";
+        return true;
+    }
+    const std::string out = "/tmp/live_test.ts";
+    std::filesystem::remove(out);
+    parrot_to_klv::LiveIngestConfig cfg;
+    cfg.rtsp_uri = pipeline_desc_for(enc);
+    cfg.udp_sink = "file:" + out;
+    std::cout << "  using encoder " << enc << " desc: " << cfg.rtsp_uri << "\n";
+    auto r = parrot_to_klv::live_ingest(cfg);
+    if (!r) {
+        std::cerr << "  pipeline ingest failed: " << static_cast<int>(r.error()) << "\n";
+        return false;
+    }
+    if (!std::filesystem::exists(out)) {
+        std::cerr << "  output file not created\n";
+        return false;
+    }
+    auto sz = std::filesystem::file_size(out);
+    if (sz < 1000) {
+        std::cerr << "  output too small: " << sz << "\n";
+        std::filesystem::remove(out);
+        return false;
+    }
+    // Read back KLV — should have 3 packets with PTS 1s, 2s, 3s.
+    size_t count = 0;
+    std::vector<int64_t> pts;
+    for (misbklv::Message& m : misbklv::KlvStream(out)) {
+        ++count;
+        pts.push_back(m.pts());
+    }
+    if (count != 3) {
+        std::cerr << "  expected 3 KLV packets, got " << count << "\n";
+        std::filesystem::remove(out);
+        return false;
+    }
+    for (size_t i = 0; i < pts.size(); ++i) {
+        int64_t want = 1'000'000'000LL + static_cast<int64_t>(i) * 1'000'000'000LL;
+        // Live pipeline PTS is running_time; absolute offset from pipeline start
+        // may be ~tens of ms (warmup). Check drift from first packet, not absolute.
+        int64_t base_delta = pts[0] - (1'000'000'000LL);
+        int64_t delta = (pts[i] - want) - base_delta;
+        if (delta < 0) delta = -delta;
+        if (delta > 100'000'000) {
+            std::cerr << "  packet " << i << " pts " << pts[i] << " want " << want << " base_delta " << base_delta << " drift " << delta << "\n";
+            std::filesystem::remove(out);
+            return false;
+        }
+    }
+    std::cout << "  ok (" << sz << " bytes, " << count << " packets)\n";
+    std::filesystem::remove(out);
+    return true;
+}
+
+static bool test_rtsp_unreachable() {
+    std::cout << "test_rtsp_unreachable\n";
+    parrot_to_klv::LiveIngestConfig cfg;
+    cfg.rtsp_uri = "rtsp://127.0.0.1:9/unreachable";
+    cfg.udp_sink = "file:/tmp/live_rtsp_unreach.ts";
+    std::filesystem::remove("/tmp/live_rtsp_unreach.ts");
+    auto t0 = std::chrono::steady_clock::now();
+    auto r = parrot_to_klv::live_ingest(cfg);
+    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+                       std::chrono::steady_clock::now() - t0)
+                       .count();
+    if (r) {
+        std::cerr << "  expected Unsupported, got ok\n";
+        std::filesystem::remove("/tmp/live_rtsp_unreach.ts");
+        return false;
+    }
+    if (r.error() != misbklv::Error::Unsupported) {
+        std::cerr << "  expected Unsupported, got " << static_cast<int>(r.error()) << "\n";
+        return false;
+    }
+    if (elapsed > 7000) {
+        std::cerr << "  rtsp unreachable took too long: " << elapsed << " ms\n";
+        return false;
+    }
+    // No file should remain for a failed live open (sink discards).
+    if (std::filesystem::exists("/tmp/live_rtsp_unreach.ts")) {
+        std::cerr << "  unreachable left a file behind\n";
+        std::filesystem::remove("/tmp/live_rtsp_unreach.ts");
+        return false;
+    }
+    std::cout << "  ok in " << elapsed << " ms\n";
     return true;
 }
 
@@ -131,6 +258,8 @@ int main(int argc, char* argv[]) {
     ok &= test_extension_registered();
     ok &= test_read_captures_bytes();
     ok &= test_live_ingest_api();
+    ok &= test_pipeline_hermetic();
+    ok &= test_rtsp_unreachable();
     if (ok) {
         std::cout << "live_rtp_test: all ok\n";
         return 0;
