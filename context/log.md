@@ -7,6 +7,13 @@
 
 ## 2026-08-20
 
+* **Proposed live ingest + multicast output, split by ownership** (fork 13 —
+  [ADR 0013](./decisions/0013-live-streaming-ingest.md)): libmisbklv owns the
+  generic live mux/pacing/multicast surface (their fork 28 / ADR 0031,
+  proposed); parrot-to-klv owns the RTSP pull, the Parrot RTP header-extension
+  capture, and the existing v3/proto decode + transform. Placement only; the
+  "real-time streaming out of scope" roadmap line changes once implemented.
+
 * **PR #39: the mux and CLI now run under sanitizers in CI.** Fixes issue #16.
   `build.yml`'s sanitizer job installs the runtime GStreamer plugin packages
   (`gstreamer1.0-plugins-base/good/bad`) alongside the `-dev` headers — the
