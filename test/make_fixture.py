@@ -8,7 +8,9 @@ tkhd/tref(cdsc)/hdlr('meta')/nmhd/stsd(TextMetaDataSampleEntry).
 
 All metadata-only fixtures are byte-reproducible across environments. Fixtures
 with generated video/audio (such as parrot_v3_video_audio.mp4) depend on the
-ffmpeg/AAC encoder version (e.g., ffmpeg 6.1.1).
+ffmpeg/AAC encoder version. The committed bytes match ffmpeg 6.1.1
+(6.1.1-3ubuntu5), confirmed byte-reproducible across repeated runs with that
+build; any other ffmpeg version emits different AAC bytes.
 
 Usage: make_fixture.py <output-dir>
 """
