@@ -4,6 +4,7 @@
 #include "live/live_ingest.hpp"
 
 #include "live/parrot_rtp_header_extension.hpp"
+#include "mux.hpp"
 
 #include <chrono>
 #include <cstdint>
@@ -60,6 +61,24 @@ TelemetrySnapshot make_dummy_snapshot(int idx) {
     snap.flying_state = FlyingState::Hovering;
     snap.piloting_mode = CommonPilotingMode::Manual;
     return snap;
+}
+
+misbklv::Result<std::monostate> emit_dummy_batch(misbklv::KlvSink& sink,
+                                                 const SessionMetadata* session,
+                                                 const TransformOptions& opts) {
+    for (int i = 0; i < 3; ++i) {
+        TelemetrySnapshot snap = make_dummy_snapshot(i);
+        auto klv = to_0601(snap, session, opts);
+        if (klv.packet.empty()) continue;
+        auto msg_res = misbklv::Message::parse(
+            std::as_bytes(std::span<const uint8_t>(klv.packet)));
+        if (!msg_res) return misbklv::Result<std::monostate>::err(msg_res.error());
+        int64_t pts_ns = 300'000'000LL + static_cast<int64_t>(i) * 300'000'000LL;
+        msg_res->set_pts(pts_ns);
+        auto emit_res = sink.emit(*msg_res);
+        if (!emit_res) return emit_res;
+    }
+    return misbklv::Result<std::monostate>::ok(std::monostate{});
 }
 
 // Try to decode one captured extension and emit KLV. Returns true if emitted.
@@ -194,10 +213,12 @@ misbklv::Result<std::monostate> live_ingest(const LiveIngestConfig& cfg) {
     icfg.sink = cfg.udp_sink;
     icfg.realtime = true;
     icfg.video_source = video_src;
-    // Live sources do not support Sei0604::Generate (codec not negotiated until
-    // runtime and the SEI probe is not wired for live). Use Preserve so the
-    // pipeline opens; file-mode mux still uses Generate.
-    icfg.sei_0604 = misbklv::Sei0604::Preserve;
+    // Live H.264 now uses Generate so KLV and video stay time-synced via ST 0604 SEI.
+    // libmisbklv's pipeline and RTSP branches wire the same h264parse SEI probe that
+    // the file path uses; probe is gated on H.264 caps (libmisbklv #23 #1) to avoid
+    // corruption on non-H.264, so non-H.264 live degrades to unstamped (no SEI)
+    // per ADR 0007 — H.265 is carried through without SEI.
+    icfg.sei_0604 = misbklv::Sei0604::Generate;
     icfg.udp_ttl_mcast = cfg.udp_ttl;
     icfg.udp_mcast_iface = cfg.udp_mcast_iface;
     icfg.udp_loop = cfg.udp_loop;
@@ -220,6 +241,82 @@ misbklv::Result<std::monostate> live_ingest(const LiveIngestConfig& cfg) {
     bool is_rtsp = starts_with(video_src, "rtsp://") || starts_with(video_src, "rtsps://");
     bool is_pipeline = starts_with(video_src, "pipeline:");
 
+    // Continuous mode when run_duration > 0: drive until interrupt or deadline.
+    // This is the live loop (ADR 0013): RTSP never EOS, pipeline with is-live
+    // and no num-buffers is unbounded, so we run until stopped. For hermetic
+    // tests, run_duration=2s gives a bounded window that still exercises the
+    // continuous machinery. When run_duration==0 we preserve the one-shot
+    // behavior for backward compatibility and fast unit tests.
+    if (cfg.run_duration.count() > 0) {
+        auto deadline = std::chrono::steady_clock::now() + cfg.run_duration;
+        bool dummy_emitted = false;
+
+        while (true) {
+            if (is_mux_interrupted()) break;
+            if (std::chrono::steady_clock::now() >= deadline) break;
+            if (sink.error()) break;
+
+            bool had = false;
+            while (auto cap = parrot_extension_pop_next()) {
+                had = true;
+                if (try_decode_and_emit(*cap, sink, session_ptr, cfg.transform_options,
+                                        emitted_real, proto_coalesce, proto_coalesce_pts)) {
+                    ++emitted_real;
+                }
+                if (sink.error()) break;
+            }
+            if (sink.error()) break;
+            if (is_mux_interrupted()) break;
+
+            // If no real telemetry has arrived yet and this is a pipeline: hermetic
+            // source, emit dummy once so the output still carries KLV for the wiring
+            // check. For RTSP we emit nothing when metadata is absent (real stream
+            // would have no KLV). Dummy is emitted at most once, on the first
+            // idle window, to mimic the one-shot path but inside the live loop.
+            if (emitted_real == 0 && !dummy_emitted && is_pipeline) {
+                // Wait a short grace period before deciding no real telemetry is coming,
+                // so an injected real payload drained in the first iteration is not
+                // shadowed by dummy. If we already had data, emitted_real>0 and we
+                // never reach here.
+                if (!had) {
+                    // No data this iteration — sleep a bit then emit dummy if still none
+                    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                    // Re-check queue before committing to dummy
+                    bool late_arrival = false;
+                    while (auto cap = parrot_extension_pop_next()) {
+                        late_arrival = true;
+                        if (try_decode_and_emit(*cap, sink, session_ptr, cfg.transform_options,
+                                                emitted_real, proto_coalesce, proto_coalesce_pts)) {
+                            ++emitted_real;
+                        }
+                    }
+                    if (emitted_real == 0 && !late_arrival) {
+                        if (auto r = emit_dummy_batch(sink, session_ptr, cfg.transform_options); !r) return r;
+                    }
+                    dummy_emitted = true;
+                    if (sink.error()) break;
+                    continue;
+                }
+            }
+
+            if (!had) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            }
+        }
+
+        // If loop ended without dummy and we still have no real, emit dummy for
+        // pipeline hermetic (covers edge where deadline fired before dummy window).
+        if (emitted_real == 0 && !dummy_emitted && is_pipeline) {
+            // Reached deadline before dummy grace — ensure file still valid for
+            // hermetic checks.
+            if (auto r = emit_dummy_batch(sink, session_ptr, cfg.transform_options); !r) return r;
+        }
+
+        // For RTSP with no metadata, no dummy is emitted — just close (video only).
+        return sink.close();
+    }
+
+    // One-shot mode (run_duration==0): immediate drain + short RTSP poll.
     // Immediate drain for captured or test-injected payloads.
     while (auto cap = parrot_extension_pop_next()) {
         if (try_decode_and_emit(*cap, sink, session_ptr, cfg.transform_options,
@@ -253,6 +350,7 @@ misbklv::Result<std::monostate> live_ingest(const LiveIngestConfig& cfg) {
             }
             // If sink errored during poll, stop.
             if (sink.error()) break;
+            if (is_mux_interrupted()) break;
             // If we already emitted at least one, we can stop after queue drains.
             if (emitted_real > 0 && parrot_extension_count() == 0) break;
         }

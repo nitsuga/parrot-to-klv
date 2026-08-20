@@ -110,6 +110,7 @@ void convert_all(Mp4MetadataExtractor& extractor, const SessionMetadata& session
 }  // namespace
 
 void request_mux_interrupt() { g_interrupt_requested = 1; }
+bool is_mux_interrupted() { return g_interrupt_requested != 0; }
 
 MuxReport mux_to_ts(const std::string& input, const std::string& output,
                     const TransformOptions& options) {

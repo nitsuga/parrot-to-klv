@@ -2,6 +2,7 @@
 // Licensed under the Apache License, Version 2.0
 #pragma once
 
+#include <chrono>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -38,6 +39,17 @@ struct LiveIngestConfig {
     // pipeline: dummy path remain immediate (no 600 ms poll) when no
     // extensions are present.
     std::vector<CapturedExtension> test_injected_extensions;
+
+    // Continuous mode: how long live_ingest should drive before closing.
+    // run_duration == 0 -> one-shot startup drain (immediate drain, plus
+    // 600 ms poll when video_source is rtsp://; immediate dummy for
+    // pipeline: when no real telemetry) then close.
+    // run_duration > 0 -> timed live loop while (!is_mux_interrupted() &&
+    // now < deadline) with 10 ms idle sleep; SIGINT (is_mux_interrupted)
+    // cuts the wait short, but does not provide an indefinite
+    // run-until-SIGINT mode — a finite deadline is always required. There
+    // is no indefinite run-until-SIGINT mode.
+    std::chrono::milliseconds run_duration{0};
 };
 
 // Live ingest: validate cfg, register Parrot RTP header extension, create a
