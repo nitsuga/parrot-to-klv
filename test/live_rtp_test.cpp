@@ -669,6 +669,64 @@ static bool test_continuous_live() {
     return true;
 }
 
+static bool test_pipeline_h265_generate_no_corruption() {
+    std::cout << "test_pipeline_h265_generate_no_corruption\n";
+    parrot_to_klv::parrot_extension_clear();
+    GstElementFactory* f = gst_element_factory_find("x265enc");
+    if (!f) {
+        std::cout << "  SKIP: x265enc not available\n";
+        return true;
+    }
+    gst_object_unref(f);
+    // Also need h265parse
+    f = gst_element_factory_find("h265parse");
+    if (!f) {
+        std::cout << "  SKIP: h265parse not available\n";
+        return true;
+    }
+    gst_object_unref(f);
+    const std::string out = "/tmp/live_h265_generate.ts";
+    std::filesystem::remove(out);
+    parrot_to_klv::LiveIngestConfig cfg;
+    // Bounded pipeline (num-buffers=30) so EOS is deterministic.
+    // H.265 caps — gated Generate probe must skip SEI injection, producing
+    // valid unstamped H.265 TS (ungated 4ac014a would corrupt).
+    cfg.rtsp_uri =
+        "pipeline:videotestsrc is-live=true num-buffers=30 ! videoconvert ! "
+        "video/x-raw,width=320,height=240,framerate=30/1 ! x265enc ! h265parse";
+    cfg.udp_sink = "file:" + out;
+    auto r = parrot_to_klv::live_ingest(cfg);
+    if (!r) {
+        std::cerr << "  H.265 pipeline ingest failed: " << static_cast<int>(r.error()) << "\n";
+        return false;
+    }
+    if (!std::filesystem::exists(out)) {
+        std::cerr << "  output not created\n";
+        return false;
+    }
+    auto sz = std::filesystem::file_size(out);
+    if (sz < 1000) {
+        std::cerr << "  output too small: " << sz << "\n";
+        std::filesystem::remove(out);
+        return false;
+    }
+    // KLV must be readable and contain the 3 dummy packets (live Generate).
+    size_t count = 0;
+    for (auto& m : misbklv::KlvStream(out)) {
+        (void)m;
+        ++count;
+    }
+    if (count != 3) {
+        std::cerr << "  expected 3 KLV packets, got " << count << "\n";
+        std::filesystem::remove(out);
+        return false;
+    }
+    std::cout << "  ok (" << sz << " bytes, " << count << " packets, H.265 unstamped)\n";
+    std::filesystem::remove(out);
+    parrot_to_klv::parrot_extension_clear();
+    return true;
+}
+
 int main(int argc, char* argv[]) {
     // Save fixture dir before gst_init strips arguments.
     g_fixture_dir = resolve_fixture_dir(argc, argv);
@@ -682,6 +740,7 @@ int main(int argc, char* argv[]) {
     ok &= test_rtsp_unreachable();
     ok &= test_real_decode();
     ok &= test_continuous_live();
+    ok &= test_pipeline_h265_generate_no_corruption();
     if (ok) {
         std::cout << "live_rtp_test: all ok\n";
         return 0;
