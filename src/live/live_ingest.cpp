@@ -63,6 +63,24 @@ TelemetrySnapshot make_dummy_snapshot(int idx) {
     return snap;
 }
 
+misbklv::Result<std::monostate> emit_dummy_batch(misbklv::KlvSink& sink,
+                                                 const SessionMetadata* session,
+                                                 const TransformOptions& opts) {
+    for (int i = 0; i < 3; ++i) {
+        TelemetrySnapshot snap = make_dummy_snapshot(i);
+        auto klv = to_0601(snap, session, opts);
+        if (klv.packet.empty()) continue;
+        auto msg_res = misbklv::Message::parse(
+            std::as_bytes(std::span<const uint8_t>(klv.packet)));
+        if (!msg_res) return misbklv::Result<std::monostate>::err(msg_res.error());
+        int64_t pts_ns = 300'000'000LL + static_cast<int64_t>(i) * 300'000'000LL;
+        msg_res->set_pts(pts_ns);
+        auto emit_res = sink.emit(*msg_res);
+        if (!emit_res) return emit_res;
+    }
+    return misbklv::Result<std::monostate>::ok(std::monostate{});
+}
+
 // Try to decode one captured extension and emit KLV. Returns true if emitted.
 // Handles v3 first, then proto with coalescing across packets.
 bool try_decode_and_emit(const CapturedExtension& cap, misbklv::KlvSink& sink,
@@ -197,8 +215,9 @@ misbklv::Result<std::monostate> live_ingest(const LiveIngestConfig& cfg) {
     icfg.video_source = video_src;
     // Live H.264 now uses Generate so KLV and video stay time-synced via ST 0604 SEI.
     // libmisbklv's pipeline and RTSP branches wire the same h264parse SEI probe that
-    // the file path uses; for non-H.264 the probe is a no-op and the session still
-    // opens (degrades to unstamped per ADR 0007).
+    // the file path uses; probe is gated on H.264 caps (libmisbklv #23 #1) to avoid
+    // corruption on non-H.264, so non-H.264 live degrades to unstamped (no SEI)
+    // per ADR 0007 — H.265 is carried through without SEI.
     icfg.sei_0604 = misbklv::Sei0604::Generate;
     icfg.udp_ttl_mcast = cfg.udp_ttl;
     icfg.udp_mcast_iface = cfg.udp_mcast_iface;
@@ -272,18 +291,7 @@ misbklv::Result<std::monostate> live_ingest(const LiveIngestConfig& cfg) {
                         }
                     }
                     if (emitted_real == 0 && !late_arrival) {
-                        for (int i = 0; i < 3; ++i) {
-                            TelemetrySnapshot snap = make_dummy_snapshot(i);
-                            auto klv = to_0601(snap, session_ptr, cfg.transform_options);
-                            if (klv.packet.empty()) continue;
-                            auto msg_res = misbklv::Message::parse(
-                                std::as_bytes(std::span<const uint8_t>(klv.packet)));
-                            if (!msg_res) return misbklv::Result<std::monostate>::err(msg_res.error());
-                            int64_t pts_ns = 300'000'000LL + static_cast<int64_t>(i) * 300'000'000LL;
-                            msg_res->set_pts(pts_ns);
-                            auto emit_res = sink.emit(*msg_res);
-                            if (!emit_res) return emit_res;
-                        }
+                        if (auto r = emit_dummy_batch(sink, session_ptr, cfg.transform_options); !r) return r;
                     }
                     dummy_emitted = true;
                     if (sink.error()) break;
@@ -301,18 +309,7 @@ misbklv::Result<std::monostate> live_ingest(const LiveIngestConfig& cfg) {
         if (emitted_real == 0 && !dummy_emitted && is_pipeline) {
             // Reached deadline before dummy grace — ensure file still valid for
             // hermetic checks.
-            for (int i = 0; i < 3; ++i) {
-                TelemetrySnapshot snap = make_dummy_snapshot(i);
-                auto klv = to_0601(snap, session_ptr, cfg.transform_options);
-                if (klv.packet.empty()) continue;
-                auto msg_res = misbklv::Message::parse(
-                    std::as_bytes(std::span<const uint8_t>(klv.packet)));
-                if (!msg_res) return misbklv::Result<std::monostate>::err(msg_res.error());
-                int64_t pts_ns = 300'000'000LL + static_cast<int64_t>(i) * 300'000'000LL;
-                msg_res->set_pts(pts_ns);
-                auto emit_res = sink.emit(*msg_res);
-                if (!emit_res) return emit_res;
-            }
+            if (auto r = emit_dummy_batch(sink, session_ptr, cfg.transform_options); !r) return r;
         }
 
         // For RTSP with no metadata, no dummy is emitted — just close (video only).

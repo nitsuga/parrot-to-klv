@@ -7,7 +7,7 @@ fork: 13
 tags: [decision, streaming, live, rtsp, mux, phase-4]
 generated:
   by: claude/opus-5
-  at: 2026-08-20T21:30:00Z
+  at: 2026-08-20T23:10:00Z
 sources:
   - id: parrot-vmeta-html
     resource: ../../references/Embedded Video Metadata - 8.4.2.html
@@ -61,13 +61,12 @@ Split on the dependency line, keeping the arrow `parrot-to-klv → libmisbklv`:
      to `to_0601()`.
   3. `KlvSink{ sink="udp:239.x.x.x:port", realtime=true,
      video_source="<the rtspsrc…!rtph264depay…!h264parse path>",
-     sei_0604=Preserve, <multicast knobs> }` (`Preserve` for the initial live
-     path — `Generate` probe not yet wired for live video sources (`pipeline:`
-     and RTSP branches lack the H.264 SEI injection probe that file path has
-     via `h264parse` + `on_h264_buffer_inject_sei`); live H.264 therefore
-     carries no ST 0604 SEI until the probe is added. This is a real gap: live
-     loses the KLV↔video time sync that file mode has), pushing each packet on
-     the depay buffer's PTS. `pipeline:` is a test-only hermetic escape hatch
+     sei_0604=Generate, <multicast knobs> }` (`Generate` now wired for live H.264
+     via libmisbklv 4ac014a probe — `pipeline:` and RTSP branches wire the same
+     `h264parse` + `on_h264_buffer_inject_sei` probe that file path uses; live H.264
+     therefore carries ST 0604 SEI and KLV↔video time sync. Non-H.264 live degrades
+     to unstamped (no SEI) per libmisbklv #23 #1 — gated on H.264 caps, H.265 carried
+     through), pushing each packet on the depay buffer's PTS. `pipeline:` is a test-only hermetic escape hatch
      for hermetic tests, gated at the CLI by `PARROT_TEST_ALLOW_PIPELINE`
      (see Consequences).
 - The decoders + transform transfer **unchanged** — that is what the shared
@@ -122,10 +121,7 @@ decision; the live surface it depends on is the pin.
 - No new GStreamer dependency beyond what libmisbklv's gst facade already
   implies; no protobuf/minimp4 dependency added here (both already decided in
   [[0003-protobuf-dependency]]).
-- Live H.264 currently uses `Sei0604::Preserve` (no ST 0604 SEI) — the H.264 SEI
-  `Generate` probe (`h264parse` + `on_h264_buffer_inject_sei`) is only wired
-  for file video sources; live loses KLV↔video time sync until the probe is
-  added for live branches. See Known gaps in PROGRESS.md.
+- Live H.264 now uses `Sei0604::Generate` (ST 0604 SEI via `h264parse` + `on_h264_buffer_inject_sei` probe, wired for both `pipeline:` and RTSP live branches via libmisbklv 4ac014a); KLV↔video time sync is preserved. Non-H.264 live degrades to unstamped (no SEI) per libmisbklv #23 #1 — gated on H.264 caps, H.265 carried through (see ADR 0007).
 - `pipeline:` video_source is a test-only hermetic escape hatch for hermetic
   tests, gated at the CLI by `PARROT_TEST_ALLOW_PIPELINE` (library validation
   still accepts it so direct `live_ingest({rtsp_uri="pipeline:..."})` hermetic
@@ -153,7 +149,6 @@ decision; the live surface it depends on is the pin.
 - [[0004-shared-telemetry-snapshot]] — why the decoders + transform transfer to
   live unchanged.
 - [[0006-inherited-st0604-sei-injection]] — the SEI `Generate` decision file
-  mode uses; live currently uses `Preserve` because the `Generate` probe is
-  not yet wired for live video sources (see Decision bullet 3).
+  mode uses; live now also uses `Generate` for H.264 via libmisbklv 4ac014a probe (see Decision bullet 3); non-H.264 degrades to unstamped per libmisbklv #23 #1 — gated on H.264 caps, H.265 carried through.
 - libmisbklv ADR 0031 (fork 28, accepted at 4a28859) — the generic live surface this
   depends on (see `sources[libmisbklv-0031]`).
