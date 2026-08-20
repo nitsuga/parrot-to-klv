@@ -21,8 +21,8 @@ include(FetchContent)
 FetchContent_Declare(
   misbklv
   GIT_REPOSITORY git@github.com:nitsuga/libmisbklv.git
-  # Live Generate for H.264 (RTSP/pipeline SEI probe) — ADR 0013 follow-up.
-  GIT_TAG 4ac014a4b7a5defaf87485008164e7681fc0c836
+  # Live Generate gated on H.264 caps (non-H.264 produces unstamped H.265) — ADR 0013.
+  GIT_TAG 85aedf4f5f49a7825babdd19ab0ee9aca47b3b00
 )
 FetchContent_MakeAvailable(misbklv)
 
