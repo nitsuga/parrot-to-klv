@@ -60,24 +60,23 @@ The output MPEG-TS keeps the video-first PMT stream order introduced in
 selects the video. (The mechanism is upstream's, libmisbklv ADR 0020 § Stream
 order; `mux_test` pins it.)
 
+Live streaming placement (fork 13 / [ADR 0013](../context/decisions/0013-live-streaming-ingest.md)) is now **accepted**: libmisbklv's live surface (fork 28/ADR 0031) is accepted and pinned at `4a28859`, so implementation is unblocked.
+
 The one substantive feature piece left is **fork 4, Tier 2 geometry fidelity**
 — see [ROADMAP](./ROADMAP.md) § Open forks.
 
 ## In progress
 
-- Nothing mid-flight; PR #39 (sanitizer, conformance, and packaging hardening)
-  is staged on the `fix/tier-3-hardening-16-20-21` branch awaiting push/merge.
+- Live ingest wiring on `feature/live-consumer-pin` (fork 13 / [ADR 0013](../context/decisions/0013-live-streaming-ingest.md)): `pipeline:` hermetic path now pushes KLV via `KlvSink` with live `video_source` and multicast knobs; RTSP URI is forwarded and fails gracefully with `Unsupported` within 5 s while the Parrot RTP header-extension remains registered. Header-extension capture → existing v3/proto decode → `TelemetrySnapshot` → `to_0601` is the next slice.
 
 ## Next
 
-1. Return to fork 4, Tier 2 geometry fidelity, in [ROADMAP](./ROADMAP.md).
-2. Review the proposed live-streaming fork (fork 13 /
-   [ADR 0013](../context/decisions/0013-live-streaming-ingest.md)) — placement
-   only: generic mux from libmisbklv's proposed ADR 0031, vendor RTSP/RTP-
-   extension/decode stays here. Nothing implemented until that dependency lands.
+1. Complete live RTP header-extension → decode → transform wiring for `rtsp://` (consume `parrot_extension_pop_next()` (FIFO, bounded) bytes via `parrot_v3`/`parrot_proto` instead of dummy snapshots).
+2. Return to fork 4, Tier 2 geometry fidelity, in [ROADMAP](./ROADMAP.md).
 
 ## Known gaps
 
+- Live H.264 output via `live_ingest` currently uses `Sei0604::Preserve` (no ST 0604 SEI) — the H.264 SEI generate probe is only wired for file video sources; live loses KLV↔video time sync until the probe is added for live branches. See [ADR 0013](../context/decisions/0013-live-streaming-ingest.md).
 - **Non-H.264 output carries no ST 0604.** Generation is H.264-only upstream, so
   an H.265 source converts but is unstamped
   ([ADR 0007](../context/decisions/0007-h265-vs-st0604-generation.md)). Moot for

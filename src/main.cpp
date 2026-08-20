@@ -1,6 +1,7 @@
 // Copyright 2026 Eric Schneider
 // Licensed under the Apache License, Version 2.0
 
+#include "live/live_ingest.hpp"
 #include "mp4_box_scan.hpp"
 #include "mp4_metadata_extractor.hpp"
 #include "mux.hpp"
@@ -14,6 +15,7 @@
 #include <csignal>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <iomanip>
 #include <iostream>
 #include <optional>
@@ -235,6 +237,8 @@ int main(int argc, char* argv[]) {
 
     std::string input;
     std::string output;
+    std::string live_rtsp;
+    std::string live_udp;
     bool with_location = false;
     bool show_klv = false;
     bool with_identity = false;
@@ -285,6 +289,35 @@ int main(int argc, char* argv[]) {
                 std::cerr << "Error: " << arg << " needs a non-empty path.\n";
                 return 1;
             }
+        } else if (arg == "--live-rtsp") {
+            // pipeline: is test-only hermetic escape hatch; CLI gates it via PARROT_TEST_ALLOW_PIPELINE
+            if (i + 1 >= argc) {
+                std::cerr << "Error: --live-rtsp needs a URI.\n";
+                return 1;
+            }
+            live_rtsp = argv[++i];
+            if (live_rtsp.empty()) {
+                std::cerr << "Error: --live-rtsp needs a non-empty URI.\n";
+                return 1;
+            }
+            if (live_rtsp.rfind("pipeline:", 0) == 0) {
+                if (!std::getenv("PARROT_TEST_ALLOW_PIPELINE")) {
+                    std::fprintf(stderr,
+                                 "error: pipeline: video_source is test-only; set "
+                                 "PARROT_TEST_ALLOW_PIPELINE=1 to allow\n");
+                    return 1;
+                }
+            }
+        } else if (arg == "--live-udp") {
+            if (i + 1 >= argc) {
+                std::cerr << "Error: --live-udp needs a URI.\n";
+                return 1;
+            }
+            live_udp = argv[++i];
+            if (live_udp.empty()) {
+                std::cerr << "Error: --live-udp needs a non-empty URI.\n";
+                return 1;
+            }
         } else if (!arg.empty() && arg[0] == '-') {
             // Unrecognized *flags* are refused, never ignored. A silently
             // dropped "--klvv" runs to completion, exits 0, and produces output
@@ -300,6 +333,21 @@ int main(int argc, char* argv[]) {
                       << "' and '" << arg << "').\n";
             return 1;
         }
+    }
+
+    // Live ingest stub (ADR 0013) — RTSP URI + UDP sink.
+    if (!live_rtsp.empty() || !live_udp.empty()) {
+        if (live_rtsp.empty() || live_udp.empty()) {
+            std::cerr << "Error: --live-rtsp and --live-udp must be used together.\n";
+            return 1;
+        }
+        LiveIngestConfig cfg;
+        cfg.rtsp_uri = live_rtsp;
+        cfg.udp_sink = live_udp;
+        // TODO: surface Result when live ingest is un-stubbed (deferred per PR 44 review #4) — main currently discards Result and always exits 0 for live path
+        (void)live_ingest(cfg);
+        std::cout << "live ingest not yet implemented — stub\n";
+        return 0;
     }
 
     if (input.empty()) {

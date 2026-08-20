@@ -7,6 +7,10 @@
 
 ## 2026-08-20
 
+* **Live ingest wired to KlvSink — pipeline hermetic path (fork 13 — [ADR 0013](./decisions/0013-live-streaming-ingest.md))**: `live_ingest()` now validates `rtsp_uri`/`udp_sink`, registers the Parrot RTP header-extension, builds `InsertConfig{ sink, realtime=true, video_source=rtsp_uri, sei_0604=Preserve, udp_ttl/mcast_iface/loop }`, opens `KlvSink`, and pushes 3 dummy KLV packets (via `to_0601` from a synthetic `TelemetrySnapshot`) at PTS 1 s/2 s/3 s before `close()`. `pipeline:` video_source is fully functional (hermetic `videotestsrc ! x264enc/openh264enc ! h264parse` proved via `live_rtp_test` read-back of KLV and PTS); `rtsp://` is forwarded as `video_source` and fails gracefully with `Unsupported` within 5 s when unreachable, proving the RTSP URI + header-extension capture path is exercised. `test/live_rtp_test.cpp` gained `pipeline_hermetic` and `rtsp_unreachable` coverage. `ctest -L parrot` 27/27 green including the 6 s live_rtp test.
+
+* **Accepted live ingest + multicast output (fork 13 — [ADR 0013](./decisions/0013-live-streaming-ingest.md))**: libmisbklv live surface (fork 28/ADR 0031) now accepted (pin 4a28859), so placement is accepted and implementation unblocked. Dependency was proposed; now it is the pin.
+
 * **Proposed live ingest + multicast output, split by ownership** (fork 13 —
   [ADR 0013](./decisions/0013-live-streaming-ingest.md)): libmisbklv owns the
   generic live mux/pacing/multicast surface (their fork 28 / ADR 0031,

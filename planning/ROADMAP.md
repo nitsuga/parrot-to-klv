@@ -78,13 +78,10 @@ register).
   it has: Tier 1 is complete and Items 21/22/23/24/25/57/78/82–89 are the
   remainder. See [field mapping](../context/field-mapping-analysis.md) § Tier 2.
 
-- **Fork 13 — live streaming (ingest + multicast output)** `PROPOSED`
+- **Fork 13 — live streaming (ingest + multicast output)** `ACCEPTED`
   ([ADR 0013](../context/decisions/0013-live-streaming-ingest.md)): placement
-  only. The generic live mux/pacing/multicast surface comes from libmisbklv
-  (their fork 28 / ADR 0031, proposed); parrot-to-klv owns the RTSP pull, the
-  Parrot RTP header-extension capture, the existing v3/proto decode, and the
-  transform. No new shared repo; the "real-time streaming out of scope" line in
-  § Scope changes once implemented.
+  accepted; libmisbklv surface (fork 28/ADR 0031, 4a28859) now the pin;
+  implementation is next.
 
 Genuinely open (undeliberated) forks get a line here until they have an ADR;
 once decided they move to the [register](../context/decisions/index.md) and leave
