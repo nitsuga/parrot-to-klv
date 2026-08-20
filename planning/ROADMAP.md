@@ -31,7 +31,9 @@ still in production. Both are implemented.
 - **The integration API** — the headers are usable, but no API surface is
   designed or committed to. The CLI is the product for now.
 
-**Out of scope:** v1 (deprecated by Parrot; the Bebop 1 era), real-time
+**Out of scope:** v1 (deprecated by Parrot; the Bebop 1 era — no v1 parsing, even
+with `--infer-image-source`, which is v3-only and not v1 support; see
+[ADR 0011](../context/decisions/0011-inferred-image-source-sensor.md)), real-time
 streaming, GUI, KLV standards beyond ST 0601 — with one exception: the output
 carries **ST 0604** SEI, which we ask libmisbklv to generate rather than
 implement here
