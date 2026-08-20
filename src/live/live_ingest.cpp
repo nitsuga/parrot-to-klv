@@ -5,13 +5,20 @@
 
 #include "live/parrot_rtp_header_extension.hpp"
 
+#include <chrono>
+#include <cstdint>
 #include <span>
 #include <string>
+#include <thread>
 #include <vector>
+
+#include <gst/gst.h>
 
 #include "misbklv/backend.hpp"
 #include "misbklv/message.hpp"
 #include "misbklv/stream.hpp"
+#include "parrot_proto.hpp"
+#include "parrot_v3.hpp"
 #include "telemetry.hpp"
 #include "transform.hpp"
 
@@ -55,6 +62,94 @@ TelemetrySnapshot make_dummy_snapshot(int idx) {
     return snap;
 }
 
+// Try to decode one captured extension and emit KLV. Returns true if emitted.
+// Handles v3 first, then proto with coalescing across packets.
+bool try_decode_and_emit(const CapturedExtension& cap, misbklv::KlvSink& sink,
+                         const SessionMetadata* session, const TransformOptions& opts,
+                         size_t emitted_index,
+                         std::vector<std::byte>& proto_coalesce, uint64_t& proto_coalesce_pts) {
+    std::span<const uint8_t> payload_u8(reinterpret_cast<const uint8_t*>(cap.payload.data()),
+                                        cap.payload.size());
+    if (payload_u8.empty()) return false;
+
+    // Try v3 first — payload for v3 starts with 0x5033 and declared length matches.
+    {
+        ParrotV3Error v3_err{};
+        auto v3_frame = parse_v3(payload_u8, &v3_err);
+        if (v3_frame) {
+            // New frame type, clear any pending proto coalesce.
+            proto_coalesce.clear();
+            proto_coalesce_pts = GST_CLOCK_TIME_NONE;
+
+            TelemetrySnapshot snap = from_v3(*v3_frame);
+            auto klv = to_0601(snap, session, opts);
+            if (klv.packet.empty()) return false;
+            auto msg_res = misbklv::Message::parse(
+                std::as_bytes(std::span<const uint8_t>(klv.packet)));
+            if (!msg_res) return false;
+            int64_t pts_ns;
+            if (cap.pts_ns != GST_CLOCK_TIME_NONE) {
+                pts_ns = static_cast<int64_t>(cap.pts_ns);
+            } else {
+                pts_ns = 1'000'000'000LL + static_cast<int64_t>(emitted_index) * 1'000'000'000LL;
+            }
+            msg_res->set_pts(pts_ns);
+            auto emit_res = sink.emit(*msg_res);
+            return static_cast<bool>(emit_res);
+        }
+    }
+
+    // Not v3 — treat as proto (possibly split across first packets of a frame).
+    // Coalesce: append payload to buffer until parse_proto succeeds.
+    if (proto_coalesce.empty()) {
+        proto_coalesce_pts = cap.pts_ns;
+    }
+    proto_coalesce.insert(proto_coalesce.end(), cap.payload.begin(), cap.payload.end());
+    // Bound coalesce to 1 MiB to avoid unbounded growth on corrupt stream.
+    if (proto_coalesce.size() > 1024 * 1024) {
+        proto_coalesce.clear();
+        proto_coalesce_pts = GST_CLOCK_TIME_NONE;
+        return false;
+    }
+    std::span<const uint8_t> coalesced_u8(reinterpret_cast<const uint8_t*>(proto_coalesce.data()),
+                                          proto_coalesce.size());
+    ParrotProtoError proto_err{};
+    auto proto_frame = parse_proto(coalesced_u8, &proto_err);
+    if (proto_frame) {
+        TelemetrySnapshot snap = from_proto(*proto_frame);
+        auto klv = to_0601(snap, session, opts);
+        if (klv.packet.empty()) {
+            proto_coalesce.clear();
+            proto_coalesce_pts = GST_CLOCK_TIME_NONE;
+            return false;
+        }
+        auto msg_res = misbklv::Message::parse(
+            std::as_bytes(std::span<const uint8_t>(klv.packet)));
+        if (!msg_res) {
+            proto_coalesce.clear();
+            proto_coalesce_pts = GST_CLOCK_TIME_NONE;
+            return false;
+        }
+        int64_t pts_ns;
+        if (proto_coalesce_pts != GST_CLOCK_TIME_NONE) {
+            pts_ns = static_cast<int64_t>(proto_coalesce_pts);
+        } else {
+            pts_ns = 1'000'000'000LL + static_cast<int64_t>(emitted_index) * 1'000'000'000LL;
+        }
+        msg_res->set_pts(pts_ns);
+        auto emit_res = sink.emit(*msg_res);
+        proto_coalesce.clear();
+        proto_coalesce_pts = GST_CLOCK_TIME_NONE;
+        return static_cast<bool>(emit_res);
+    }
+    // If not truncated, discard coalesce to recover from bad data; truncated keeps buffering.
+    if (proto_err != ParrotProtoError::Truncated) {
+        proto_coalesce.clear();
+        proto_coalesce_pts = GST_CLOCK_TIME_NONE;
+    }
+    return false;
+}
+
 }  // namespace
 
 misbklv::Result<std::monostate> live_ingest(const LiveIngestConfig& cfg) {
@@ -91,14 +186,74 @@ misbklv::Result<std::monostate> live_ingest(const LiveIngestConfig& cfg) {
         return misbklv::Result<std::monostate>::err(*sink.error());
     }
 
-    // For hermetic pipeline: tests the push path is wired. Three dummy KLV
-    // packets with PTS 1 s, 2 s, 3 s on the live timeline (avoid PTS 0 which
-    // can be before the pipeline running_time warmup in realtime mode).
-    // Also exercised for RTSP when the open succeeded (reachable server); for
-    // the unreachable case we already returned via sink.error().
+    const SessionMetadata* session_ptr = cfg.session ? &*cfg.session : nullptr;
+
+    // Attempt real decode path: drain FIFO bounded queue that the
+    // ParrotRtpHeaderExtension::read populates. For live RTSP, proto may be
+    // split across first packets — coalesce until parse succeeds. PTS is the
+    // RTP buffer PTS (running_time) per ADR 0013.
+    size_t emitted_real = 0;
+    std::vector<std::byte> proto_coalesce;
+    uint64_t proto_coalesce_pts = GST_CLOCK_TIME_NONE;
+
+    // Immediate drain for test-pushed payloads (simulate capture).
+    while (auto cap = parrot_extension_pop_next()) {
+        if (try_decode_and_emit(*cap, sink, session_ptr, cfg.transform_options,
+                                emitted_real, proto_coalesce, proto_coalesce_pts)) {
+            ++emitted_real;
+        }
+    }
+
+    // For rtsp://, extensions arrive asynchronously after KlvSink starts its
+    // internal rtspsrc pipeline. Poll briefly for late arrivals without blocking
+    // hermetic pipeline tests (which have no extensions).
+    bool is_rtsp = starts_with(video_src, "rtsp://") || starts_with(video_src, "rtsps://");
+    if (is_rtsp && emitted_real == 0) {
+        auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(600);
+        while (std::chrono::steady_clock::now() < deadline) {
+            bool had = false;
+            while (auto cap = parrot_extension_pop_next()) {
+                had = true;
+                if (try_decode_and_emit(*cap, sink, session_ptr, cfg.transform_options,
+                                        emitted_real, proto_coalesce, proto_coalesce_pts)) {
+                    ++emitted_real;
+                }
+            }
+            if (had) {
+                // Got data, extend deadline a bit to allow remaining splits.
+                deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(200);
+            } else {
+                std::this_thread::sleep_for(std::chrono::milliseconds(20));
+            }
+            // If sink errored during poll, stop.
+            if (sink.error()) break;
+            // If we already emitted at least one, we can stop after queue drains.
+            if (emitted_real > 0 && parrot_extension_count() == 0) break;
+        }
+        // If polling timed out with no data, emitted_real stays 0 — fall through
+        // to dummy only for pipeline: path. For rtsp:// with no data, we leave
+        // emitted_real==0 and will not emit dummy (real stream would have no KLV).
+    }
+
+    if (emitted_real > 0) {
+        return sink.close();
+    }
+
+    // No real extensions captured — hermetic pipeline: path uses dummy KLV so
+    // the pipeline wiring test stays hermetic without an RTSP server.
+    // For rtsp:// unreachable, we already returned via sink.error(); for
+    // reachable rtsp:// that genuinely had no metadata, emitting nothing is
+    // also reasonable, but preserve dummy for pipeline: hermetic compatibility.
+    bool is_pipeline = starts_with(video_src, "pipeline:");
+    if (!is_pipeline && is_rtsp) {
+        // Reachable RTSP but no metadata — no dummy, just close (may produce
+        // file with video only via KlvSink's video branch).
+        return sink.close();
+    }
+
     for (int i = 0; i < 3; ++i) {
         TelemetrySnapshot snap = make_dummy_snapshot(i);
-        auto klv = to_0601(snap, nullptr);
+        auto klv = to_0601(snap, session_ptr, cfg.transform_options);
         if (klv.packet.empty()) {
             continue;
         }

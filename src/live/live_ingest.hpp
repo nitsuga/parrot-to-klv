@@ -2,10 +2,13 @@
 // Licensed under the Apache License, Version 2.0
 #pragma once
 
+#include <optional>
 #include <string>
 #include <variant>
 
 #include "misbklv/types.hpp"
+#include "session_metadata.hpp"
+#include "transform.hpp"
 
 namespace parrot_to_klv {
 
@@ -20,6 +23,11 @@ struct LiveIngestConfig {
     std::string udp_mcast_iface;
     int udp_ttl = 1;
     bool udp_loop = true;
+
+    // Optional session metadata and transform options for live KLV mapping.
+    // When absent, defaults are used (no session, default TransformOptions).
+    std::optional<SessionMetadata> session;
+    TransformOptions transform_options;
 };
 
 // Live ingest: validate cfg, register Parrot RTP header extension, create a

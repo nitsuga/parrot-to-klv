@@ -8,11 +8,15 @@
 #include <chrono>
 #include <filesystem>
 #include <iostream>
+#include <span>
+#include <vector>
 
 #include <gst/gst.h>
 #include <gst/rtp/gstrtphdrext.h>
 
 #include "misbklv/stream.hpp"
+#include "mp4_metadata_extractor.hpp"
+#include "transform.hpp"
 
 static bool test_extension_registered() {
     std::cout << "test_extension_registered\n";
@@ -60,6 +64,7 @@ static bool test_read_captures_bytes() {
     // for the stub we just pass opaque bytes.
     const guint8 dummy[] = {0x50, 0x33, 0x00, 0x04, 0x01, 0x02, 0x03, 0x04};
     GstBuffer* buf = gst_buffer_new();
+    GST_BUFFER_PTS(buf) = 123456789;
     gboolean ret = gst_rtp_header_extension_read(ext,
                                                  GST_RTP_HEADER_EXTENSION_ONE_BYTE,
                                                  dummy, sizeof(dummy), buf);
@@ -75,17 +80,22 @@ static bool test_read_captures_bytes() {
         gst_object_unref(ext);
         return false;
     }
-    if (popped->size() != sizeof(dummy)) {
-        std::cerr << "  size mismatch: " << popped->size() << " vs " << sizeof(dummy) << "\n";
+    if (popped->payload.size() != sizeof(dummy)) {
+        std::cerr << "  size mismatch: " << popped->payload.size() << " vs " << sizeof(dummy) << "\n";
         gst_object_unref(ext);
         return false;
     }
     for (size_t i = 0; i < sizeof(dummy); ++i) {
-        if ((*popped)[i] != static_cast<std::byte>(dummy[i])) {
+        if (popped->payload[i] != static_cast<std::byte>(dummy[i])) {
             std::cerr << "  byte mismatch at " << i << "\n";
             gst_object_unref(ext);
             return false;
         }
+    }
+    if (popped->pts_ns != 123456789) {
+        std::cerr << "  pts mismatch: " << popped->pts_ns << " vs 123456789\n";
+        gst_object_unref(ext);
+        return false;
     }
     // Second pop should be empty
     if (parrot_to_klv::parrot_extension_pop_next().has_value()) {
@@ -115,12 +125,14 @@ static bool test_fifo_order() {
     const guint8 p1[] = {0x50, 0x31, 0x01};
     const guint8 p2[] = {0x50, 0x33, 0x02, 0x03};
     GstBuffer* buf = gst_buffer_new();
+    GST_BUFFER_PTS(buf) = 1000;
     if (!gst_rtp_header_extension_read(ext, GST_RTP_HEADER_EXTENSION_ONE_BYTE, p1, sizeof(p1), buf)) {
         std::cerr << "  read p1 failed\n";
         gst_buffer_unref(buf);
         gst_object_unref(ext);
         return false;
     }
+    GST_BUFFER_PTS(buf) = 2000;
     if (!gst_rtp_header_extension_read(ext, GST_RTP_HEADER_EXTENSION_ONE_BYTE, p2, sizeof(p2), buf)) {
         std::cerr << "  read p2 failed\n";
         gst_buffer_unref(buf);
@@ -140,24 +152,29 @@ static bool test_fifo_order() {
         gst_object_unref(ext);
         return false;
     }
-    if (first->size() != sizeof(p1) || second->size() != sizeof(p2)) {
+    if (first->payload.size() != sizeof(p1) || second->payload.size() != sizeof(p2)) {
         std::cerr << "  fifo size mismatch\n";
         gst_object_unref(ext);
         return false;
     }
     for (size_t i = 0; i < sizeof(p1); ++i) {
-        if ((*first)[i] != static_cast<std::byte>(p1[i])) {
+        if (first->payload[i] != static_cast<std::byte>(p1[i])) {
             std::cerr << "  fifo p1 byte mismatch at " << i << "\n";
             gst_object_unref(ext);
             return false;
         }
     }
     for (size_t i = 0; i < sizeof(p2); ++i) {
-        if ((*second)[i] != static_cast<std::byte>(p2[i])) {
+        if (second->payload[i] != static_cast<std::byte>(p2[i])) {
             std::cerr << "  fifo p2 byte mismatch at " << i << "\n";
             gst_object_unref(ext);
             return false;
         }
+    }
+    if (first->pts_ns != 1000 || second->pts_ns != 2000) {
+        std::cerr << "  fifo pts mismatch\n";
+        gst_object_unref(ext);
+        return false;
     }
     parrot_to_klv::parrot_extension_clear();
     gst_object_unref(ext);
@@ -221,8 +238,10 @@ static std::string pipeline_desc_for(const std::string& enc) {
     }
     return "pipeline:videotestsrc is-live=true num-buffers=30 ! videoconvert ! video/x-raw,width=320,height=240,framerate=30/1 ! " + enc + " ! h264parse";
 }
+
 static bool test_pipeline_hermetic() {
     std::cout << "test_pipeline_hermetic\n";
+    parrot_to_klv::parrot_extension_clear();
     std::string enc = pick_encoder();
     if (enc.empty()) {
         std::cout << "  SKIP: no H264/H265 encoder available\n";
@@ -281,6 +300,7 @@ static bool test_pipeline_hermetic() {
 
 static bool test_rtsp_unreachable() {
     std::cout << "test_rtsp_unreachable\n";
+    parrot_to_klv::parrot_extension_clear();
     parrot_to_klv::LiveIngestConfig cfg;
     cfg.rtsp_uri = "rtsp://127.0.0.1:9/unreachable";
     cfg.udp_sink = "file:/tmp/live_rtsp_unreach.ts";
@@ -313,6 +333,224 @@ static bool test_rtsp_unreachable() {
     return true;
 }
 
+static std::string find_fixture_dir() {
+    const char* candidates[] = {
+        "/home/eric/workspaces/parrot-to-klv/test/fixtures",
+        "test/fixtures",
+        "../test/fixtures",
+        "./test/fixtures",
+        nullptr};
+    for (int i = 0; candidates[i] != nullptr; ++i) {
+        if (std::filesystem::exists(std::string(candidates[i]) + "/parrot_v3.mp4")) {
+            return candidates[i];
+        }
+    }
+    // Try relative to binary location via /proc/self/exe
+    try {
+        auto exe = std::filesystem::read_symlink("/proc/self/exe");
+        auto dir = exe.parent_path();
+        for (int up = 0; up < 4; ++up) {
+            auto cand = dir / "test" / "fixtures";
+            if (std::filesystem::exists(cand / "parrot_v3.mp4")) return cand.string();
+            cand = dir / ".." / "test" / "fixtures";
+            if (std::filesystem::exists(cand / "parrot_v3.mp4")) return cand.string();
+            dir = dir.parent_path();
+        }
+    } catch (...) {}
+    return {};
+}
+
+static bool test_real_decode() {
+    std::cout << "test_real_decode\n";
+    parrot_to_klv::parrot_extension_clear();
+    std::string fixture_dir = find_fixture_dir();
+    if (fixture_dir.empty()) {
+        std::cout << "  SKIP: fixture dir not found\n";
+        return true;
+    }
+    std::string enc = pick_encoder();
+    if (enc.empty()) {
+        std::cout << "  SKIP: no encoder available\n";
+        return true;
+    }
+
+    // --- v3 real decode ---
+    {
+        auto extractor = parrot_to_klv::Mp4MetadataExtractor::open(fixture_dir + "/parrot_v3.mp4");
+        if (!extractor) {
+            std::cerr << "  cannot open parrot_v3.mp4\n";
+            return false;
+        }
+        auto s0 = extractor->extract_sample(0);
+        auto s1 = extractor->extract_sample(1);
+        if (!s0 || !s1) {
+            std::cerr << "  cannot extract v3 samples\n";
+            return false;
+        }
+        // Verify the samples decode via existing parsers and to_0601 before pushing.
+        auto f0 = parrot_to_klv::parse_v3(std::span<const uint8_t>(s0->data.data(), s0->data.size()));
+        if (!f0) {
+            std::cerr << "  v3 sample 0 does not parse\n";
+            return false;
+        }
+        auto snap = parrot_to_klv::from_v3(*f0);
+        auto klv = parrot_to_klv::to_0601(snap, nullptr);
+        if (klv.packet.empty()) {
+            std::cerr << "  v3 to_0601 empty\n";
+            return false;
+        }
+
+        parrot_to_klv::parrot_extension_clear();
+        parrot_to_klv::parrot_extension_push_for_test(
+            std::span<const uint8_t>(s0->data.data(), s0->data.size()), 1'000'000'000ULL);
+        parrot_to_klv::parrot_extension_push_for_test(
+            std::span<const uint8_t>(s1->data.data(), s1->data.size()), 2'000'000'000ULL);
+
+        const std::string out = "/tmp/live_real_v3.ts";
+        std::filesystem::remove(out);
+        parrot_to_klv::LiveIngestConfig cfg;
+        cfg.rtsp_uri = pipeline_desc_for(enc);
+        cfg.udp_sink = "file:" + out;
+        auto r = parrot_to_klv::live_ingest(cfg);
+        if (!r) {
+            std::cerr << "  v3 live_ingest failed: " << static_cast<int>(r.error()) << "\n";
+            return false;
+        }
+        size_t count = 0;
+        std::vector<int64_t> pts;
+        for (misbklv::Message& m : misbklv::KlvStream(out)) {
+            ++count;
+            pts.push_back(m.pts());
+        }
+        std::filesystem::remove(out);
+        if (count != 2) {
+            std::cerr << "  v3 expected 2 KLV packets, got " << count << "\n";
+            return false;
+        }
+        // PTS should be the pushed running_time (1s, 2s), not dummy spacing from fallback.
+        // Allow small drift but check absolute near pushed value.
+        if (pts[0] < 900'000'000LL || pts[0] > 1'100'000'000LL) {
+            std::cerr << "  v3 pts[0] unexpected: " << pts[0] << "\n";
+            return false;
+        }
+        if (pts[1] < 1'900'000'000LL || pts[1] > 2'100'000'000LL) {
+            std::cerr << "  v3 pts[1] unexpected: " << pts[1] << "\n";
+            return false;
+        }
+        std::cout << "  v3 real decode ok (" << count << " packets, pts " << pts[0] << ", " << pts[1] << ")\n";
+    }
+
+    // --- proto real decode ---
+    {
+        auto extractor = parrot_to_klv::Mp4MetadataExtractor::open(fixture_dir + "/parrot_proto.mp4");
+        if (!extractor) {
+            std::cerr << "  cannot open parrot_proto.mp4\n";
+            return false;
+        }
+        auto s0 = extractor->extract_sample(0);
+        if (!s0) {
+            std::cerr << "  cannot extract proto sample\n";
+            return false;
+        }
+        auto f0 = parrot_to_klv::parse_proto(std::span<const uint8_t>(s0->data.data(), s0->data.size()));
+        if (!f0) {
+            std::cerr << "  proto sample does not parse\n";
+            return false;
+        }
+        auto snap = parrot_to_klv::from_proto(*f0);
+        auto klv = parrot_to_klv::to_0601(snap, nullptr);
+        if (klv.packet.empty()) {
+            std::cerr << "  proto to_0601 empty\n";
+            return false;
+        }
+
+        parrot_to_klv::parrot_extension_clear();
+        parrot_to_klv::parrot_extension_push_for_test(
+            std::span<const uint8_t>(s0->data.data(), s0->data.size()), 3'000'000'000ULL);
+        const std::string out = "/tmp/live_real_proto.ts";
+        std::filesystem::remove(out);
+        parrot_to_klv::LiveIngestConfig cfg;
+        cfg.rtsp_uri = pipeline_desc_for(enc);
+        cfg.udp_sink = "file:" + out;
+        auto r = parrot_to_klv::live_ingest(cfg);
+        if (!r) {
+            std::cerr << "  proto live_ingest failed: " << static_cast<int>(r.error()) << "\n";
+            return false;
+        }
+        size_t count = 0;
+        int64_t pts0 = 0;
+        for (misbklv::Message& m : misbklv::KlvStream(out)) {
+            if (count == 0) pts0 = m.pts();
+            ++count;
+        }
+        std::filesystem::remove(out);
+        if (count != 1) {
+            std::cerr << "  proto expected 1 KLV packet, got " << count << "\n";
+            return false;
+        }
+        if (pts0 < 2'900'000'000LL || pts0 > 3'100'000'000LL) {
+            std::cerr << "  proto pts unexpected: " << pts0 << "\n";
+            return false;
+        }
+        std::cout << "  proto real decode ok (pts " << pts0 << ")\n";
+    }
+
+    // --- proto split coalesce ---
+    {
+        auto extractor = parrot_to_klv::Mp4MetadataExtractor::open(fixture_dir + "/parrot_proto.mp4");
+        if (!extractor || extractor->sample_count() == 0) {
+            std::cerr << "  cannot open proto for split test\n";
+            return false;
+        }
+        auto s0 = extractor->extract_sample(0);
+        if (!s0 || s0->data.size() < 10) {
+            std::cerr << "  proto sample too small for split\n";
+            return false;
+        }
+        size_t half = s0->data.size() / 2;
+        std::vector<uint8_t> part1(s0->data.begin(), s0->data.begin() + half);
+        std::vector<uint8_t> part2(s0->data.begin() + half, s0->data.end());
+
+        parrot_to_klv::parrot_extension_clear();
+        parrot_to_klv::parrot_extension_push_for_test(
+            std::span<const uint8_t>(part1.data(), part1.size()), 4'000'000'000ULL);
+        parrot_to_klv::parrot_extension_push_for_test(
+            std::span<const uint8_t>(part2.data(), part2.size()), 4'000'000'000ULL + 1000000);
+
+        const std::string out = "/tmp/live_real_proto_split.ts";
+        std::filesystem::remove(out);
+        parrot_to_klv::LiveIngestConfig cfg;
+        cfg.rtsp_uri = pipeline_desc_for(enc);
+        cfg.udp_sink = "file:" + out;
+        auto r = parrot_to_klv::live_ingest(cfg);
+        if (!r) {
+            std::cerr << "  proto split live_ingest failed: " << static_cast<int>(r.error()) << "\n";
+            return false;
+        }
+        size_t count = 0;
+        int64_t pts0 = 0;
+        for (misbklv::Message& m : misbklv::KlvStream(out)) {
+            if (count == 0) pts0 = m.pts();
+            ++count;
+        }
+        std::filesystem::remove(out);
+        if (count != 1) {
+            std::cerr << "  proto split expected 1 coalesced packet, got " << count << " (coalesce failed)\n";
+            return false;
+        }
+        // PTS should be from first chunk.
+        if (pts0 < 3'900'000'000LL || pts0 > 4'100'000'000LL) {
+            std::cerr << "  proto split pts unexpected: " << pts0 << "\n";
+            return false;
+        }
+        std::cout << "  proto split coalesce ok (pts " << pts0 << ")\n";
+    }
+
+    parrot_to_klv::parrot_extension_clear();
+    std::cout << "  ok\n";
+    return true;
+}
+
 int main(int argc, char* argv[]) {
     gst_init(&argc, &argv);
     bool ok = true;
@@ -322,6 +560,7 @@ int main(int argc, char* argv[]) {
     ok &= test_live_ingest_api();
     ok &= test_pipeline_hermetic();
     ok &= test_rtsp_unreachable();
+    ok &= test_real_decode();
     if (ok) {
         std::cout << "live_rtp_test: all ok\n";
         return 0;

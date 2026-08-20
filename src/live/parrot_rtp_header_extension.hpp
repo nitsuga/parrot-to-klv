@@ -6,7 +6,9 @@
 #include <gst/rtp/gstrtphdrext.h>
 
 #include <cstddef>
+#include <cstdint>
 #include <optional>
+#include <span>
 #include <vector>
 
 G_BEGIN_DECLS
@@ -24,12 +26,29 @@ inline constexpr const char* kParrotRtpHeaderExtensionUri =
 
 bool register_parrot_extension();
 
-// Test helpers — capture of header-extension payloads.
-// FIFO, bounded — drop oldest when full (see kMaxCaptured). The real path
-// will decode these bytes via parrot_v3 / parrot_proto, but for the stub we
-// just store raw bytes to prove the read path is wired.
-std::optional<std::vector<std::byte>> parrot_extension_pop_next();
+struct CapturedExtension {
+    std::vector<std::byte> payload;
+    // PTS from GstBuffer in nanoseconds; GST_CLOCK_TIME_NONE means none.
+    uint64_t pts_ns = GST_CLOCK_TIME_NONE;
+};
+
+// FIFO, bounded — drop oldest when full (see kMaxCaptured). Stores payload
+// plus the RTP buffer PTS (running_time) so live KLV PTS can be anchored to
+// reception time per ADR 0013.
+std::optional<CapturedExtension> parrot_extension_pop_next();
 void parrot_extension_clear();
 size_t parrot_extension_count();
+
+// Test helper — push captured bytes without GStreamer. Requires a payload span
+// and optional PTS (ns). Used to simulate header-extension arrival in tests.
+void parrot_extension_push_for_test(std::span<const uint8_t> payload, uint64_t pts_ns = GST_CLOCK_TIME_NONE);
+void parrot_extension_push_for_test(std::span<const std::byte> payload, uint64_t pts_ns = GST_CLOCK_TIME_NONE);
+
+// Backward compatibility shim for older tests that expected vector<byte>.
+inline std::optional<std::vector<std::byte>> parrot_extension_pop_payload_only() {
+    auto cap = parrot_extension_pop_next();
+    if (!cap) return std::nullopt;
+    return cap->payload;
+}
 
 }  // namespace parrot_to_klv
