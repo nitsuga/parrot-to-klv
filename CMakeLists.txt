@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(parrot-to-klv VERSION 0.2.0 LANGUAGES CXX)
+project(parrot-to-klv VERSION 0.2.1 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -21,8 +21,8 @@ include(FetchContent)
 FetchContent_Declare(
   misbklv
   GIT_REPOSITORY git@github.com:nitsuga/libmisbklv.git
-  # Live Generate gated on H.264 caps (non-H.264 produces unstamped H.265) — ADR 0013.
-  GIT_TAG 4400a2135f6fe7a8ea3826deb874edeef9c2e5cc
+  # Live surface plus Generate/high-level streaming hot-path fixes — ADR 0013.
+  GIT_TAG 62ea5e13862dd53f00a1a58d9c2adb2260a727b8
 )
 FetchContent_MakeAvailable(misbklv)
 

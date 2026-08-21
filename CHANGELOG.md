@@ -7,6 +7,22 @@ tell a user nothing.
 The release workflow publishes the section matching the tag, so a heading here
 must be exactly `## vX.Y.Z`.
 
+## v0.2.1
+
+This patch release reduces copying and long-running overhead in the KLV/video
+output path. Output formats and CLI behavior are unchanged.
+
+### Changed
+
+- **Lower overhead while generating ST 0604 timestamps.** H.264 negotiation is
+  latched rather than queried for every video frame, timestamp lookup state is
+  retired as video consumes it without dropping timestamps when KLV runs ahead,
+  and reading Item 2 no longer copies the whole packet.
+
+- **Fewer packet copies in streaming output.** The high-level read/edit/write
+  pipeline now adopts already-owned packet buffers and transfers edited packets
+  into GStreamer without redundant copies.
+
 ## v0.2.0
 
 The tool now streams. Alongside converting an MP4 to a file, `parrot-to-klv`
