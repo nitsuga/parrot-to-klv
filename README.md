@@ -75,6 +75,8 @@ parrot-to-klv flight.mp4 --klv                   # inspect: what maps, what does
 parrot-to-klv -i rtsp://192.168.0.1/live -o flight.ts                    # live RTSP → file
 parrot-to-klv -i rtsp://192.168.0.1/live -o udp://239.255.0.1:5000       # live RTSP → UDP multicast
 parrot-to-klv -i rtsp://192.168.0.1/live -o udp:239.255.0.1:5000 --ttl 10 --iface eth0 --no-loop
+parrot-to-klv -i flight.mp4 -o udp://239.0.0.1:5000 --iface eth1         # file replay → UDP live
+parrot-to-klv -i flight.mp4 -o srt://127.0.0.1:5000 --repeat             # loop until Ctrl-C
 ```
 
 Input (`-i`/`--input` or a bare positional) is inferred: a filesystem path is
@@ -84,17 +86,20 @@ source, and `pipeline:` is a test-only GStreamer pipeline gated by
 a path is an MPEG-TS file, `udp://`/`udp:` is a UDP multicast sink (the tool
 normalizes `udp://host:port` → `udp:host:port` and handles bracketed IPv6), and
 `srt:` is passed through to the streaming backend. `file→udp` replay
-(`-i file.mp4 -o udp:…`) is not yet supported and errors clearly — see
-[ADR 0014](context/decisions/0014-unified-cli-input-output-inference.md).
+(`-i file.mp4 -o udp:…`) replays the recording on the pipeline clock with paced
+KLV emission and `file→srt` the same; add `--repeat` to loop until `SIGINT` —
+see [ADR 0015](context/decisions/0015-file-replay-live-output.md).
 
 The offline output carries the recording's own video elementary stream plus one
 ST 0601 packet per metadata sample; the live output carries the same KLV
 alongside the live video pulled via RTSP and the Parrot RTP header extension.
-The video is never decoded or re-encoded, so there is no generation loss — but
-it is not bit-identical: we ask libmisbklv to rewrite the timing NALs,
-replacing Picture Timing SEI with ST 0604 Precision Time Stamps so consumers
-can correlate frames without reading the KLV. Conversion shows progress every
-10%. Live runs until `SIGINT` (Ctrl-C).
+File replay (`-i file.mp4 -o udp:/srt:`) replays the same file's video on the
+pipeline clock with paced KLV emission: one play-through then close, `--repeat`
+to loop until `SIGINT`. The video is never decoded or re-encoded, so there is
+no generation loss — but it is not bit-identical: we ask libmisbklv to rewrite
+the timing NALs, replacing Picture Timing SEI with ST 0604 Precision Time Stamps
+so consumers can correlate frames without reading the KLV. Conversion shows
+progress every 10%. Live RTSP runs until `SIGINT` (Ctrl-C).
 
 Without `-o` the tool only reads a file input and reports; location and
 airframe identity are withheld from that report unless `--with-location` /
