@@ -41,14 +41,12 @@ struct LiveIngestConfig {
     std::vector<CapturedExtension> test_injected_extensions;
 
     // Continuous mode: how long live_ingest should drive before closing.
-    // run_duration == 0 -> one-shot startup drain (immediate drain, plus
-    // 600 ms poll when video_source is rtsp://; immediate dummy for
-    // pipeline: when no real telemetry) then close.
-    // run_duration > 0 -> timed live loop while (!is_mux_interrupted() &&
-    // now < deadline) with 10 ms idle sleep; SIGINT (is_mux_interrupted)
-    // cuts the wait short, but does not provide an indefinite
-    // run-until-SIGINT mode — a finite deadline is always required. There
-    // is no indefinite run-until-SIGINT mode.
+    // run_duration == 0 -> indefinite live-unbounded (drive until
+    // is_mux_interrupted()/SIGINT or bus ERROR/EOS), not one-shot. For
+    // live-unbounded rtsp:// or pipeline: without num-buffers, this is the
+    // production mode. run_duration > 0 remains timed for tests/hermetic
+    // (e.g., 2s). If caller wants one-shot startup poll (previous
+    // behavior), use a small run_duration like 600ms, not 0.
     std::chrono::milliseconds run_duration{0};
 };
 

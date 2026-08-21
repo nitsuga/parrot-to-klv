@@ -335,7 +335,11 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    // Live ingest stub (ADR 0013) — RTSP URI + UDP sink.
+    // Live ingest (ADR 0013) — RTSP URI + UDP sink. run_duration==0 means
+    // indefinite live-unbounded until SIGINT/EOS (Ctrl-C sets
+    // g_interrupt_requested via is_mux_interrupted). For live-unbounded
+    // rtsp:// or pipeline: without num-buffers, 0 is the production mode;
+    // timed runs (run_duration>0) remain for tests/hermetic.
     if (!live_rtsp.empty() || !live_udp.empty()) {
         if (live_rtsp.empty() || live_udp.empty()) {
             std::cerr << "Error: --live-rtsp and --live-udp must be used together.\n";
@@ -344,9 +348,12 @@ int main(int argc, char* argv[]) {
         LiveIngestConfig cfg;
         cfg.rtsp_uri = live_rtsp;
         cfg.udp_sink = live_udp;
-        // TODO: surface Result when live ingest is un-stubbed (deferred per PR 44 review #4) — main currently discards Result and always exits 0 for live path
-        (void)live_ingest(cfg);
-        std::cout << "live ingest not yet implemented — stub\n";
+        cfg.run_duration = std::chrono::milliseconds(0);
+        auto res = live_ingest(cfg);
+        if (!res) {
+            std::cerr << "live ingest failed: " << static_cast<int>(res.error()) << "\n";
+            return 1;
+        }
         return 0;
     }
 

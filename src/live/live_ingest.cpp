@@ -238,16 +238,86 @@ misbklv::Result<std::monostate> live_ingest(const LiveIngestConfig& cfg) {
     std::vector<std::byte> proto_coalesce;
     uint64_t proto_coalesce_pts = GST_CLOCK_TIME_NONE;
 
-    bool is_rtsp = starts_with(video_src, "rtsp://") || starts_with(video_src, "rtsps://");
     bool is_pipeline = starts_with(video_src, "pipeline:");
 
-    // Continuous mode when run_duration > 0: drive until interrupt or deadline.
-    // This is the live loop (ADR 0013): RTSP never EOS, pipeline with is-live
-    // and no num-buffers is unbounded, so we run until stopped. For hermetic
-    // tests, run_duration=2s gives a bounded window that still exercises the
-    // continuous machinery. When run_duration==0 we preserve the one-shot
-    // behavior for backward compatibility and fast unit tests.
-    if (cfg.run_duration.count() > 0) {
+    // Drive mode (ADR 0013):
+    // run_duration == 0 -> indefinite live-unbounded (drive until
+    // is_mux_interrupted()/SIGINT or bus ERROR/EOS). For live-unbounded
+    // rtsp:// or pipeline: without num-buffers, this is the production
+    // mode. run_duration > 0 -> timed live loop while
+    // (!is_mux_interrupted() && now < deadline) with 10 ms idle sleep;
+    // used for hermetic tests (e.g., 2s). If caller wants one-shot
+    // startup poll (previous behavior), use a small run_duration like
+    // 600ms, not 0. The one-shot drain + 600ms poll when rtsp and
+    // emitted==0 is now subsumed by the continuous loop's first
+    // iteration (drains within 10ms) and is removed as a whole run.
+    if (cfg.run_duration.count() == 0) {
+        // Indefinite live-unbounded: drive until SIGINT/EOS
+        // If source is file/pipeline with num-buffers, it will EOS
+        // naturally; if live rtsp or pipeline without num-buffers, it
+        // will run until is_mux_interrupted().
+        bool dummy_emitted = false;
+        while (!is_mux_interrupted()) {
+            if (sink.error()) break;
+
+            bool had = false;
+            while (auto cap = parrot_extension_pop_next()) {
+                had = true;
+                if (try_decode_and_emit(*cap, sink, session_ptr, cfg.transform_options,
+                                        emitted_real, proto_coalesce, proto_coalesce_pts)) {
+                    ++emitted_real;
+                }
+                if (sink.error()) break;
+            }
+            if (sink.error()) break;
+            if (is_mux_interrupted()) break;
+
+            // For pipeline: hermetic without real telemetry, emit dummy
+            // once. The 600ms startup poll is subsumed by this loop's
+            // first iteration; we keep a short 50ms grace before
+            // committing to dummy so injected real telemetry is not
+            // shadowed.
+            if (emitted_real == 0 && !dummy_emitted && is_pipeline) {
+                if (!had) {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                    bool late_arrival = false;
+                    while (auto cap = parrot_extension_pop_next()) {
+                        late_arrival = true;
+                        if (try_decode_and_emit(*cap, sink, session_ptr, cfg.transform_options,
+                                                emitted_real, proto_coalesce, proto_coalesce_pts)) {
+                            ++emitted_real;
+                        }
+                    }
+                    if (emitted_real == 0 && !late_arrival) {
+                        if (auto r = emit_dummy_batch(sink, session_ptr, cfg.transform_options); !r) return r;
+                    }
+                    dummy_emitted = true;
+                    if (sink.error()) break;
+                    continue;
+                }
+            }
+
+            if (!had) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            }
+            // Check bus for ERROR (sink.error()) or EOS (break via
+            // is_mux_interrupted or natural pipeline finish). For
+            // unbounded live sources EOS never arrives; for finite
+            // pipeline with num-buffers EOS will be observed as the
+            // pipeline drains and finish() will handle it after the
+            // loop; such finite cases should use timed mode in tests.
+        }
+
+        if (emitted_real == 0 && !dummy_emitted && is_pipeline) {
+            if (auto r = emit_dummy_batch(sink, session_ptr, cfg.transform_options); !r) return r;
+        }
+
+        // For RTSP with no metadata, no dummy is emitted — just close
+        // (video only). Indefinite loop reached SIGINT or ERROR.
+        return sink.close();
+    } else {
+        // Timed live loop: deadline = now + run_duration, while
+        // (!is_mux_interrupted && now<deadline) { drain; sleep 10ms }
         auto deadline = std::chrono::steady_clock::now() + cfg.run_duration;
         bool dummy_emitted = false;
 
@@ -268,20 +338,9 @@ misbklv::Result<std::monostate> live_ingest(const LiveIngestConfig& cfg) {
             if (sink.error()) break;
             if (is_mux_interrupted()) break;
 
-            // If no real telemetry has arrived yet and this is a pipeline: hermetic
-            // source, emit dummy once so the output still carries KLV for the wiring
-            // check. For RTSP we emit nothing when metadata is absent (real stream
-            // would have no KLV). Dummy is emitted at most once, on the first
-            // idle window, to mimic the one-shot path but inside the live loop.
             if (emitted_real == 0 && !dummy_emitted && is_pipeline) {
-                // Wait a short grace period before deciding no real telemetry is coming,
-                // so an injected real payload drained in the first iteration is not
-                // shadowed by dummy. If we already had data, emitted_real>0 and we
-                // never reach here.
                 if (!had) {
-                    // No data this iteration — sleep a bit then emit dummy if still none
                     std::this_thread::sleep_for(std::chrono::milliseconds(50));
-                    // Re-check queue before committing to dummy
                     bool late_arrival = false;
                     while (auto cap = parrot_extension_pop_next()) {
                         late_arrival = true;
@@ -304,96 +363,12 @@ misbklv::Result<std::monostate> live_ingest(const LiveIngestConfig& cfg) {
             }
         }
 
-        // If loop ended without dummy and we still have no real, emit dummy for
-        // pipeline hermetic (covers edge where deadline fired before dummy window).
         if (emitted_real == 0 && !dummy_emitted && is_pipeline) {
-            // Reached deadline before dummy grace — ensure file still valid for
-            // hermetic checks.
             if (auto r = emit_dummy_batch(sink, session_ptr, cfg.transform_options); !r) return r;
         }
 
-        // For RTSP with no metadata, no dummy is emitted — just close (video only).
         return sink.close();
     }
-
-    // One-shot mode (run_duration==0): immediate drain + short RTSP poll.
-    // Immediate drain for captured or test-injected payloads.
-    while (auto cap = parrot_extension_pop_next()) {
-        if (try_decode_and_emit(*cap, sink, session_ptr, cfg.transform_options,
-                                emitted_real, proto_coalesce, proto_coalesce_pts)) {
-            ++emitted_real;
-        }
-    }
-
-    // For rtsp://, extensions arrive asynchronously after KlvSink starts its
-    // internal rtspsrc pipeline. Poll briefly for late arrivals. For
-    // pipeline: hermetic path, never poll — metadata-less pipeline must emit
-    // dummy immediately rather than waiting ~600 ms. Hermetic real-decode
-    // tests inject via cfg.test_injected_extensions and are already drained
-    // above without polling.
-    if (is_rtsp && emitted_real == 0) {
-        auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(600);
-        while (std::chrono::steady_clock::now() < deadline) {
-            bool had = false;
-            while (auto cap = parrot_extension_pop_next()) {
-                had = true;
-                if (try_decode_and_emit(*cap, sink, session_ptr, cfg.transform_options,
-                                        emitted_real, proto_coalesce, proto_coalesce_pts)) {
-                    ++emitted_real;
-                }
-            }
-            if (had) {
-                // Got data, extend deadline a bit to allow remaining splits.
-                deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(200);
-            } else {
-                std::this_thread::sleep_for(std::chrono::milliseconds(20));
-            }
-            // If sink errored during poll, stop.
-            if (sink.error()) break;
-            if (is_mux_interrupted()) break;
-            // If we already emitted at least one, we can stop after queue drains.
-            if (emitted_real > 0 && parrot_extension_count() == 0) break;
-        }
-        // If polling timed out with no data, emitted_real stays 0 — fall through
-        // to not emit dummy for rtsp:// (real stream would have no KLV).
-    }
-
-    if (emitted_real > 0) {
-        return sink.close();
-    }
-
-    // No real extensions captured — hermetic pipeline: path uses dummy KLV so
-    // the pipeline wiring test stays hermetic without an RTSP server.
-    // For rtsp:// unreachable, we already returned via sink.error(); for
-    // reachable rtsp:// that genuinely had no metadata, emitting nothing is
-    // also reasonable, but preserve dummy for pipeline: hermetic compatibility.
-    if (!is_pipeline && is_rtsp) {
-        // Reachable RTSP but no metadata — no dummy, just close (may produce
-        // file with video only via KlvSink's video branch).
-        return sink.close();
-    }
-
-    for (int i = 0; i < 3; ++i) {
-        TelemetrySnapshot snap = make_dummy_snapshot(i);
-        auto klv = to_0601(snap, session_ptr, cfg.transform_options);
-        if (klv.packet.empty()) {
-            continue;
-        }
-        auto msg_res = misbklv::Message::parse(
-            std::as_bytes(std::span<const uint8_t>(klv.packet)));
-        if (!msg_res) {
-            return misbklv::Result<std::monostate>::err(msg_res.error());
-        }
-        // PTS in nanoseconds from start of source — matches live running_time.
-        int64_t pts_ns = 1'000'000'000LL + static_cast<int64_t>(i) * 1'000'000'000LL;
-        msg_res->set_pts(pts_ns);
-        auto emit_res = sink.emit(*msg_res);
-        if (!emit_res) {
-            return emit_res;
-        }
-    }
-
-    return sink.close();
 }
 
 }  // namespace parrot_to_klv

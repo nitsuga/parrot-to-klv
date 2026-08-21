@@ -67,7 +67,7 @@ The one substantive feature piece left is **fork 4, Tier 2 geometry fidelity**
 
 ## In progress
 
-- Live ingest continuous loop + Generate on `feature/live-continuous-generate` (fork 13 / [ADR 0013](../context/decisions/0013-live-streaming-ingest.md)): `live_ingest()` now drives a timed live loop (run_duration bounded, SIGINT cuts short; one-shot poll for rtsp when run_duration==0) draining the FIFO with 10 ms sleep, late arrivals included, and `KlvSink` is opened with `Sei0604::Generate` so live H.264 carries ST 0604 via the same `h264parse` probe wired for file (RTSP depay `h264parse` src and pipeline bin ghost src pad). `LiveIngestConfig::run_duration` (default 0 = one-shot for backward compat) allows hermetic 2 s continuous test; `parrot_live` now links `parrot_mux` for the shared interrupt flag. `live_rtp_test` covers the 2 s unbounded pipeline and late-arrival real decode.
+- Drive-until-SIGINT for live ingest on `feature/live-drive-until-sigint` (fork 13 / [ADR 0013](../context/decisions/0013-live-streaming-ingest.md)): `LiveIngestConfig::run_duration==0` is now indefinite live-unbounded (drive until `is_mux_interrupted()`/SIGINT or bus ERROR/EOS), not one-shot; `run_duration>0` remains timed for tests/hermetic. `live_ingest()`'s 600ms one-shot poll is removed — the indefinite `while(!is_mux_interrupted())` loop with 10ms sleep and 50ms dummy grace handles live. `src/main.cpp` CLI sets `run_duration=0` for `--live-rtsp/--live-udp` and documents indefinite until Ctrl-C. Hermetic tests now use explicit `run_duration=2s`; new `test_indefinite_live_until_sigint` verifies indefinite exits via SIGINT.
 
 ## Next
 

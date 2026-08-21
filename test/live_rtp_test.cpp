@@ -25,6 +25,7 @@
 #include "misbklv/message.hpp"
 #include "misbklv/stream.hpp"
 #include "mp4_metadata_extractor.hpp"
+#include "mux.hpp"
 #include "transform.hpp"
 
 static bool test_extension_registered() {
@@ -261,6 +262,7 @@ static bool test_pipeline_hermetic() {
     parrot_to_klv::LiveIngestConfig cfg;
     cfg.rtsp_uri = pipeline_desc_for(enc);
     cfg.udp_sink = "file:" + out;
+    cfg.run_duration = std::chrono::milliseconds(2000);
     std::cout << "  using encoder " << enc << " desc: " << cfg.rtsp_uri << "\n";
     auto r = parrot_to_klv::live_ingest(cfg);
     if (!r) {
@@ -277,7 +279,7 @@ static bool test_pipeline_hermetic() {
         std::filesystem::remove(out);
         return false;
     }
-    // Read back KLV — should have 3 packets with PTS 1s, 2s, 3s.
+    // Read back KLV — should have 3 packets with PTS 300ms, 600ms, 900ms (timed loop dummy at 0.3s spacing).
     size_t count = 0;
     std::vector<int64_t> pts;
     for (misbklv::Message& m : misbklv::KlvStream(out)) {
@@ -290,10 +292,10 @@ static bool test_pipeline_hermetic() {
         return false;
     }
     for (size_t i = 0; i < pts.size(); ++i) {
-        int64_t want = 1'000'000'000LL + static_cast<int64_t>(i) * 1'000'000'000LL;
+        int64_t want = 300'000'000LL + static_cast<int64_t>(i) * 300'000'000LL;
         // Live pipeline PTS is running_time; absolute offset from pipeline start
         // may be ~tens of ms (warmup). Check drift from first packet, not absolute.
-        int64_t base_delta = pts[0] - (1'000'000'000LL);
+        int64_t base_delta = pts[0] - (300'000'000LL);
         int64_t delta = (pts[i] - want) - base_delta;
         if (delta < 0) delta = -delta;
         if (delta > 100'000'000) {
@@ -427,8 +429,9 @@ static bool test_real_decode() {
         parrot_to_klv::LiveIngestConfig cfg;
         cfg.rtsp_uri = pipeline_desc_for(enc);
         cfg.udp_sink = "file:" + out;
-        // Deterministic injection — no async thread. live_ingest populates the
-        // queue after its entry clear and drains immediately, so no 600 ms poll.
+        cfg.run_duration = std::chrono::milliseconds(2000);
+        // Deterministic injection — timed loop (2s) so test remains bounded
+        // after run_duration==0 became indefinite.
         cfg.test_injected_extensions.push_back(
             make_cap(std::span<const uint8_t>(s0->data.data(), s0->data.size()), 1'000'000'000ULL));
         cfg.test_injected_extensions.push_back(
@@ -490,6 +493,7 @@ static bool test_real_decode() {
         parrot_to_klv::LiveIngestConfig cfg;
         cfg.rtsp_uri = pipeline_desc_for(enc);
         cfg.udp_sink = "file:" + out;
+        cfg.run_duration = std::chrono::milliseconds(2000);
         cfg.test_injected_extensions.push_back(
             make_cap(std::span<const uint8_t>(s0->data.data(), s0->data.size()), 3'000'000'000ULL));
         auto r = parrot_to_klv::live_ingest(cfg);
@@ -536,6 +540,7 @@ static bool test_real_decode() {
         parrot_to_klv::LiveIngestConfig cfg;
         cfg.rtsp_uri = pipeline_desc_for(enc);
         cfg.udp_sink = "file:" + out;
+        cfg.run_duration = std::chrono::milliseconds(2000);
         cfg.test_injected_extensions.push_back(
             make_cap(std::span<const uint8_t>(part1.data(), part1.size()), 4'000'000'000ULL));
         cfg.test_injected_extensions.push_back(
@@ -991,6 +996,7 @@ static bool test_pipeline_h265_generate_no_corruption() {
         "pipeline:videotestsrc is-live=true num-buffers=90 ! videoconvert ! "
         "video/x-raw,format=I420,width=320,height=240,framerate=30/1 ! x265enc ! h265parse ! queue";
     cfg.udp_sink = "file:" + out;
+    cfg.run_duration = std::chrono::milliseconds(4000);
     // Genuine guard: KLV PTS aligned to video frame times within 200 ms tolerance
     // so on_h264_buffer_inject_sei matched=true on pre-fix. Use 1 hour mux offset
     // 3.6e15 ns plus 33 ms steps (30 fps) to land mid-stream ahead of many buffers.
@@ -1110,6 +1116,69 @@ static bool test_pipeline_h265_generate_no_corruption() {
     return true;
 }
 
+static bool test_indefinite_live_until_sigint() {
+    std::cout << "test_indefinite_live_until_sigint\n";
+    parrot_to_klv::parrot_extension_clear();
+    std::string enc = pick_encoder();
+    if (enc.empty()) {
+        std::cout << "  SKIP: no encoder available\n";
+        return true;
+    }
+    if (parrot_to_klv::is_mux_interrupted()) {
+        std::cout << "  SKIP: already interrupted (no reset)\n";
+        return true;
+    }
+    const std::string out = "/tmp/live_indefinite.ts";
+    std::filesystem::remove(out);
+    parrot_to_klv::LiveIngestConfig cfg;
+    cfg.rtsp_uri = "pipeline:videotestsrc is-live=true ! videoconvert ! video/x-raw,width=320,height=240,framerate=30/1 ! " + enc + " ! h264parse";
+    cfg.udp_sink = "file:" + out;
+    cfg.run_duration = std::chrono::milliseconds(0);
+    auto t0 = std::chrono::steady_clock::now();
+    std::thread th([cfg]() { (void)parrot_to_klv::live_ingest(cfg); });
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    parrot_to_klv::request_mux_interrupt();
+    if (th.joinable()) th.join();
+    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t0).count();
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+    if (elapsed < 400 || elapsed > 2000) {
+        std::cerr << "  indefinite elapsed unexpected: " << elapsed << " ms (want ~500)\n";
+        std::filesystem::remove(out);
+        return false;
+    }
+    if (!parrot_to_klv::is_mux_interrupted()) {
+        std::cerr << "  expected is_mux_interrupted after SIGINT\n";
+        std::filesystem::remove(out);
+        return false;
+    }
+    if (!std::filesystem::exists(out)) {
+        std::cerr << "  indefinite output not created\n";
+        std::filesystem::remove(out);
+        return false;
+    }
+    auto sz = std::filesystem::file_size(out);
+    if (sz < 1000) {
+        std::cerr << "  indefinite output too small: " << sz << "\n";
+        std::filesystem::remove(out);
+        return false;
+    }
+    size_t count = 0;
+    for (auto& m : misbklv::KlvStream(out)) {
+        (void)m;
+        ++count;
+    }
+    if (count == 0) {
+        std::cerr << "  indefinite expected at least 1 KLV packet, got 0\n";
+        std::filesystem::remove(out);
+        return false;
+    }
+    std::cout << "  ok (" << sz << " bytes, " << count << " packets, " << elapsed << " ms, interrupted)\n";
+    std::filesystem::remove(out);
+    parrot_to_klv::parrot_extension_clear();
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+    return true;
+}
+
 int main(int argc, char* argv[]) {
     // Save fixture dir before gst_init strips arguments.
     g_fixture_dir = resolve_fixture_dir(argc, argv);
@@ -1124,6 +1193,7 @@ int main(int argc, char* argv[]) {
     ok &= test_real_decode();
     ok &= test_continuous_live();
     ok &= test_pipeline_h265_generate_no_corruption();
+    ok &= test_indefinite_live_until_sigint();
     // Final grace: ensure all GStreamer streaming threads (notably the
     // x265enc thread-pool workers that use jemalloc tcache) have fully
     // terminated before the process exits and the main thread's
