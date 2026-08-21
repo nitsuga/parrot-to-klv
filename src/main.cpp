@@ -216,8 +216,8 @@ void print_usage(std::ostream& out, const char* program) {
         << "  --repeat          loop file replay to a live sink until SIGINT\n"
         << "                    (only with -i file.mp4 -o udp:/srt:).\n"
         << "  --repeat-pts <m>  how PTS behaves when looping: reset (each\n"
-        << "                    repetition restarts at 0) or continue (PTS\n"
-        << "                    keeps increasing across loops; default).\n"
+        << "                    repetition restarts at 0; default) or\n"
+        << "                    continue (PTS keeps increasing across loops).\n"
         << "                    Only with --repeat.\n\n"
         << "  -o/--output converts: writes an MPEG-TS carrying the source's\n"
         << "  video plus an ST 0601 KLV stream. The video is never decoded or\n"
@@ -320,7 +320,7 @@ int main(int argc, char* argv[]) {
     bool udp_loop = true;
     bool repeat = false;
     bool has_repeat_pts = false;
-    bool repeat_pts_continue = true;  // continue is the default per spec
+    bool repeat_pts_continue = false;  // reset is the default — matches per-loop video restart; continue would desync KLV from the per-loop video (see PR #58 review)
 
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];

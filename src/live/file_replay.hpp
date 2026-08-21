@@ -23,8 +23,10 @@ struct FileReplayConfig {
     // When looping, how PTS behaves across the loop boundary. `continue` means
     // the next repetition picks up where the previous left off (monotonic
     // cumulative PTS); `reset` restarts at zero each pass. Only relevant when
-    // `repeat` is true; `continue` is the default per user spec.
-    bool repeat_pts_continue = true;
+    // `repeat` is true; `reset` is the default — it matches the per-loop
+    // video re-mux from PTS 0 (see PR #58 review), while `continue` would
+    // desync KLV from the per-loop video until a single-mux implementation.
+    bool repeat_pts_continue = false;
 };
 
 misbklv::Result<std::monostate> replay_file_to_live(const FileReplayConfig& cfg);
