@@ -20,6 +20,7 @@
 #include <gst/gst.h>
 #include <gst/rtp/gstrtphdrext.h>
 
+#include "misbklv/message.hpp"
 #include "misbklv/stream.hpp"
 #include "mp4_metadata_extractor.hpp"
 #include "transform.hpp"
@@ -684,6 +685,9 @@ struct EsInfoHevc {
 inline unsigned u8_hevc(const uint8_t* b, std::size_t i) {
     return static_cast<unsigned>(b[i]);
 }
+inline unsigned u8_hevc_span(std::span<const std::byte> b, std::size_t i) {
+    return static_cast<unsigned>(b[i]);
+}
 // Read PMT from MPEG-TS file — container check, not through the mux library.
 // Returns elementary streams from the first PMT. Assumes PMT fits in one packet.
 std::vector<EsInfoHevc> read_pmt_hevc_file(const std::string& path) {
@@ -740,24 +744,101 @@ static void handoff_count_hevc(GstElement*, GstBuffer*, GstPad*, gpointer ud) {
     (*static_cast<std::atomic<int>*>(ud))++;
 }
 
+// Extract reassembled PES payload for `want_pid` (video ES) from a TS file.
+// Used to detect H.264 SEI injection in the HEVC bitstream: the MISP string
+// is contiguous in PES but split by TS headers in the raw file, so searching
+// the raw file would miss it.
+static std::vector<std::byte> extract_pes_payload(std::span<const std::byte> ts, unsigned want_pid) {
+    std::vector<std::byte> out;
+    std::vector<std::byte> cur;
+    auto flush = [&] {
+        if (cur.size() < 9) { cur.clear(); return; }
+        const std::size_t hdr = 9 + u8_hevc_span(cur, 8);
+        if (hdr <= cur.size()) out.insert(out.end(), cur.begin() + hdr, cur.end());
+        cur.clear();
+    };
+    for (std::size_t off = 0; off + kTsPkt <= ts.size(); off += kTsPkt) {
+        auto p = ts.subspan(off, kTsPkt);
+        if (u8_hevc_span(p, 0) != 0x47) continue;
+        const unsigned pid = ((u8_hevc_span(p, 1) & 0x1f) << 8) | u8_hevc_span(p, 2);
+        if (pid != want_pid) continue;
+        const unsigned afc = (u8_hevc_span(p, 3) >> 4) & 0x3;
+        if (!(afc & 0x1)) continue;
+        std::size_t i = 4;
+        if (afc & 0x2) i += 1 + u8_hevc_span(p, 4);
+        if (i >= kTsPkt) continue;
+        if (u8_hevc_span(p, 1) & 0x40) flush();
+        cur.insert(cur.end(), p.begin() + i, p.end());
+    }
+    if (!cur.empty()) {
+        const std::size_t hdr = cur.size() >= 9 ? 9 + u8_hevc_span(cur, 8) : cur.size();
+        if (hdr < cur.size()) {
+            if (cur.size() >= 4 && u8_hevc_span(cur, 0) == 0x00 && u8_hevc_span(cur, 1) == 0x00 && u8_hevc_span(cur, 2) == 0x01) {
+                out.insert(out.end(), cur.begin() + hdr, cur.end());
+            } else {
+                out.insert(out.end(), cur.begin(), cur.end());
+            }
+        }
+    }
+    return out;
+}
+static bool payload_contains(const std::vector<std::byte>& payload, const std::string& needle) {
+    if (payload.size() < needle.size()) return false;
+    for (size_t i = 0; i + needle.size() <= payload.size(); ++i) {
+        bool hit = true;
+        for (size_t k = 0; k < needle.size() && hit; ++k) hit = static_cast<char>(payload[i + k]) == needle[k];
+        if (hit) return true;
+    }
+    return false;
+}
+static bool ts_video_payload_contains(std::span<const std::byte> ts, unsigned want_pid, const std::string& needle) {
+    for (std::size_t off = 0; off + kTsPkt <= ts.size(); off += kTsPkt) {
+        auto p = ts.subspan(off, kTsPkt);
+        if (u8_hevc_span(p, 0) != 0x47) continue;
+        const unsigned pid = ((u8_hevc_span(p, 1) & 0x1f) << 8) | u8_hevc_span(p, 2);
+        if (pid != want_pid) continue;
+        const unsigned afc = (u8_hevc_span(p, 3) >> 4) & 0x3;
+        if (!(afc & 0x1)) continue;
+        std::size_t i = 4;
+        if (afc & 0x2) i += 1 + u8_hevc_span(p, 4);
+        if (i >= kTsPkt) continue;
+        std::size_t avail = kTsPkt - i;
+        if (avail < needle.size()) continue;
+        for (std::size_t j = 0; j + needle.size() <= avail; ++j) {
+            bool hit = true;
+            for (std::size_t k = 0; k < needle.size() && hit; ++k) hit = static_cast<char>(p[i + j + k]) == needle[k];
+            if (hit) return true;
+        }
+    }
+    return false;
+}
+static std::vector<std::byte> read_file_bytes_span(const std::string& path) {
+    std::ifstream f(path, std::ios::binary);
+    std::vector<char> raw((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+    std::vector<std::byte> out(raw.size());
+    for (size_t i = 0; i < raw.size(); ++i) out[i] = static_cast<std::byte>(static_cast<unsigned char>(raw[i]));
+    return out;
+}
+
 // Try to decode the HEVC video ES via tsdemux -> h265parse -> decodebin -> fakesink.
-// Returns true on EOS with frames>0. Sets skipped if no decoder is available.
+// Returns true on EOS with frames>0. Sets skipped only if no decoder is installed
+// proactively; otherwise a runtime decodebin error is a real failure (corruption).
 static bool decode_hevc_frames(const std::string& path, int* out_frames, bool* skipped, std::string* err_msg) {
     *out_frames = 0;
     *skipped = false;
     if (err_msg) err_msg->clear();
     GstElementFactory* df = gst_element_factory_find("decodebin");
-    if (!df) { *skipped = true; return true; }
+    if (!df) { *skipped = true; if (err_msg) *err_msg = "no decodebin"; return true; }
     gst_object_unref(df);
     {
-        const char* decs[] = {"avdec_h265", "openh265dec", "libde265dec", "vah265dec", "x265dec"};
+        const char* decs[] = {"avdec_h265", "libde265dec", "openh265dec", "vah265dec"};
         bool have_hevc_decoder = false;
         for (auto* n : decs) {
             GstElementFactory* f = gst_element_factory_find(n);
             if (f) { have_hevc_decoder = true; gst_object_unref(f); break; }
         }
         if (!have_hevc_decoder) {
-            if (err_msg) *err_msg = "no HEVC decoder (avdec_h265 etc.)";
+            if (err_msg) *err_msg = "no HEVC decoder (avdec_h265/libde265dec etc.)";
             *skipped = true;
             return true;
         }
@@ -770,25 +851,24 @@ static bool decode_hevc_frames(const std::string& path, int* out_frames, bool* s
         g_error_free(perr);
     }
     if (!pipe) {
-        *skipped = true;
-        return true;
+        if (err_msg && err_msg->empty()) *err_msg = "parse_launch failed";
+        return false;
     }
     GstElement* sink = gst_bin_get_by_name(GST_BIN(pipe), "sink");
     if (!sink) {
         gst_object_unref(pipe);
-        *skipped = true;
-        return true;
+        if (err_msg) *err_msg = "no sink element";
+        return false;
     }
     std::atomic<int> count{0};
     g_object_set(sink, "signal-handoffs", TRUE, nullptr);
     g_signal_connect(sink, "handoff", G_CALLBACK(handoff_count_hevc), &count);
     GstStateChangeReturn sret = gst_element_set_state(pipe, GST_STATE_PLAYING);
     if (sret == GST_STATE_CHANGE_FAILURE) {
-        if (err_msg) *err_msg = "PLAYING failed (missing decoder?)";
+        if (err_msg) *err_msg = "PLAYING failed";
         gst_object_unref(sink);
         gst_object_unref(pipe);
-        *skipped = true;
-        return true;
+        return false;
     }
     GstBus* bus = gst_element_get_bus(pipe);
     GstMessage* msg = gst_bus_timed_pop_filtered(bus, 10 * GST_SECOND, static_cast<GstMessageType>(GST_MESSAGE_EOS | GST_MESSAGE_ERROR));
@@ -810,15 +890,7 @@ static bool decode_hevc_frames(const std::string& path, int* out_frames, bool* s
     gst_object_unref(sink);
     gst_object_unref(pipe);
     if (is_eos) return true;
-    if (is_err) {
-        std::string low = bus_err;
-        for (auto& c : low) c = static_cast<char>(::tolower(static_cast<unsigned char>(c)));
-        if (low.find("decoder") != std::string::npos || low.find("could not decode") != std::string::npos || low.find("no available") != std::string::npos || low.find("missing") != std::string::npos || low.find("plug-in") != std::string::npos || low.find("plugin") != std::string::npos) {
-            *skipped = true;
-            return true;
-        }
-        return false;
-    }
+    if (is_err) return false;
     if (err_msg) *err_msg = "no EOS (timeout)";
     return false;
 }
@@ -833,23 +905,51 @@ static bool test_pipeline_h265_generate_no_corruption() {
         return true;
     }
     gst_object_unref(f);
-    // Also need h265parse
     f = gst_element_factory_find("h265parse");
     if (!f) {
         std::cout << "  SKIP: h265parse not available\n";
         return true;
     }
     gst_object_unref(f);
+    // Use proto fixture for KLV with Item 2 present (v3 fixture has no utc, so
+    // record_sensor_timestamp would not store mapping and inject would never
+    // fire even on pre-fix). Proto's utc_accuracy !=0 gives Item 2.
+    std::string fixture_dir = g_fixture_dir;
+    std::vector<uint8_t> proto_payload;
+    bool have_proto = false;
+    if (!fixture_dir.empty()) {
+        auto extractor = parrot_to_klv::Mp4MetadataExtractor::open(fixture_dir + "/parrot_proto.mp4");
+        if (extractor) {
+            auto s0 = extractor->extract_sample(0);
+            if (s0 && !s0->data.empty()) {
+                proto_payload.assign(s0->data.begin(), s0->data.end());
+                have_proto = true;
+            }
+        }
+    }
+    if (!have_proto) {
+        std::cout << "  SKIP: proto fixture not available for genuine guard\n";
+        return true;
+    }
     const std::string out = "/tmp/live_h265_generate.ts";
     std::filesystem::remove(out);
     parrot_to_klv::LiveIngestConfig cfg;
-    // Bounded pipeline (num-buffers=30) so EOS is deterministic.
-    // H.265 caps — gated Generate probe must skip SEI injection, producing
-    // valid unstamped H.265 TS (ungated 4ac014a would corrupt).
+    // 90 frames at 30 fps = 3 s. Use queue at end so ghost pad is queue src,
+    // which correctly propagates probe replacement. Gate must prevent H.264 SEI
+    // on HEVC; pre-fix 4ac014a attached probe to H.265 and corrupted.
     cfg.rtsp_uri =
-        "pipeline:videotestsrc is-live=true num-buffers=30 ! videoconvert ! "
-        "video/x-raw,width=320,height=240,framerate=30/1 ! x265enc ! h265parse";
+        "pipeline:videotestsrc is-live=true num-buffers=90 ! videoconvert ! "
+        "video/x-raw,format=I420,width=320,height=240,framerate=30/1 ! x265enc ! h265parse ! queue";
     cfg.udp_sink = "file:" + out;
+    // Genuine guard: KLV PTS aligned to video frame times within 200 ms tolerance
+    // so on_h264_buffer_inject_sei matched=true on pre-fix. Use 1 hour mux offset
+    // 3.6e15 ns plus 33 ms steps (30 fps) to land mid-stream ahead of many buffers.
+    for (int i = 0; i < 3; ++i) {
+        int64_t pts = 3600000000000000LL + static_cast<int64_t>(i * 33'333'333LL);
+        cfg.test_injected_extensions.push_back(
+            make_cap(std::span<const uint8_t>(proto_payload.data(), proto_payload.size()),
+                     static_cast<uint64_t>(pts)));
+    }
     auto r = parrot_to_klv::live_ingest(cfg);
     if (!r) {
         std::cerr << "  H.265 pipeline ingest failed: " << static_cast<int>(r.error()) << "\n";
@@ -865,7 +965,6 @@ static bool test_pipeline_h265_generate_no_corruption() {
         std::filesystem::remove(out);
         return false;
     }
-    // KLV must be readable and contain the 3 dummy packets (live Generate).
     size_t count = 0;
     for (auto& m : misbklv::KlvStream(out)) {
         (void)m;
@@ -901,6 +1000,32 @@ static bool test_pipeline_h265_generate_no_corruption() {
             std::cerr << "  PMT video is H.264 (0x1B), not HEVC — corruption\n";
             std::filesystem::remove(out);
             return false;
+        }
+        // Negative guard: pre-fix injected H.264 SEI NAL (MISPmicrosectime) into
+        // HEVC bitstream. That string never appears in valid HEVC, so its
+        // presence in the reassembled video PES proves corruption. Search the
+        // video ES payload, not just the raw TS, because TS headers split PES.
+        {
+            auto bytes = read_file_bytes_span(out);
+            unsigned vpid = 0;
+            for (auto& e : es) if (e.stream_type == 0x24) vpid = e.pid;
+            const std::string needle = "MISPmicrosectime";
+            bool found = false;
+            bool found_raw = false;
+            std::size_t vpayload_sz = 0;
+            if (vpid) {
+                auto vpayload = extract_pes_payload(bytes, vpid);
+                vpayload_sz = vpayload.size();
+                found = payload_contains(vpayload, needle);
+                found_raw = ts_video_payload_contains(bytes, vpid, needle);
+                found = found || found_raw;
+                std::cout << "  video ES payload " << vpayload_sz << " bytes, MISP " << (found ? "FOUND (corrupt)" : "absent") << " (raw-packet " << (found_raw ? "FOUND" : "absent") << ")\n";
+            }
+            if (found) {
+                std::cerr << "  FAIL: H.264 SEI leaked into HEVC — pre-fix would corrupt\n";
+                std::filesystem::remove(out);
+                return false;
+            }
         }
         int frames = 0;
         bool skipped = false;
