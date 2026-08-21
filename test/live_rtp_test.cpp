@@ -586,6 +586,9 @@ static bool test_continuous_live() {
     cfg.run_duration = std::chrono::milliseconds(2000);
     auto t0 = std::chrono::steady_clock::now();
     auto r = parrot_to_klv::live_ingest(cfg);
+    // Allow GStreamer threads from the pipeline (appsrc/mux) to flush
+    // tcache and exit before file validation / next pipeline.
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
     auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
                        std::chrono::steady_clock::now() - t0)
                        .count();
@@ -645,14 +648,28 @@ static bool test_continuous_live() {
         cfg2.rtsp_uri = "pipeline:videotestsrc is-live=true ! videoconvert ! video/x-raw,width=320,height=240,framerate=30/1 ! " + enc + " ! h264parse";
         cfg2.udp_sink = "file:" + out;
         cfg2.run_duration = std::chrono::milliseconds(2000);
-        // Run live_ingest in background, push after 400ms
-        std::thread bg([&cfg2]() { (void)parrot_to_klv::live_ingest(cfg2); });
+        // Run live_ingest in background, push after 400ms.
+        // Capture cfg2 by value so the background thread does not hold a
+        // dangling reference if the outer scope exits early; join is
+        // guaranteed via RAII even on early return/exception. Add a short
+        // grace sleep after join to let GStreamer streaming threads (which
+        // may have allocated via x265/jemalloc tcache) fully shut down
+        // before the next test creates a new pipeline — avoids
+        // tcache_thread_shutdown(): unaligned tcache chunk detected.
+        std::thread bg([cfg2]() { (void)parrot_to_klv::live_ingest(cfg2); });
+        struct JoinGuard {
+            std::thread& t;
+            ~JoinGuard() { if (t.joinable()) t.join(); }
+        } guard{bg};
         std::this_thread::sleep_for(std::chrono::milliseconds(400));
         // Push real v3 payload with PTS
         std::vector<uint8_t> payload_u8(s0->data.begin(), s0->data.end());
         parrot_to_klv::parrot_extension_push_for_test(
             std::span<const uint8_t>(payload_u8.data(), payload_u8.size()), 1'000'000'000ULL);
-        bg.join();
+        if (bg.joinable()) bg.join();
+        // Let GStreamer pipeline threads flush tcache and exit before
+        // validating output or starting the next pipeline (x265enc).
+        std::this_thread::sleep_for(std::chrono::milliseconds(150));
         size_t cnt = 0;
         std::vector<int64_t> pts;
         for (misbklv::Message& m : misbklv::KlvStream(out)) {
@@ -673,6 +690,7 @@ static bool test_continuous_live() {
         std::cout << "  late-arrival ok (" << cnt << " packets)\n";
     }
     parrot_to_klv::parrot_extension_clear();
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
     return true;
 }
 
@@ -888,9 +906,21 @@ static bool decode_hevc_frames(const std::string& path, int* out_frames, bool* s
     if (msg) gst_message_unref(msg);
     gst_object_unref(bus);
     gst_element_set_state(pipe, GST_STATE_NULL);
+    // Wait for pipeline threads to reach NULL and flush tcache before
+    // unreffing. GStreamer streaming threads may still hold jemalloc
+    // tcache chunks (x265) at the moment of state change.
+    {
+        GstState cur = GST_STATE_NULL, pending = GST_STATE_VOID_PENDING;
+        (void)gst_element_get_state(pipe, &cur, &pending, 2 * GST_SECOND);
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
     *out_frames = count.load();
     gst_object_unref(sink);
     gst_object_unref(pipe);
+    // Extra grace for any lingering GStreamer thread-pool workers to
+    // exit and call tcache_thread_shutdown cleanly before the test
+    // process tears down or starts another x265 pipeline.
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
     if (is_eos) return true;
     if (is_err) return false;
     if (err_msg) *err_msg = "no EOS (timeout)";
@@ -958,6 +988,10 @@ static bool test_pipeline_h265_generate_no_corruption() {
                      static_cast<uint64_t>(pts)));
     }
     auto r = parrot_to_klv::live_ingest(cfg);
+    // x265enc allocates via jemalloc tcache on GStreamer streaming
+    // threads. Let those threads flush and exit before inspecting the
+    // file or creating the decode pipeline.
+    std::this_thread::sleep_for(std::chrono::milliseconds(150));
     if (!r) {
         std::cerr << "  H.265 pipeline ingest failed: " << static_cast<int>(r.error()) << "\n";
         return false;
@@ -1057,6 +1091,9 @@ static bool test_pipeline_h265_generate_no_corruption() {
     std::cout << "  ok (" << sz << " bytes, " << count << " packets, H.265 unstamped, video validated)\n";
     std::filesystem::remove(out);
     parrot_to_klv::parrot_extension_clear();
+    // Let any remaining GStreamer threads (x265) fully exit before
+    // the test process tears down the main thread's tcache.
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
     return true;
 }
 
@@ -1074,6 +1111,13 @@ int main(int argc, char* argv[]) {
     ok &= test_real_decode();
     ok &= test_continuous_live();
     ok &= test_pipeline_h265_generate_no_corruption();
+    // Final grace: ensure all GStreamer streaming threads (notably the
+    // x265enc thread-pool workers that use jemalloc tcache) have fully
+    // terminated before the process exits and the main thread's
+    // tcache_thread_shutdown runs. Without this, timing-dependent
+    // unaligned tcache chunk abort can fire after the last test's
+    // "late-arrival ok" line, as seen on main @6173f48.
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
     if (ok) {
         std::cout << "live_rtp_test: all ok\n";
         return 0;
