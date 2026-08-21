@@ -270,6 +270,27 @@ add_test(NAME cli_rejects_output_without_path
 add_test(NAME cli_rejects_two_inputs
          COMMAND ${CMAKE_SOURCE_DIR}/test/cli_reject_test.sh "more than one input file"
                  $<TARGET_FILE:parrot-to-klv> one.mp4 two.mp4)
+add_test(NAME cli_rejects_live_flags_removed
+         COMMAND ${CMAKE_SOURCE_DIR}/test/cli_reject_test.sh "removed"
+                 $<TARGET_FILE:parrot-to-klv> --live-rtsp rtsp://127.0.0.1/live --live-udp udp:239.0.0.1:5000)
+add_test(NAME cli_rejects_udp_flag_without_udp
+         COMMAND ${CMAKE_SOURCE_DIR}/test/cli_reject_test.sh "only valid with a udp"
+                 $<TARGET_FILE:parrot-to-klv> ${CMAKE_SOURCE_DIR}/test/fixtures/parrot_v3.mp4 -o ${CMAKE_CURRENT_BINARY_DIR}/cli_udp_iface_out.ts --iface eth1)
+add_test(NAME cli_rejects_ttl_without_udp
+         COMMAND ${CMAKE_SOURCE_DIR}/test/cli_reject_test.sh "only valid with a udp"
+                 $<TARGET_FILE:parrot-to-klv> ${CMAKE_SOURCE_DIR}/test/fixtures/parrot_v3.mp4 -o ${CMAKE_CURRENT_BINARY_DIR}/cli_udp_ttl_out.ts --ttl 5)
+add_test(NAME cli_rejects_loop_without_udp
+         COMMAND ${CMAKE_SOURCE_DIR}/test/cli_reject_test.sh "only valid with a udp"
+                 $<TARGET_FILE:parrot-to-klv> ${CMAKE_SOURCE_DIR}/test/fixtures/parrot_v3.mp4 -o ${CMAKE_CURRENT_BINARY_DIR}/cli_udp_loop_out.ts --loop)
+add_test(NAME cli_rejects_file_to_live_sink
+         COMMAND ${CMAKE_SOURCE_DIR}/test/cli_reject_test.sh "not yet supported"
+                 $<TARGET_FILE:parrot-to-klv> ${CMAKE_SOURCE_DIR}/test/fixtures/parrot_v3.mp4 -o udp:239.0.0.1:5000)
+add_test(NAME cli_rejects_live_without_output
+         COMMAND ${CMAKE_SOURCE_DIR}/test/cli_reject_test.sh "live input needs"
+                 $<TARGET_FILE:parrot-to-klv> -i rtsp://127.0.0.1/live)
+add_test(NAME cli_rejects_udp_ttl_out_of_range
+         COMMAND ${CMAKE_SOURCE_DIR}/test/cli_reject_test.sh "must be 0..255"
+                 $<TARGET_FILE:parrot-to-klv> -i ${CMAKE_SOURCE_DIR}/test/fixtures/parrot_v3.mp4 -o udp:239.0.0.1:5000 --ttl 300)
 
 # parrot-scrub and parrot-conform's argument handling, same rejection
 # discipline and same reasoning as the parrot-to-klv cases above (issue #13):
@@ -379,6 +400,10 @@ set_tests_properties(
   parrot_scrub conformance mux cli_converts_fixture
   cli_version cli_help cli_rejects_unknown_option
   cli_rejects_output_without_path cli_rejects_two_inputs
+  cli_rejects_live_flags_removed cli_rejects_udp_flag_without_udp
+  cli_rejects_ttl_without_udp cli_rejects_loop_without_udp
+  cli_rejects_file_to_live_sink cli_rejects_live_without_output
+  cli_rejects_udp_ttl_out_of_range
   scrub_rejects_unknown_option scrub_rejects_nan_lat
   scrub_rejects_out_of_range_lat scrub_rejects_missing_value
   scrub_rejects_extra_argument

@@ -70,19 +70,37 @@ pipeline actually instantiates, and a `*-dev` package does not pull them in:
 ## Usage
 
 ```
-parrot-to-klv flight.mp4 -o flight.ts     # convert
-parrot-to-klv flight.mp4 --klv            # inspect: what maps, what doesn't
+parrot-to-klv -i flight.mp4 -o flight.ts         # convert (positional also works: flight.mp4 -o flight.ts)
+parrot-to-klv flight.mp4 --klv                   # inspect: what maps, what doesn't
+parrot-to-klv -i rtsp://192.168.0.1/live -o flight.ts                    # live RTSP → file
+parrot-to-klv -i rtsp://192.168.0.1/live -o udp://239.255.0.1:5000       # live RTSP → UDP multicast
+parrot-to-klv -i rtsp://192.168.0.1/live -o udp:239.255.0.1:5000 --ttl 10 --iface eth0 --no-loop
 ```
 
-The output carries the recording's own video elementary stream plus one ST 0601
-packet per metadata sample. The video is never decoded or re-encoded, so there
-is no generation loss — but it is not bit-identical: we ask libmisbklv to rewrite
-the timing NALs, replacing Picture Timing SEI with ST 0604 Precision Time Stamps
-so consumers can correlate frames without reading the KLV. Conversion shows
-progress every 10%.
-Without `-o` the tool only reads the file and reports; location and airframe
-identity are withheld from that report unless `--with-location` /
-`--with-identity` ask for them.
+Input (`-i`/`--input` or a bare positional) is inferred: a filesystem path is
+an MP4 file (offline convert / inspection), `rtsp://`/`rtsps://` is a live RTSP
+source, and `pipeline:` is a test-only GStreamer pipeline gated by
+`PARROT_TEST_ALLOW_PIPELINE`. Output (`-o`/`--output`) is inferred too:
+a path is an MPEG-TS file, `udp://`/`udp:` is a UDP multicast sink (the tool
+normalizes `udp://host:port` → `udp:host:port` and handles bracketed IPv6), and
+`srt:` is passed through to the streaming backend. `file→udp` replay
+(`-i file.mp4 -o udp:…`) is not yet supported and errors clearly — see
+[ADR 0014](context/decisions/0014-unified-cli-input-output-inference.md).
+
+The offline output carries the recording's own video elementary stream plus one
+ST 0601 packet per metadata sample; the live output carries the same KLV
+alongside the live video pulled via RTSP and the Parrot RTP header extension.
+The video is never decoded or re-encoded, so there is no generation loss — but
+it is not bit-identical: we ask libmisbklv to rewrite the timing NALs,
+replacing Picture Timing SEI with ST 0604 Precision Time Stamps so consumers
+can correlate frames without reading the KLV. Conversion shows progress every
+10%. Live runs until `SIGINT` (Ctrl-C).
+
+Without `-o` the tool only reads a file input and reports; location and
+airframe identity are withheld from that report unless `--with-location` /
+`--with-identity` ask for them. UDP sinks accept `--iface <iface>`,
+`--ttl <n>` (`0..255`), and `--loop`/`--no-loop` (loopback, default on) — each
+only valid with a `udp:` output.
 
 **The output announces the video first, KLV second** — `0:0` is the video and
 `0:1` the KLV (`ffmpeg -map 0:0` selects the video). Video is announced first
