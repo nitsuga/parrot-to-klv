@@ -7,6 +7,46 @@ tell a user nothing.
 The release workflow publishes the section matching the tag, so a heading here
 must be exactly `## vX.Y.Z`.
 
+## v0.2.0
+
+The tool now streams. Alongside converting an MP4 to a file, `parrot-to-klv`
+can read a live source and write a live sink — and it works out which is which
+from the value you pass, so there are no new mode flags to learn.
+
+### Added
+
+- **Live RTSP ingest.** `parrot-to-klv -i rtsp://<host>/<path> -o <output>`
+  reads a live RTSP stream and emits an ST 0601 KLV stream alongside its video,
+  running until you stop it with `Ctrl-C`. The output can be a file, or a live
+  UDP/SRT sink (below).
+
+- **Replay a recording as a live stream.**
+  `parrot-to-klv -i flight.mp4 -o udp://239.0.0.1:5000` (or `-o srt://<host>:<port>`)
+  replays the recording's video paced on its own timeline and multicasts it with
+  a synchronous KLV stream — the same conversion, delivered live instead of to a
+  file. `--repeat` loops the recording until `Ctrl-C`; `--repeat-pts reset|continue`
+  selects whether each loop restarts the timeline (default `reset`) or continues
+  it. `--iface`, `--ttl`, and `--loop`/`--no-loop` tune the multicast output.
+
+- **Unified `-i`/`--input` and `-o`/`--output` with type inference.** The tool
+  infers the kind from the value: a plain path is an MP4 input or an MPEG-TS
+  output; `rtsp://`/`rtsps://` is a live source; `udp://`/`udp:`/`srt:` is a live
+  sink. A bare input path still works exactly as before, and **file-to-file
+  conversion is unchanged and byte-for-byte identical** — it never routes
+  through the live path.
+
+### Fixed
+
+- **Stricter, more trustworthy metadata decoding.** Decoded v3 quaternions must
+  be unit-norm, an extension's length must match what the frame declares, and a
+  short or malformed extension is recorded as skipped rather than half-read. The
+  MP4's metadata format is now identified by strictly parsing the track's
+  MIME-type parameter instead of a loose match.
+
+- **Output-write reliability.** Writes across all three tools are checked, a
+  failed write removes the partial output instead of leaving a truncated file,
+  and the muxer preflights its destination before it starts.
+
 ## v0.1.6
 
 ### Fixed
