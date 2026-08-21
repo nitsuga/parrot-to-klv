@@ -108,6 +108,14 @@ So:
   reformatted, or restyled to match. So is `external/`: vendored third-party
   code, read it, never restyle it.
 - **Commit messages**: Conventional Commits format. No `Co-Authored-By` trailer.
+- **Agent authorship on PRs/issues/comments**: when an agent posts a PR body,
+  an issue, or a review comment, it identifies *itself* (the generating model)
+  as the author — e.g. `Author: <agent> (model: <provider/model>)` — separate
+  from the git commit author, which stays the human/machine that invoked `git`.
+  The commit message's author field is not the place for this; it goes in the
+  PR/issue/comment prose so a reader can tell which model produced what. This
+  repo uses the `<provider>/<model>` spelling (e.g. `opencode-go/deepseek-v4-flash`),
+  and a comment author line names the model that wrote that comment.
 - **Repo layout**:
   - `references/` — source-of-truth inputs, append-only. Read; add a snapshot
     on a directed ingest; never edit what's there.
