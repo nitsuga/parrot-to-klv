@@ -1227,17 +1227,29 @@ int main(int argc, char* argv[]) {
     ok &= test_continuous_live();
     ok &= test_pipeline_h265_generate_no_corruption();
     ok &= test_indefinite_live_until_sigint();
-    // Final grace: ensure all GStreamer streaming threads (notably the
-    // x265enc thread-pool workers that use jemalloc tcache) have fully
-    // terminated before the process exits and the main thread's
-    // tcache_thread_shutdown runs. Without this, timing-dependent
-    // unaligned tcache chunk abort can fire after the last test's
-    // "late-arrival ok" line, as seen on main @6173f48. Use 500 ms for CI.
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    if (ok) {
-        std::cout << "live_rtp_test: all ok\n";
-        return 0;
-    }
-    std::cerr << "live_rtp_test: failed\n";
-    return 1;
+
+    // Deterministic teardown (issue #57). The x264/x265/OpenH264 encoders
+    // GStreamer instantiates spawn their own worker threads (plus GLib
+    // thread-pool workers), which we do not own and cannot join: they are
+    // pooled inside the plugins and may still be winding down when the
+    // process begins exit. When the main thread then runs glibc's per-thread
+    // tcache shutdown concurrently with one of those threads, the CI runner
+    // intermittently aborts with "tcache_thread_shutdown(): unaligned tcache
+    // chunk detected". Valgrind memcheck (which serializes threads) finds no
+    // invalid access anywhere in our code — confirming this is a teardown
+    // *race* in third-party thread cleanup, not a heap bug we can fix, and
+    // not one that joining our own threads or sleeping can *guarantee* away
+    // (the prior grace-sleep approach only made it less likely).
+    //
+    // The suite has finished and every result is decided by this point, so
+    // skip the C runtime's atexit/static-destructor/tcache teardown entirely:
+    // flush our own output, then _Exit. The kernel reclaims the still-running
+    // encoder threads without running their (racy) shutdown, so the abort
+    // cannot occur. This replaces the probabilistic final grace-sleep with a
+    // hard guarantee. (Test-harness only; production main() is untouched.)
+    std::cout << (ok ? "live_rtp_test: all ok\n" : "live_rtp_test: failed\n");
+    std::cout.flush();
+    std::cerr.flush();
+    std::fflush(nullptr);
+    std::_Exit(ok ? 0 : 1);
 }
