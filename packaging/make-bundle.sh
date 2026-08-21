@@ -36,19 +36,35 @@ staging_output_guard_validate "$OUT" "$BUILD_DIR"
 #   mpegtsmux         the MPEG-TS the tool exists to write
 #   videoparsersbad   h264parse / h265parse
 #
-# Derived by removing each and checking every video fixture still converts, not
-# by reading the pipeline. It was eight until libmisbklv stopped using parsebin
-# (its ADR 0025): `playback` was there only to provide parsebin, and
-# `audioparsers` only because parsebin insisted on parsing an audio pad the
-# muxer then dropped. A demuxer exposes that pad and we send it to a fakesink,
-# so nothing needs to understand AAC any more.
+# The live/replay output and input paths (ADR 0013 live streaming, ADR 0015
+# file-replay to UDP/SRT) instantiate elements the offline file->file path never
+# touches, so they were absent until a real UDP-replay run through the wrapper
+# failed with "file replay failed: 7" — libmisbklv asked for udpsink and the
+# bundle had not packaged it. Bundling them makes the live paths self-contained
+# rather than silently borrowing the host's plugins:
+#
+#   udp               udpsink / udpsrc — UDP output and live UDP
+#   srt               srtsink / srtsrc — SRT output and live SRT
+#   rtsp              rtspsrc — live RTSP input
+#   rtp               rtph264depay / rtph265depay — RTSP video depayload
+#   rtpmanager        rtpjitterbuffer — pulled in on the RTSP path
+#
+# Derived by tracing gst_element_factory_make in libmisbklv's gst backend plus
+# checking every video fixture still converts, not by reading the pipeline
+# alone. It was eight until libmisbklv stopped using parsebin (its ADR 0025):
+# `playback` was there only to provide parsebin, and `audioparsers` only because
+# parsebin insisted on parsing an audio pad the muxer then dropped. A demuxer
+# exposes that pad and we send it to a fakesink, so nothing needs to understand
+# AAC any more.
 #
 # Re-derive this list when the pipeline changes. A plugin that is no longer
 # needed is dead weight; one that is newly needed fails at runtime, and only the
-# release smoke test would catch it.
+# release smoke test would catch it — so that smoke test must exercise a live
+# path (UDP/SRT/RTSP), not file->file alone.
 PLUGINS=(
   coreelements typefindfunctions app
   isomp4 mpegtsmux videoparsersbad
+  udp srt rtsp rtp rtpmanager
 )
 
 # Never bundle these. They are the ABI floor of the host, and shipping our own

@@ -25,6 +25,14 @@ Generate and high-level streaming hot-path improvements; the user-facing
 formats and CLI remain unchanged. The live-streaming surface introduced in
 `v0.2.0` remains as documented in the README.
 
+**Release-bundle plugin gap fixed (unreleased on `main`):** `make-bundle.sh`
+shipped only the six file→file conversion plugins, so the `v0.2.0`+ live/replay
+paths (`-o udp://…`/`srt:…`, `-i rtsp://…`) failed from the bundle wrapper with
+`file replay failed: 7` — a missing `udpsink`/`srtsink`/`rtspsrc`. `PLUGINS` now
+also carries `udp srt rtsp rtp rtpmanager`, and the `release.yml` smoke test
+gained a file→UDP replay step so a live-path plugin can never again ship absent
+behind green checks. A tagged patch release should carry this.
+
 **`v0.1.6` delivered** every fix merged since
 `v0.1.5` — an automated review round (issues #3, #4, #6, #7, #10, #12, #13,
 #14, #15) plus the re-vendored `minimp4.h` overflow fix (issues #27/#28, ADR

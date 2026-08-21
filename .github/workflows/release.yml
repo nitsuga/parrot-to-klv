@@ -166,6 +166,19 @@ jobs:
             || { echo "::error::no ST 0604 SEI in the video elementary stream"; exit 1; }
           echo "output carries KLV and ST 0604"
 
+      # The live paths (ADR 0013/0015) instantiate udpsink/srtsink/rtspsrc, which
+      # the file->file path never touches. A bundle that shipped only the
+      # conversion plugins passed every check above yet failed the moment a user
+      # asked for `-o udp://…` with "file replay failed: 7". Replaying to a UDP
+      # multicast needs no listener and does one play-through then exits, so a
+      # zero exit proves udpsink was created from the bundle's own plugins.
+      - name: Check a live output path works from the bundle
+        run: |
+          cd parrot-to-klv-*-linux-x86_64/
+          ./parrot-to-klv -i ../fixtures/parrot_v3_video_audio.mp4 -o udp://239.0.0.1:30011 \
+            || { echo "::error::file->UDP replay failed from the bundle — a live-path plugin is missing"; exit 1; }
+          echo "file->UDP replay succeeded from the bundle"
+
   smoke-image:
     # Runs on the host rather than in a container: it needs a working docker to
     # load the image into. The claim under test is different from the bundle
