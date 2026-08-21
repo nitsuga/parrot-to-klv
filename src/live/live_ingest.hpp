@@ -41,15 +41,15 @@ struct LiveIngestConfig {
     std::vector<CapturedExtension> test_injected_extensions;
 
     // Continuous mode: how long live_ingest should drive before closing.
-    // run_duration == 0 -> one-shot startup drain (immediate drain, plus
-    // 600 ms poll when video_source is rtsp://; immediate dummy for
-    // pipeline: when no real telemetry) then close.
-    // run_duration > 0 -> timed live loop while (!is_mux_interrupted() &&
-    // now < deadline) with 10 ms idle sleep; SIGINT (is_mux_interrupted)
-    // cuts the wait short, but does not provide an indefinite
-    // run-until-SIGINT mode — a finite deadline is always required. There
-    // is no indefinite run-until-SIGINT mode.
-    std::chrono::milliseconds run_duration{0};
+    // run_duration == nullopt -> indefinite live-unbounded (drive until
+    // is_mux_interrupted()/SIGINT — finite live sources must be stopped
+    // manually (EOS/ERROR from the live pipeline is not observed here; it
+    // will be surfaced via next emit() or close() if the mux fails, but the
+    // loop itself only exits on SIGINT or run_duration deadline)).
+    // run_duration has value -> timed drive until deadline or SIGINT
+    // (e.g., 2s for hermetic tests). If caller wants one-shot startup poll
+    // (previous behavior), use a small run_duration like 600ms.
+    std::optional<std::chrono::milliseconds> run_duration{std::nullopt};
 };
 
 // Live ingest: validate cfg, register Parrot RTP header extension, create a
