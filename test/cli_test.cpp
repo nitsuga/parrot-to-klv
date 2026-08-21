@@ -76,11 +76,27 @@ int main(int argc, char* argv[]) {
     check(file_contains_subsequence(proto_out, "KLVA"), "proto output contains KLVA descriptor");
     fs::remove(proto_out, ec);
 
-    // 3. Inspection mode (no output flag) with disclosure flags
+    // 3. Happy-path v3 conversion via explicit -i flag (unified CLI)
+    const fs::path v3_out_i = temp / "cli_v3_i_converted.ts";
+    fs::remove(v3_out_i, ec);
+    std::string cmd_v3_i = bin.string() + " -i " + v3_in.string() + " -o " + v3_out_i.string();
+    int ret_v3_i = std::system(cmd_v3_i.c_str());
+    check(ret_v3_i == 0, "parrot-to-klv converts v3 video fixture via -i flag");
+    check(fs::exists(v3_out_i) && fs::file_size(v3_out_i) > 0, "v3 -i output file created and non-empty");
+    check(file_contains_subsequence(v3_out_i, "KLVA"), "v3 -i output contains KLVA descriptor");
+    fs::remove(v3_out_i, ec);
+
+    // 4. Inspection mode (no output flag) with disclosure flags
     std::string cmd_inspect = bin.string() + " " + (fixtures / "parrot_v3.mp4").string() +
                               " --with-location --with-identity > /dev/null";
     int ret_inspect = std::system(cmd_inspect.c_str());
     check(ret_inspect == 0, "parrot-to-klv inspection mode exits 0");
+
+    // 5. Inspection mode via -i
+    std::string cmd_inspect_i = bin.string() + " -i " + (fixtures / "parrot_v3.mp4").string() +
+                                " --with-location > /dev/null";
+    int ret_inspect_i = std::system(cmd_inspect_i.c_str());
+    check(ret_inspect_i == 0, "parrot-to-klv inspection via -i exits 0");
 
     if (g_failures == 0) {
         std::cout << "All CLI integration tests passed\n";
