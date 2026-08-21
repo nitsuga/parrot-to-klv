@@ -41,15 +41,17 @@ struct LiveIngestConfig {
     std::vector<CapturedExtension> test_injected_extensions;
 
     // Continuous mode: how long live_ingest should drive before closing.
-    // run_duration == nullopt -> indefinite live-unbounded (drive until
+    // run_duration == nullopt -> indefinite live-unbounded (explicit
+    // opt-in, must be set for production live — drive until
     // is_mux_interrupted()/SIGINT — finite live sources must be stopped
     // manually (EOS/ERROR from the live pipeline is not observed here; it
     // will be surfaced via next emit() or close() if the mux fails, but the
     // loop itself only exits on SIGINT or run_duration deadline)).
-    // run_duration has value -> timed drive until deadline or SIGINT
-    // (e.g., 2s for hermetic tests). If caller wants one-shot startup poll
-    // (previous behavior), use a small run_duration like 600ms.
-    std::optional<std::chrono::milliseconds> run_duration{std::nullopt};
+    // Default is timed 2000 ms for safety (safe for tests that forget to set
+    // a duration); run_duration has value -> timed drive until deadline or
+    // SIGINT (e.g., 2s for hermetic tests). If caller wants one-shot startup
+    // poll (previous behavior), use a small run_duration like 600ms.
+    std::optional<std::chrono::milliseconds> run_duration{std::chrono::milliseconds(2000)};
 };
 
 // Live ingest: validate cfg, register Parrot RTP header extension, create a
