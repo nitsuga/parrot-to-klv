@@ -1153,10 +1153,22 @@ static bool test_indefinite_live_until_sigint() {
         }
     }
     auto t0 = std::chrono::steady_clock::now();
-    std::thread th([cfg]() { (void)parrot_to_klv::live_ingest(cfg); });
+    // RAII join guard ensures the background live_ingest thread is joined
+    // before any early return or exception, and capture by value ([cfg = cfg])
+    // avoids dangling reference. Grace sleep after join lets GStreamer
+    // streaming threads (tcache) flush before next validation.
+    struct JoinGuardIndefinite {
+        std::thread t;
+        explicit JoinGuardIndefinite(std::thread&& th) : t(std::move(th)) {}
+        ~JoinGuardIndefinite() { if (t.joinable()) t.join(); }
+        JoinGuardIndefinite(const JoinGuardIndefinite&) = delete;
+        JoinGuardIndefinite& operator=(const JoinGuardIndefinite&) = delete;
+        bool joinable() const { return t.joinable(); }
+        void join() { if (t.joinable()) t.join(); }
+    } guard{std::thread([cfg = cfg]() { (void)parrot_to_klv::live_ingest(cfg); })};
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
     parrot_to_klv::request_mux_interrupt();
-    if (th.joinable()) th.join();
+    if (guard.joinable()) guard.join();
     auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t0).count();
     std::this_thread::sleep_for(std::chrono::milliseconds(300));
     if (elapsed < 400 || elapsed > 2000) {
