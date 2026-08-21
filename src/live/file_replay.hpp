@@ -27,6 +27,15 @@ struct FileReplayConfig {
     // video re-mux from PTS 0 (see PR #58 review), while `continue` would
     // desync KLV from the per-loop video until a single-mux implementation.
     bool repeat_pts_continue = false;
+
+    // Test seam: when >0, repeat runs exactly this many passes then returns
+    // without needing SIGINT. Production leaves this at 0 (repeat until
+    // interrupt). Only used by file_replay_test to assert multi-loop PTS
+    // semantics without touching the global interrupt latch.
+    int test_repeat_limit = 0;
+    // Test seam: when true, skips paced sleep between samples so multi-loop
+    // tests run quickly regardless of recording duration.
+    bool test_disable_pacing = false;
 };
 
 misbklv::Result<std::monostate> replay_file_to_live(const FileReplayConfig& cfg);

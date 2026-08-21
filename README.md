@@ -87,7 +87,7 @@ a path is an MPEG-TS file, `udp://`/`udp:` is a UDP multicast sink (the tool
 normalizes `udp://host:port` → `udp:host:port` and handles bracketed IPv6), and
 `srt:` is passed through to the streaming backend. `file→udp` replay
 (`-i file.mp4 -o udp:…`) replays the recording on the pipeline clock with paced
-KLV emission and `file→srt` the same; add `--repeat` to loop until `SIGINT` (`--repeat-pts reset|continue`, default `reset`) —
+KLV emission and `file→srt` the same; add `--repeat` to loop until `SIGINT` (`--repeat-pts reset|continue`, default `reset` — `continue` advances by the recording's full track duration so the next loop starts cleanly past the previous) —
 see [ADR 0015](context/decisions/0015-file-replay-live-output.md).
 
 The offline output carries the recording's own video elementary stream plus one

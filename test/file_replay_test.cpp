@@ -137,6 +137,173 @@ static bool test_paced_emission() {
     return true;
 }
 
+// Hermetic multi-loop PTS correctness: drive ≥2 full loops via the
+// file-per-pass test seam (finite repeat without SIGINT) and assert
+// reset vs continue semantics using KlvStream read-back.
+// This mirrors live_rtp_test's read-back style but stays hermetic
+// (no UDP networking) via the test_repeat_limit seam described in
+// the review's acceptable alternative.
+static bool test_repeat_pts_reset() {
+    std::cout << "test_repeat_pts_reset (2 loops, default reset)\n";
+    if (parrot_to_klv::is_mux_interrupted()) {
+        std::cout << "  SKIP: already interrupted\n";
+        return true;
+    }
+    const std::string input = g_fixtures + "/parrot_v3_video.mp4";
+    auto extractor = parrot_to_klv::Mp4MetadataExtractor::open(input);
+    if (!extractor) {
+        std::cerr << "  cannot open extractor\n";
+        return false;
+    }
+    uint64_t duration_us = extractor->track_info().duration_us;
+    if (duration_us == 0) {
+        // fallback: max-origin from samples
+        uint64_t origin = UINT64_MAX, mx = 0;
+        for (uint32_t i=0;i<extractor->sample_count();++i){ auto s=extractor->extract_sample(i); if(!s)continue; origin=std::min(origin,s->timestamp_us); mx=std::max(mx,s->timestamp_us); }
+        duration_us = (mx>origin)? mx-origin : 0;
+    }
+    int64_t duration_ns = static_cast<int64_t>(duration_us * 1000ULL);
+    std::cout << "  duration_us=" << duration_us << " (" << duration_ns << " ns)\n";
+
+    const std::string base = "/tmp/file_replay_reset.ts";
+    std::filesystem::remove(base + ".pass0");
+    std::filesystem::remove(base + ".pass1");
+    parrot_to_klv::FileReplayConfig cfg;
+    cfg.input_path = input;
+    cfg.output_sink = "file:" + base;
+    cfg.repeat = true;
+    cfg.repeat_pts_continue = false; // reset (default)
+    cfg.test_repeat_limit = 2;
+    cfg.test_disable_pacing = true; // run fast
+    auto res = parrot_to_klv::replay_file_to_live(cfg);
+    if (!res) {
+        std::cerr << "  replay repeat reset failed: " << static_cast<int>(res.error()) << "\n";
+        return false;
+    }
+    // Read back both passes.
+    auto read_pts = [](const std::string& p){ std::vector<int64_t> v; for(auto &m: misbklv::KlvStream(p)) v.push_back(m.pts()); return v; };
+    auto pts0 = read_pts(base + ".pass0");
+    auto pts1 = read_pts(base + ".pass1");
+    std::cout << "  pass0 " << pts0.size() << " packets, pass1 " << pts1.size() << " packets\n";
+    check(!pts0.empty(), "reset pass0 has packets");
+    check(!pts1.empty(), "reset pass1 has packets");
+    if (pts0.empty() || pts1.empty()) {
+        std::filesystem::remove(base + ".pass0"); std::filesystem::remove(base + ".pass1"); return false;
+    }
+    // Both loops should be within [0, duration_ns] (allow tick + 1ms tolerance)
+    constexpr int64_t kTick = 1000000000/90000 + 1;
+    int64_t tol = kTick + 1000000;
+    auto in_span = [&](const std::vector<int64_t>& pts, const char* label){
+        for(size_t i=0;i<pts.size();++i){
+            if (pts[i] < -tol || pts[i] > duration_ns + tol) {
+                std::cerr << "  " << label << " pts["<<i<<"]="<<pts[i]<<" out of [0,"<<duration_ns<<"] tol "<<tol<<"\n";
+                check(false, std::string(label)+" PTS within [0,dur]");
+                return;
+            }
+        }
+        check(true, std::string(label)+" PTS within [0,dur]");
+        // Monotonic within pass
+        for(size_t i=1;i<pts.size();++i) if(pts[i] < pts[i-1]) { check(false, std::string(label)+" monotonic"); return; }
+        check(true, std::string(label)+" monotonic");
+    };
+    in_span(pts0, "reset pass0");
+    in_span(pts1, "reset pass1");
+    // Repeating spans: first PTS near 0 both times, and similar span.
+    check(pts0.front() < tol, "reset pass0 first near 0");
+    check(pts1.front() < tol, "reset pass1 first near 0");
+    // Last PTS near duration (within tolerance) — KLV last packet aligns to last sample.
+    check(std::abs(pts0.back() - pts1.back()) < tol + 500000, "reset passes have similar end PTS (repeating span)");
+    // Both passes should have same count (cache reused)
+    check(pts0.size() == pts1.size(), "reset passes same packet count");
+
+    std::filesystem::remove(base + ".pass0");
+    std::filesystem::remove(base + ".pass1");
+    std::cout << "  ok reset: both loops in [0,dur] with repeating span\n";
+    return g_failures==0;
+}
+
+static bool test_repeat_pts_continue() {
+    std::cout << "test_repeat_pts_continue (2 loops, continue)\n";
+    if (parrot_to_klv::is_mux_interrupted()) {
+        std::cout << "  SKIP: already interrupted\n";
+        return true;
+    }
+    const std::string input = g_fixtures + "/parrot_v3_video.mp4";
+    auto extractor = parrot_to_klv::Mp4MetadataExtractor::open(input);
+    if (!extractor) {
+        std::cerr << "  cannot open extractor\n";
+        return false;
+    }
+    uint64_t duration_us = extractor->track_info().duration_us;
+    if (duration_us == 0) {
+        uint64_t origin = UINT64_MAX, mx = 0;
+        for (uint32_t i=0;i<extractor->sample_count();++i){ auto s=extractor->extract_sample(i); if(!s)continue; origin=std::min(origin,s->timestamp_us); mx=std::max(mx,s->timestamp_us); }
+        duration_us = (mx>origin)? mx-origin : 0;
+    }
+    int64_t duration_ns = static_cast<int64_t>(duration_us * 1000ULL);
+    std::cout << "  duration_us=" << duration_us << " (" << duration_ns << " ns)\n";
+
+    const std::string base = "/tmp/file_replay_continue.ts";
+    std::filesystem::remove(base + ".pass0");
+    std::filesystem::remove(base + ".pass1");
+    parrot_to_klv::FileReplayConfig cfg;
+    cfg.input_path = input;
+    cfg.output_sink = "file:" + base;
+    cfg.repeat = true;
+    cfg.repeat_pts_continue = true; // continue (explicit opt-in)
+    cfg.test_repeat_limit = 2;
+    cfg.test_disable_pacing = true;
+    auto res = parrot_to_klv::replay_file_to_live(cfg);
+    if (!res) {
+        std::cerr << "  replay repeat continue failed: " << static_cast<int>(res.error()) << "\n";
+        return false;
+    }
+    auto read_pts = [](const std::string& p){ std::vector<int64_t> v; for(auto &m: misbklv::KlvStream(p)) v.push_back(m.pts()); return v; };
+    auto pts0 = read_pts(base + ".pass0");
+    auto pts1 = read_pts(base + ".pass1");
+    std::cout << "  pass0 " << pts0.size() << " packets, pass1 " << pts1.size() << " packets\n";
+    check(!pts0.empty(), "continue pass0 has packets");
+    check(!pts1.empty(), "continue pass1 has packets");
+    if (pts0.empty() || pts1.empty()) {
+        std::filesystem::remove(base + ".pass0"); std::filesystem::remove(base + ".pass1"); return false;
+    }
+    constexpr int64_t kTick = 1000000000/90000 + 1;
+    int64_t tol = kTick + 1000000;
+
+    // Pass0 in [0,dur], pass1 in [dur, 2*dur]
+    auto check_span = [&](const std::vector<int64_t>& pts, int64_t lo, int64_t hi, const char* label){
+        for(size_t i=0;i<pts.size();++i){
+            if (pts[i] < lo - tol || pts[i] > hi + tol) {
+                std::cerr << "  " << label << " pts["<<i<<"]="<<pts[i]<<" out of ["<<lo<<","<<hi<<"] tol "<<tol<<"\n";
+                check(false, std::string(label)+" PTS in expected span");
+                return;
+            }
+        }
+        check(true, std::string(label)+" PTS in expected span");
+    };
+    check_span(pts0, 0, duration_ns, "continue pass0 [0,dur]");
+    check_span(pts1, duration_ns, 2*duration_ns, "continue pass1 [dur,2dur]");
+    // Monotonic per pass
+    for(size_t i=1;i<pts0.size();++i) if(pts0[i] < pts0[i-1]) { check(false,"continue pass0 monotonic"); break; }
+    for(size_t i=1;i<pts1.size();++i) if(pts1[i] < pts1[i-1]) { check(false,"continue pass1 monotonic"); break; }
+    // Overall monotonic across loops: last of pass0 < first of pass1 (or equal within tick if tail gap tiny, but with duration step it should be >=)
+    // With duration_us including tail, pass1 first should be near duration_ns (not overlapping last of pass0).
+    check(pts1.front() > pts0.back() - tol || std::abs(pts1.front() - duration_ns) < tol+500000, "continue pass1 starts after pass0");
+    // The offset between corresponding packets should be ~duration_ns
+    if (pts0.size() == pts1.size()) {
+        int64_t delta_first = pts1.front() - pts0.front();
+        check(std::abs(delta_first - duration_ns) <= tol + 2000000, "continue delta first ≈ dur (got "+std::to_string(delta_first)+")");
+        int64_t delta_last = pts1.back() - pts0.back();
+        check(std::abs(delta_last - duration_ns) <= tol + 2000000, "continue delta last ≈ dur");
+    }
+    check(pts0.size() == pts1.size(), "continue passes same packet count");
+
+    std::filesystem::remove(base + ".pass0");
+    std::filesystem::remove(base + ".pass1");
+    std::cout << "  ok continue: pass0 [0,dur], pass1 [dur,2dur] monotonic\n";
+    return g_failures==0;
+}
+
 static bool test_repeat_until_interrupt() {
     std::cout << "test_repeat_until_interrupt\n";
     // This test must be before any global interrupt flag is set, but file_replay
@@ -173,11 +340,13 @@ static bool test_repeat_until_interrupt() {
 int main(int argc, char** argv) {
     if (argc > 1) g_fixtures = argv[1];
     else g_fixtures = "test/fixtures";
-    // Order matters: repeat test must run before flag is set, but we also want
-    // other tests not to be affected by flag. So run repeat last.
+    // Order matters: interrupt test latches global flag with no reset,
+    // so run all hermetic multi-loop tests before it, and keep interrupt last.
     bool ok = true;
     ok &= test_replay_to_file();
     ok &= test_paced_emission();
+    ok &= test_repeat_pts_reset();
+    ok &= test_repeat_pts_continue();
     // Must be last because it sets global interrupt.
     ok &= test_repeat_until_interrupt();
     if (ok && g_failures==0) std::cout << "All file_replay tests passed\n";
