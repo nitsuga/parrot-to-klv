@@ -241,23 +241,26 @@ misbklv::Result<std::monostate> live_ingest(const LiveIngestConfig& cfg) {
     bool is_pipeline = starts_with(video_src, "pipeline:");
 
     // Drive mode (ADR 0013):
-    // run_duration == 0 -> indefinite live-unbounded (drive until
-    // is_mux_interrupted()/SIGINT or bus ERROR/EOS). For live-unbounded
-    // rtsp:// or pipeline: without num-buffers, this is the production
-    // mode. run_duration > 0 -> timed live loop while
+    // run_duration == nullopt -> indefinite live-unbounded (drive until
+    // is_mux_interrupted()/SIGINT — finite live sources must be stopped
+    // manually (EOS/ERROR from the live pipeline is not observed here; it
+    // will be surfaced via next emit() or close() if the mux fails, but the
+    // loop itself only exits on SIGINT or run_duration deadline)).
+    // run_duration has value -> timed live loop while
     // (!is_mux_interrupted() && now < deadline) with 10 ms idle sleep;
     // used for hermetic tests (e.g., 2s). If caller wants one-shot
     // startup poll (previous behavior), use a small run_duration like
-    // 600ms, not 0. The one-shot drain + 600ms poll when rtsp and
+    // 600ms. The one-shot drain + 600ms poll when rtsp and
     // emitted==0 is now subsumed by the continuous loop's first
     // iteration (drains within 10ms) and is removed as a whole run.
-    if (cfg.run_duration.count() == 0) {
-        // Indefinite live-unbounded: drive until SIGINT/EOS
+    if (!cfg.run_duration.has_value()) {
+        // Indefinite live-unbounded: drive until SIGINT
         // If source is file/pipeline with num-buffers, it will EOS
-        // naturally; if live rtsp or pipeline without num-buffers, it
-        // will run until is_mux_interrupted().
+        // naturally but the loop does not observe it — caller must use
+        // timed mode or SIGINT for finite sources.
         bool dummy_emitted = false;
         while (!is_mux_interrupted()) {
+            // Note: sink.error() is only open_error_; runtime bus EOS/ERROR not observed here — see header doc.
             if (sink.error()) break;
 
             bool had = false;
@@ -276,8 +279,9 @@ misbklv::Result<std::monostate> live_ingest(const LiveIngestConfig& cfg) {
             // once. The 600ms startup poll is subsumed by this loop's
             // first iteration; we keep a short 50ms grace before
             // committing to dummy so injected real telemetry is not
-            // shadowed.
-            if (emitted_real == 0 && !dummy_emitted && is_pipeline) {
+            // shadowed. Only for timed runs — indefinite production path
+            // does not emit dummy (pipeline: is test-only).
+            if (emitted_real == 0 && !dummy_emitted && is_pipeline && cfg.run_duration.has_value()) {
                 if (!had) {
                     std::this_thread::sleep_for(std::chrono::milliseconds(50));
                     bool late_arrival = false;
@@ -300,30 +304,27 @@ misbklv::Result<std::monostate> live_ingest(const LiveIngestConfig& cfg) {
             if (!had) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(10));
             }
-            // Check bus for ERROR (sink.error()) or EOS (break via
-            // is_mux_interrupted or natural pipeline finish). For
-            // unbounded live sources EOS never arrives; for finite
-            // pipeline with num-buffers EOS will be observed as the
-            // pipeline drains and finish() will handle it after the
-            // loop; such finite cases should use timed mode in tests.
+            // Note: sink.error() is only open_error_; runtime bus EOS/ERROR not observed here — see header doc.
+            // For unbounded live sources EOS never arrives; finite sources must be stopped via SIGINT or timed mode.
         }
 
-        if (emitted_real == 0 && !dummy_emitted && is_pipeline) {
+        if (emitted_real == 0 && !dummy_emitted && is_pipeline && cfg.run_duration.has_value()) {
             if (auto r = emit_dummy_batch(sink, session_ptr, cfg.transform_options); !r) return r;
         }
 
         // For RTSP with no metadata, no dummy is emitted — just close
-        // (video only). Indefinite loop reached SIGINT or ERROR.
+        // (video only). Indefinite loop reached SIGINT or open ERROR.
         return sink.close();
     } else {
         // Timed live loop: deadline = now + run_duration, while
         // (!is_mux_interrupted && now<deadline) { drain; sleep 10ms }
-        auto deadline = std::chrono::steady_clock::now() + cfg.run_duration;
+        auto deadline = std::chrono::steady_clock::now() + *cfg.run_duration;
         bool dummy_emitted = false;
 
         while (true) {
             if (is_mux_interrupted()) break;
             if (std::chrono::steady_clock::now() >= deadline) break;
+            // Note: sink.error() is only open_error_; runtime bus EOS/ERROR not observed here — see header doc.
             if (sink.error()) break;
 
             bool had = false;
@@ -338,7 +339,7 @@ misbklv::Result<std::monostate> live_ingest(const LiveIngestConfig& cfg) {
             if (sink.error()) break;
             if (is_mux_interrupted()) break;
 
-            if (emitted_real == 0 && !dummy_emitted && is_pipeline) {
+            if (emitted_real == 0 && !dummy_emitted && is_pipeline && cfg.run_duration.has_value()) {
                 if (!had) {
                     std::this_thread::sleep_for(std::chrono::milliseconds(50));
                     bool late_arrival = false;
@@ -363,7 +364,7 @@ misbklv::Result<std::monostate> live_ingest(const LiveIngestConfig& cfg) {
             }
         }
 
-        if (emitted_real == 0 && !dummy_emitted && is_pipeline) {
+        if (emitted_real == 0 && !dummy_emitted && is_pipeline && cfg.run_duration.has_value()) {
             if (auto r = emit_dummy_batch(sink, session_ptr, cfg.transform_options); !r) return r;
         }
 

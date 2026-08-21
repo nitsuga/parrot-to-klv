@@ -335,11 +335,13 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    // Live ingest (ADR 0013) — RTSP URI + UDP sink. run_duration==0 means
-    // indefinite live-unbounded until SIGINT/EOS (Ctrl-C sets
-    // g_interrupt_requested via is_mux_interrupted). For live-unbounded
-    // rtsp:// or pipeline: without num-buffers, 0 is the production mode;
-    // timed runs (run_duration>0) remain for tests/hermetic.
+    // Live ingest (ADR 0013) — RTSP URI + UDP sink. run_duration==nullopt
+    // means indefinite live-unbounded until SIGINT (Ctrl-C sets
+    // g_interrupt_requested via is_mux_interrupted) — EOS/ERROR from the
+    // live pipeline is not observed here; see LiveIngestConfig doc. For
+    // live-unbounded rtsp:// or pipeline: without num-buffers, nullopt is
+    // the production mode; timed runs (run_duration has value) remain for
+    // tests/hermetic.
     if (!live_rtsp.empty() || !live_udp.empty()) {
         if (live_rtsp.empty() || live_udp.empty()) {
             std::cerr << "Error: --live-rtsp and --live-udp must be used together.\n";
@@ -348,7 +350,7 @@ int main(int argc, char* argv[]) {
         LiveIngestConfig cfg;
         cfg.rtsp_uri = live_rtsp;
         cfg.udp_sink = live_udp;
-        cfg.run_duration = std::chrono::milliseconds(0);
+        cfg.run_duration = std::nullopt;  // indefinite until SIGINT
         auto res = live_ingest(cfg);
         if (!res) {
             std::cerr << "live ingest failed: " << static_cast<int>(res.error()) << "\n";
