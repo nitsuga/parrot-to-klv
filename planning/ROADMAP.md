@@ -42,7 +42,7 @@ Live streaming is now in scope via the unified `-i`/`-o` CLI: `-i rtsp://… -o
 replays a recording as a live stream (fork 13 / [ADR 0013](../context/decisions/0013-live-streaming-ingest.md),
 [ADR 0014](../context/decisions/0014-unified-cli-input-output-inference.md),
 [ADR 0015](../context/decisions/0015-file-replay-live-output.md)); the file→live
-replay is accepted (ADR 0015) and queued for implementation.
+replay landed per ADR 0015 — all four `input × output` cells are implemented.
 
 ## Phases
 
@@ -83,15 +83,9 @@ register).
   it has: Tier 1 is complete and Items 21/22/23/24/25/57/78/82–89 are the
   remainder. See [field mapping](../context/field-mapping-analysis.md) § Tier 2.
 
-- **Fork 13 — live streaming (ingest + multicast output)** `ACCEPTED`
-  ([ADR 0013](../context/decisions/0013-live-streaming-ingest.md),
-  [ADR 0014](../context/decisions/0014-unified-cli-input-output-inference.md),
-  [ADR 0015](../context/decisions/0015-file-replay-live-output.md)):
-  placement accepted; unified `-i`/`-o` CLI landed (`rtsp://`/`rtsps://`/
-  `pipeline:` → live; `udp://`/`udp:`/`srt:`/`path` → sink, `udp://` normalized
-  to `udp:`); `rtsp→{path|udp:/srt:}` reachable via `live_ingest`
-  (`run_duration=nullopt` until `SIGINT`); `path→udp`/`srt:` file-replay bridge
-  accepted (ADR 0015) and queued for implementation.
+Fork 13 (live streaming — ingest, unified `-i`/`-o` CLI, and file→live replay)
+is decided and implemented; it has left this list for the
+[register](../context/decisions/index.md) (ADRs 0013/0014/0015).
 
 Genuinely open (undeliberated) forks get a line here until they have an ADR;
 once decided they move to the [register](../context/decisions/index.md) and leave

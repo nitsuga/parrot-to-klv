@@ -40,15 +40,16 @@ surface — flags, output, the scrub and conform workflows — is in
   durations, unknown `tkhd` versions, wrapping box sizes, and missing/invalid
   sample tables are rejected rather than mis-parsed.
 
-**Post-`v0.1.6` hardening is merged on `main` but unreleased, with PR #39
-ready to merge on top of it.** The `main` batch since the tag: v3 decode
+**A substantial batch is merged on `main` but unreleased** — the post-`v0.1.6`
+hardening (including the CI work from PR #39) and the entire live-streaming
+surface (fork 13). The hardening `main` batch since the tag: v3 decode
 validity (unit-norm quaternions, exact declared length, short extensions
 recorded as skipped — issues #8/#9), strict `stsd` MIME-type parameter parsing
 (issue #5), output-write reliability (scrub/conform writes are
 `fwrite`-checked and a failed write unlinks the output; the mux preflights its
 destination — issues #11/#19/#17), and a CLI end-to-end suite that runs the
 real binary and asserts the `KLVA` descriptor and ST 0604 SEI in its output.
-PR #39 adds the CI half: the mux and CLI now run under ASan/UBSan, the
+The CI half (PR #39): the mux and CLI now run under ASan/UBSan, the
 conformance decode-failure report path is pinned, the packaging guards now
 cover the staging directory itself and protected-input overlap, the
 `parrot-sanitize` label means compiled-C++ tests only, and the audio fixture
