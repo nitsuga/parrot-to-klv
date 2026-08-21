@@ -899,6 +899,11 @@ static bool decode_hevc_frames(const std::string& path, int* out_frames, bool* s
 } // namespace
 
 static bool test_pipeline_h265_generate_no_corruption() {
+    const char* asan_opts = std::getenv("ASAN_OPTIONS");
+    if (asan_opts && std::strstr(asan_opts, "detect_leaks")) {
+        std::cout << "  SKIP: H.265 pipeline under ASAN (x265 LSAN leak, ASAN_OPTIONS=" << asan_opts << ")\n";
+        return true;
+    }
     std::cout << "test_pipeline_h265_generate_no_corruption\n";
     parrot_to_klv::parrot_extension_clear();
     GstElementFactory* f = gst_element_factory_find("x265enc");
@@ -1029,30 +1034,23 @@ static bool test_pipeline_h265_generate_no_corruption() {
                 return false;
             }
         }
-        const char* asan_opts = std::getenv("ASAN_OPTIONS");
-        bool under_asan = asan_opts && std::strstr(asan_opts, "detect_leaks");
-        if (under_asan) {
-            // PMT check already done, skip HEVC decode to avoid x265 LSAN leak
-            std::printf("SKIP HEVC decode validation: under ASAN (x265 LSAN leak, ASAN_OPTIONS=%s)\n", asan_opts);
+        int frames = 0;
+        bool skipped = false;
+        std::string derr;
+        bool ok = decode_hevc_frames(out, &frames, &skipped, &derr);
+        if (skipped) {
+            std::cout << "  SKIP HEVC decode validation: no decoder (" << derr << ")\n";
         } else {
-            int frames = 0;
-            bool skipped = false;
-            std::string derr;
-            bool ok = decode_hevc_frames(out, &frames, &skipped, &derr);
-            if (skipped) {
-                std::cout << "  SKIP HEVC decode validation: no decoder (" << derr << ")\n";
-            } else {
-                std::cout << "  HEVC decode: " << frames << " frames, ok=" << ok << " err='" << derr << "'\n";
-                if (!ok) {
-                    std::cerr << "  HEVC decode failed — corrupted H.265 would error or produce 0 frames: " << derr << "\n";
-                    std::filesystem::remove(out);
-                    return false;
-                }
-                if (frames <= 0) {
-                    std::cerr << "  HEVC decode produced 0 frames — corrupted stream\n";
-                    std::filesystem::remove(out);
-                    return false;
-                }
+            std::cout << "  HEVC decode: " << frames << " frames, ok=" << ok << " err='" << derr << "'\n";
+            if (!ok) {
+                std::cerr << "  HEVC decode failed — corrupted H.265 would error or produce 0 frames: " << derr << "\n";
+                std::filesystem::remove(out);
+                return false;
+            }
+            if (frames <= 0) {
+                std::cerr << "  HEVC decode produced 0 frames — corrupted stream\n";
+                std::filesystem::remove(out);
+                return false;
             }
         }
     }
