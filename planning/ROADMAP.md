@@ -19,11 +19,6 @@ still in production. Both are implemented.
 
 **Deferred**, in rough order of likelihood:
 
-- **File→UDP replay** — playing an MP4 file out as a live multicast
-  (`-i file.mp4 -o udp:…` / `srt:`) — deferred bridge after the unified
-  `-i`/`-o` CLI ([ADR 0014](../context/decisions/0014-unified-cli-input-output-inference.md));
-  `file→udp`/`srt:` now errors clearly as "not yet supported" and is the next
-  item after the unified CLI landed.
 - **v2** (Bebop 2, Disco, Bluegrass) — a plausible add-on. Substantively a
   subset of v3, and [ADR 0004](../context/decisions/0004-shared-telemetry-snapshot.md)
   is shaped so it would add one normalizer and touch nothing else. Not planned.
@@ -38,14 +33,11 @@ still in production. Both are implemented.
 
 **Out of scope:** v1 (deprecated by Parrot; the Bebop 1 era — no v1 parsing, even
 with `--infer-image-source`, which is v3-only and not v1 support; see
-[ADR 0011](../context/decisions/0011-inferred-image-source-sensor.md)), GUI, KLV
-standards beyond ST 0601 — with one exception: the output carries **ST 0604**
-SEI, which we ask libmisbklv to generate rather than implement here
+[ADR 0011](../context/decisions/0011-inferred-image-source-sensor.md)), real-time
+streaming, GUI, KLV standards beyond ST 0601 — with one exception: the output
+carries **ST 0604** SEI, which we ask libmisbklv to generate rather than
+implement here
 ([ADR 0006](../context/decisions/0006-inherited-st0604-sei-injection.md)).
-Live streaming is now in scope via the unified `-i`/`-o` CLI: `-i rtsp://… -o
-<path|udp://…|srt:…>` reaches `live_ingest` (fork 13 / [ADR 0013](../context/decisions/0013-live-streaming-ingest.md),
-[ADR 0014](../context/decisions/0014-unified-cli-input-output-inference.md)); the
-`file→udp`/`srt:` replay bridge remains deferred as above.
 
 ## Phases
 
@@ -87,13 +79,9 @@ register).
   remainder. See [field mapping](../context/field-mapping-analysis.md) § Tier 2.
 
 - **Fork 13 — live streaming (ingest + multicast output)** `ACCEPTED`
-  ([ADR 0013](../context/decisions/0013-live-streaming-ingest.md),
-  [ADR 0014](../context/decisions/0014-unified-cli-input-output-inference.md)):
-  placement accepted and unified `-i`/`-o` CLI landed (`rtsp://`/`rtsps://`/
-  `pipeline:` → live; `udp://`/`udp:`/`srt:`/`path` → sink, `udp://` normalized
-  to `udp:`); `rtsp→{path|udp:/srt:}` reachable via `live_ingest`
-  (`run_duration=nullopt` until `SIGINT`); `path→udp`/`srt:` file-replay bridge
-  deferred as the next item.
+  ([ADR 0013](../context/decisions/0013-live-streaming-ingest.md)): placement
+  accepted; libmisbklv surface (fork 28/ADR 0031, 4a28859) now the pin;
+  implementation is next.
 
 Genuinely open (undeliberated) forks get a line here until they have an ADR;
 once decided they move to the [register](../context/decisions/index.md) and leave

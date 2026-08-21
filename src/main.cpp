@@ -191,26 +191,7 @@ int decode_all(Mp4MetadataExtractor& extractor, const SessionMetadata& session,
 /// never drift. `--help` sends it to stdout and succeeds; a missing argument
 /// sends it to stderr and fails.
 void print_usage(std::ostream& out, const char* program) {
-    out << "Usage: " << program << " [-i <input>] [-o <output>] [options]\n"
-        << "   or: " << program << " <input.mp4> [-o <output>] [options]\n\n"
-        << "  -i/--input <arg>  input: filesystem path (MP4), rtsp:// or\n"
-        << "                    rtsps:// URI, or pipeline:… (test-only, gated\n"
-        << "                    by PARROT_TEST_ALLOW_PIPELINE). A bare\n"
-        << "                    positional argument is also accepted as input\n"
-        << "                    for backward compatibility. Type is inferred\n"
-        << "                    from the value.\n"
-        << "  -o/--output <arg> output: filesystem path (MPEG-TS), udp:// or\n"
-        << "                    udp: URI, or srt: URI (passed through to the\n"
-        << "                    streaming backend). Type is inferred from the\n"
-        << "                    value. Without -o the tool only reads a file\n"
-        << "                    input and reports what it found.\n"
-        << "  --iface <iface>   multicast interface for udp: output (only\n"
-        << "                    with udp:).\n"
-        << "  --ttl <n>         multicast TTL 0..255 for udp: output (only\n"
-        << "                    with udp:).\n"
-        << "  --loop            enable multicast loopback for udp: output\n"
-        << "                    (default).\n"
-        << "  --no-loop         disable multicast loopback for udp: output.\n\n"
+    out << "Usage: " << program << " <input.mp4> [-o <output.ts>] [options]\n\n"
         << "  -o/--output converts: writes an MPEG-TS carrying the source's\n"
         << "  video plus an ST 0601 KLV stream. The video is never decoded or\n"
         << "  re-encoded, but its timing NALs are rewritten: ST 0604 SEI is\n"
@@ -223,10 +204,6 @@ void print_usage(std::ostream& out, const char* program) {
         << "  --with-identity prints the airframe serial and geotag from the\n"
         << "  session metadata, which are withheld by default.\n"
         << "  -h/--help prints this; --version prints the version.\n\n"
-        << "  Examples:\n"
-        << "    " << program << " flight.mp4 -o flight.ts\n"
-        << "    " << program << " -i rtsp://192.168.0.1/live -o flight.ts\n"
-        << "    " << program << " -i rtsp://192.168.0.1/live -o udp://239.255.0.1:5000\n\n"
         << "Attitude handling (Items 6/7):\n"
         << "  --clamp-attitude clamps pitch/roll to spec ranges (±20°, ±50°)\n"
         << "  instead of emitting 0x8000 when out of range. Use for consumers\n"
@@ -242,30 +219,6 @@ void print_usage(std::ostream& out, const char* program) {
         << "Output streams: the video is announced first, so 0:0 is the video\n"
         << "  and 0:1 the KLV (ffmpeg -map 0:0 selects the video).\n";
 }
-
-namespace cli_detail {
-
-bool starts_with(const std::string& s, const std::string& prefix) {
-    return s.rfind(prefix, 0) == 0;
-}
-
-std::string normalize_udp_sink(const std::string& s) {
-    if (starts_with(s, "udp://")) {
-        return "udp:" + s.substr(6);
-    }
-    return s;
-}
-
-bool is_live_input_value(const std::string& s) {
-    return starts_with(s, "rtsp://") || starts_with(s, "rtsps://") ||
-           starts_with(s, "pipeline:");
-}
-
-bool is_udp_sink_value(const std::string& s) { return starts_with(s, "udp:"); }
-
-bool is_srt_sink_value(const std::string& s) { return starts_with(s, "srt:"); }
-
-}  // namespace cli_detail
 
 /// Ctrl-C (or a `kill`) mid-conversion must not leave a truncated output that
 /// looks like a finished one. Default disposition terminates the process
@@ -284,19 +237,12 @@ int main(int argc, char* argv[]) {
 
     std::string input;
     std::string output;
+    std::string live_rtsp;
+    std::string live_udp;
     bool with_location = false;
     bool show_klv = false;
     bool with_identity = false;
     TransformOptions options;
-
-    // UDP sink options — only valid when resolved output is udp:.
-    std::string udp_iface;
-    bool has_iface = false;
-    int udp_ttl = 1;
-    bool has_ttl = false;
-    bool has_loop = false;
-    bool udp_loop = true;
-
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
         if (arg == "--with-location") {
@@ -326,22 +272,6 @@ int main(int argc, char* argv[]) {
         } else if (arg == "--version") {
             std::cout << "parrot-to-klv " << kVersion << "\n";
             return 0;
-        } else if (arg == "-i" || arg == "--input") {
-            if (i + 1 >= argc) {
-                std::cerr << "Error: " << arg << " needs a path.\n";
-                return 1;
-            }
-            std::string val = argv[++i];
-            if (val.empty()) {
-                std::cerr << "Error: " << arg << " needs a non-empty path.\n";
-                return 1;
-            }
-            if (!input.empty()) {
-                std::cerr << "Error: more than one input file given ('" << input
-                          << "' and '" << val << "').\n";
-                return 1;
-            }
-            input = std::move(val);
         } else if (arg == "-o" || arg == "--output") {
             // Checked separately from the value so a trailing "-o" is an error
             // rather than falling through and being taken as the input path.
@@ -359,49 +289,35 @@ int main(int argc, char* argv[]) {
                 std::cerr << "Error: " << arg << " needs a non-empty path.\n";
                 return 1;
             }
-        } else if (arg == "--iface") {
+        } else if (arg == "--live-rtsp") {
+            // pipeline: is test-only hermetic escape hatch; CLI gates it via PARROT_TEST_ALLOW_PIPELINE
             if (i + 1 >= argc) {
-                std::cerr << "Error: --iface needs a value.\n";
+                std::cerr << "Error: --live-rtsp needs a URI.\n";
                 return 1;
             }
-            std::string val = argv[++i];
-            if (val.empty()) {
-                std::cerr << "Error: --iface needs a non-empty value.\n";
+            live_rtsp = argv[++i];
+            if (live_rtsp.empty()) {
+                std::cerr << "Error: --live-rtsp needs a non-empty URI.\n";
                 return 1;
             }
-            udp_iface = std::move(val);
-            has_iface = true;
-        } else if (arg == "--ttl") {
-            if (i + 1 >= argc) {
-                std::cerr << "Error: --ttl needs a value.\n";
-                return 1;
-            }
-            std::string val = argv[++i];
-            try {
-                size_t pos = 0;
-                long parsed = std::stol(val, &pos, 10);
-                if (pos != val.size()) throw std::invalid_argument("trailing");
-                if (parsed < 0 || parsed > 255) {
-                    std::cerr << "Error: --ttl must be 0..255 (got " << val << ").\n";
+            if (live_rtsp.rfind("pipeline:", 0) == 0) {
+                if (!std::getenv("PARROT_TEST_ALLOW_PIPELINE")) {
+                    std::fprintf(stderr,
+                                 "error: pipeline: video_source is test-only; set "
+                                 "PARROT_TEST_ALLOW_PIPELINE=1 to allow\n");
                     return 1;
                 }
-                udp_ttl = static_cast<int>(parsed);
-                has_ttl = true;
-            } catch (const std::exception&) {
-                std::cerr << "Error: --ttl must be 0..255 (got " << val << ").\n";
+            }
+        } else if (arg == "--live-udp") {
+            if (i + 1 >= argc) {
+                std::cerr << "Error: --live-udp needs a URI.\n";
                 return 1;
             }
-        } else if (arg == "--loop") {
-            udp_loop = true;
-            has_loop = true;
-        } else if (arg == "--no-loop") {
-            udp_loop = false;
-            has_loop = true;
-        } else if (arg == "--live-rtsp" || arg == "--live-udp") {
-            std::cerr
-                << "Error: --live-rtsp/--live-udp have been removed. Pass the input and "
-                   "output instead: -i <rtsp://…> -o <path|udp://…>.\n";
-            return 1;
+            live_udp = argv[++i];
+            if (live_udp.empty()) {
+                std::cerr << "Error: --live-udp needs a non-empty URI.\n";
+                return 1;
+            }
         } else if (!arg.empty() && arg[0] == '-') {
             // Unrecognized *flags* are refused, never ignored. A silently
             // dropped "--klvv" runs to completion, exits 0, and produces output
@@ -419,71 +335,33 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    if (input.empty()) {
-        print_usage(std::cerr, argv[0]);
-        return 1;
-    }
-
-    const bool is_live_input = cli_detail::is_live_input_value(input);
-    const bool is_udp_output = !output.empty() && cli_detail::is_udp_sink_value(output);
-    const bool is_srt_output = !output.empty() && cli_detail::is_srt_sink_value(output);
-
-    // pipeline: is test-only hermetic escape hatch; CLI gates it via PARROT_TEST_ALLOW_PIPELINE.
-    if (is_live_input && cli_detail::starts_with(input, "pipeline:")) {
-        if (!std::getenv("PARROT_TEST_ALLOW_PIPELINE")) {
-            std::fprintf(stderr,
-                         "error: pipeline: video_source is test-only; set "
-                         "PARROT_TEST_ALLOW_PIPELINE=1 to allow\n");
+    // Live ingest (ADR 0013) — RTSP URI + UDP sink. run_duration==nullopt
+    // means indefinite live-unbounded until SIGINT (Ctrl-C sets
+    // g_interrupt_requested via is_mux_interrupted) — EOS/ERROR from the
+    // live pipeline is not observed here; see LiveIngestConfig doc. For
+    // live-unbounded rtsp:// or pipeline: without num-buffers, nullopt is
+    // the production mode; timed runs (run_duration has value) remain for
+    // tests/hermetic.
+    if (!live_rtsp.empty() || !live_udp.empty()) {
+        if (live_rtsp.empty() || live_udp.empty()) {
+            std::cerr << "Error: --live-rtsp and --live-udp must be used together.\n";
             return 1;
-        }
-    }
-
-    // UDP sink options are only valid with a udp: output.
-    if ((has_iface || has_ttl || has_loop) && !is_udp_output) {
-        if (has_iface) {
-            std::cerr << "Error: --iface is only valid with a udp: output.\n";
-            return 1;
-        }
-        if (has_ttl) {
-            std::cerr << "Error: --ttl is only valid with a udp: output.\n";
-            return 1;
-        }
-        std::cerr << "Error: --loop/--no-loop is only valid with a udp: output.\n";
-        return 1;
-    }
-
-    // Routing by inferred input×output types.
-    if (is_live_input && output.empty()) {
-        std::cerr << "Error: live input needs an output (-o <path|udp://…|srt:…>).\n";
-        return 1;
-    }
-    if (!is_live_input && (is_udp_output || is_srt_output)) {
-        std::cerr << "Error: file input to a live sink (udp:/srt:) is not yet supported.\n";
-        return 1;
-    }
-    if (is_live_input && !output.empty()) {
-        std::string sink;
-        if (is_udp_output) {
-            sink = cli_detail::normalize_udp_sink(output);
-        } else if (is_srt_output) {
-            sink = output;
-        } else {
-            sink = "file:" + output;
         }
         LiveIngestConfig cfg;
-        cfg.rtsp_uri = input;
-        cfg.udp_sink = std::move(sink);
+        cfg.rtsp_uri = live_rtsp;
+        cfg.udp_sink = live_udp;
         cfg.run_duration = std::nullopt;  // indefinite until SIGINT
-        cfg.transform_options = options;
-        if (has_iface) cfg.udp_mcast_iface = udp_iface;
-        if (has_ttl) cfg.udp_ttl = udp_ttl;
-        if (has_loop) cfg.udp_loop = udp_loop;
         auto res = live_ingest(cfg);
         if (!res) {
             std::cerr << "live ingest failed: " << static_cast<int>(res.error()) << "\n";
             return 1;
         }
         return 0;
+    }
+
+    if (input.empty()) {
+        print_usage(std::cerr, argv[0]);
+        return 1;
     }
 
     // Converting is the tool's job; the summary below is the inspection mode.

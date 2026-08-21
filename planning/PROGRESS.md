@@ -60,19 +60,18 @@ The output MPEG-TS keeps the video-first PMT stream order introduced in
 selects the video. (The mechanism is upstream's, libmisbklv ADR 0020 § Stream
 order; `mux_test` pins it.)
 
-Live streaming (fork 13 / [ADR 0013](../context/decisions/0013-live-streaming-ingest.md)) is **accepted** and now exposed via a unified `-i`/`-o` CLI ([ADR 0014](../context/decisions/0014-unified-cli-input-output-inference.md)): `-i rtsp://… -o <path|udp://…|srt:…>` reaches `live_ingest` with file or UDP/SRT, `path→path` stays deterministic `mux_to_ts`, and `pipeline:` remains a `PARROT_TEST_ALLOW_PIPELINE`-gated test escape hatch behind `-i`. The `path→udp` file-replay/multicast bridge is deferred.
+Live streaming placement (fork 13 / [ADR 0013](../context/decisions/0013-live-streaming-ingest.md)) is now **accepted**: libmisbklv's live surface (fork 28/ADR 0031) is accepted and pinned at `4ac014a` (live Generate probe), so implementation is unblocked.
 
 The one substantive feature piece left is **fork 4, Tier 2 geometry fidelity**
 — see [ROADMAP](./ROADMAP.md) § Open forks.
 
 ## In progress
 
-- File→UDP (MP4 replay as multicast) bridge — deferred follow-up to the unified CLI (ADR 0014). Pacing and clock questions remain open; tracked as the next item.
+- Drive-until-SIGINT for live ingest on `fix/live-run-duration-default` (fork 13 / [ADR 0013](../context/decisions/0013-live-streaming-ingest.md)): `LiveIngestConfig::run_duration` defaults to timed 2000 ms for safety (safe for tests that forget to set a duration); `run_duration==nullopt` is explicit opt-in indefinite live-unbounded (drive until `is_mux_interrupted()`/SIGINT — finite live sources must be stopped manually (EOS/ERROR from the live pipeline is not observed here; it will be surfaced via next emit() or close() if the mux fails, but the loop itself only exits on SIGINT or run_duration deadline)), not one-shot; `run_duration` with value remains timed for tests/hermetic. `live_ingest()`'s 600ms one-shot poll is removed — the indefinite `while(!is_mux_interrupted())` loop with 10ms sleep and 50ms dummy grace handles live (`sink.error()` is only `open_error_`). `src/main.cpp` CLI sets `run_duration=nullopt` (explicit indefinite opt-in until SIGINT) for `--live-rtsp/--live-udp` and documents indefinite until Ctrl-C. Hermetic tests now use explicit `run_duration=2s`; new `test_indefinite_live_until_sigint` uses `nullopt` and verifies indefinite exits via SIGINT (must remain last — latches global interrupt).
 
 ## Next
 
-1. File→UDP multicast bridge (MP4 → live sink) — the deferred `path→udp/srt:` route from ADR 0014.
-2. Fork 4, Tier 2 geometry fidelity, in [ROADMAP](./ROADMAP.md).
+1. Return to fork 4, Tier 2 geometry fidelity, in [ROADMAP](./ROADMAP.md).
 
 ## Known gaps
 - **Non-H.264 output carries no ST 0604.** Generation is H.264-only upstream, so
