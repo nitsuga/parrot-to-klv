@@ -166,16 +166,47 @@ jobs:
             || { echo "::error::no ST 0604 SEI in the video elementary stream"; exit 1; }
           echo "output carries KLV and ST 0604"
 
-      # The live paths (ADR 0013/0015) instantiate udpsink/srtsink/rtspsrc, which
-      # the file->file path never touches. A bundle that shipped only the
-      # conversion plugins passed every check above yet failed the moment a user
-      # asked for `-o udp://…` with "file replay failed: 7". Replaying to a UDP
-      # multicast needs no listener and does one play-through then exits, so a
-      # zero exit proves udpsink was created from the bundle's own plugins.
-      - name: Check a live output path works from the bundle
+      # The live paths (ADR 0013/0015) instantiate udpsink/srtsink/rtspsrc plus
+      # their depayloaders, which the file->file path never touches. A bundle
+      # that shipped only the conversion plugins passed every check above yet
+      # failed the moment a user asked for `-o srt://…` or `-i rtsp://…`. srt
+      # and rtsp cannot do a real end-to-end pass without a peer, so prove each
+      # live-path plugin instead by the failure modes that actually bite:
+      # omitted, mis-named, or shipped without one of its transitive libraries.
+      # ldd against the plugin under the bundle's own lib path catches all three
+      # — a "not found" line is exactly what a plugin that would fail to load at
+      # runtime prints — and it needs no network. Do this for all five, not just
+      # udpsink, so the guarantee covers every plugin this PR added.
+      - name: Check every live-path plugin loads from the bundle
+        run: |
+          b=$(echo parrot-to-klv-*-linux-x86_64)
+          export LD_LIBRARY_PATH="$b/lib"
+          rc=0
+          for p in udp srt rtsp rtp rtpmanager; do
+            so="$b/lib/gstreamer-1.0/libgst$p.so"
+            if [ ! -f "$so" ]; then
+              echo "::error::live-path plugin libgst$p.so is missing from the bundle"; rc=1; continue
+            fi
+            if ldd "$so" | grep -q 'not found'; then
+              echo "::error::libgst$p.so has an unresolved dependency in the bundle:"
+              ldd "$so" | grep 'not found'; rc=1
+            fi
+          done
+          [ "$rc" -eq 0 ] && echo "all five live-path plugins present with their closures resolved"
+          exit "$rc"
+
+      # And prove one live path runs end to end through the tool, not just that
+      # its plugin loads: replay the fixture to a UDP sink. Unicast loopback, not
+      # multicast — udpsink loads from the bundle identically either way (the "no
+      # GStreamer in the container" check above guarantees the plugin can only
+      # come from the bundle), but multicast needs an outgoing 239.0.0.0/8 route
+      # this job's container may not have, which would fail the release for an
+      # environmental reason unrelated to any missing plugin. No listener is
+      # needed; the replay does one play-through then exits.
+      - name: Check a live output path runs from the bundle
         run: |
           cd parrot-to-klv-*-linux-x86_64/
-          ./parrot-to-klv -i ../fixtures/parrot_v3_video_audio.mp4 -o udp://239.0.0.1:30011 \
+          ./parrot-to-klv -i ../fixtures/parrot_v3_video_audio.mp4 -o udp://127.0.0.1:30011 \
             || { echo "::error::file->UDP replay failed from the bundle — a live-path plugin is missing"; exit 1; }
           echo "file->UDP replay succeeded from the bundle"
 
