@@ -49,6 +49,7 @@ misbklv::Result<std::monostate> do_one_pass(
     const SessionMetadata& session,
     const std::optional<uint64_t>& first_monotonic_us,
     uint64_t origin_us,
+    int64_t pts_base_ns,
     misbklv::KlvSink& sink,
     const TransformOptions& opts,
     ParrotFormat format) {
@@ -99,9 +100,9 @@ misbklv::Result<std::monostate> do_one_pass(
         if (klv.packet.empty()) continue;
         auto msg_res = misbklv::Message::parse(std::as_bytes(std::span<const uint8_t>(klv.packet)));
         if (!msg_res) continue;
-        int64_t pts_ns = static_cast<int64_t>((sample.timestamp_us - origin_us) * 1000ULL);
-        // Guard against underflow if origin > timestamp (out-of-order): clamp to 0.
-        if (sample.timestamp_us < origin_us) pts_ns = 0;
+        int64_t pts_ns = pts_base_ns + static_cast<int64_t>((sample.timestamp_us - origin_us) * 1000ULL);
+        // Guard against underflow if origin > timestamp (out-of-order): clamp to base.
+        if (sample.timestamp_us < origin_us) pts_ns = pts_base_ns;
         msg_res->set_pts(pts_ns);
         auto emit_res = sink.emit(*msg_res);
         if (!emit_res) {
@@ -167,17 +168,27 @@ misbklv::Result<std::monostate> replay_file_to_live(const FileReplayConfig& cfg)
     }
 
     // Origin: earliest presentation time (min timestamp_us) for zero-based PTS.
+    // Also track max for repeat-continue offset (monotonic across loops).
     uint64_t origin_us = 0;
+    uint64_t max_ts_us = 0;
     bool origin_set = false;
     for (uint32_t i = 0; i < extractor.sample_count(); ++i) {
         auto s = extractor.extract_sample(i);
         if (!s) continue;
         if (!origin_set || s->timestamp_us < origin_us) {
             origin_us = s->timestamp_us;
-            origin_set = true;
         }
+        if (!origin_set || s->timestamp_us > max_ts_us) {
+            max_ts_us = s->timestamp_us;
+        }
+        origin_set = true;
     }
-    if (!origin_set) origin_us = 0;
+    if (!origin_set) {
+        origin_us = 0;
+        max_ts_us = 0;
+    }
+    const int64_t duration_ns =
+        origin_set ? static_cast<int64_t>((max_ts_us - origin_us) * 1000ULL) : 0;
 
     auto build_config = [&]() {
         misbklv::InsertConfig icfg;
@@ -194,7 +205,7 @@ misbklv::Result<std::monostate> replay_file_to_live(const FileReplayConfig& cfg)
     if (!cfg.repeat) {
         misbklv::KlvSink sink(build_config());
         if (sink.error()) return misbklv::Result<std::monostate>::err(*sink.error());
-        auto r = do_one_pass(extractor, session, first_monotonic_us, origin_us, sink, cfg.transform_options, info.format);
+        auto r = do_one_pass(extractor, session, first_monotonic_us, origin_us, 0, sink, cfg.transform_options, info.format);
         if (!r) {
             (void)sink.close();
             return r;
@@ -205,10 +216,11 @@ misbklv::Result<std::monostate> replay_file_to_live(const FileReplayConfig& cfg)
         }
         return sink.close();
     } else {
+        int64_t pts_base_ns = 0;
         while (!is_mux_interrupted()) {
             misbklv::KlvSink sink(build_config());
             if (sink.error()) return misbklv::Result<std::monostate>::err(*sink.error());
-            auto r = do_one_pass(extractor, session, first_monotonic_us, origin_us, sink, cfg.transform_options, info.format);
+            auto r = do_one_pass(extractor, session, first_monotonic_us, origin_us, pts_base_ns, sink, cfg.transform_options, info.format);
             if (!r) {
                 (void)sink.close();
                 return r;
@@ -220,6 +232,11 @@ misbklv::Result<std::monostate> replay_file_to_live(const FileReplayConfig& cfg)
             auto close_res = sink.close();
             if (!close_res) return close_res;
             if (is_mux_interrupted()) break;
+            if (cfg.repeat_pts_continue) {
+                pts_base_ns += duration_ns;
+            } else {
+                pts_base_ns = 0;
+            }
         }
         return misbklv::Result<std::monostate>::ok(std::monostate{});
     }

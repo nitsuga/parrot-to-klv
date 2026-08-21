@@ -295,6 +295,12 @@ add_test(NAME cli_rejects_repeat_without_file_live
 add_test(NAME cli_rejects_repeat_with_file_to_file
          COMMAND ${CMAKE_SOURCE_DIR}/test/cli_reject_test.sh "only valid with -i file.mp4 -o udp"
                  $<TARGET_FILE:parrot-to-klv> ${CMAKE_SOURCE_DIR}/test/fixtures/parrot_v3.mp4 -o ${CMAKE_CURRENT_BINARY_DIR}/cli_repeat_out.ts --repeat)
+add_test(NAME cli_rejects_repeat_pts_without_repeat
+         COMMAND ${CMAKE_SOURCE_DIR}/test/cli_reject_test.sh "only valid with --repeat"
+                 $<TARGET_FILE:parrot-to-klv> ${CMAKE_SOURCE_DIR}/test/fixtures/parrot_v3.mp4 -o udp:239.0.0.1:5000 --repeat-pts reset)
+add_test(NAME cli_rejects_repeat_pts_invalid_value
+         COMMAND ${CMAKE_SOURCE_DIR}/test/cli_reject_test.sh "must be reset or continue"
+                 $<TARGET_FILE:parrot-to-klv> ${CMAKE_SOURCE_DIR}/test/fixtures/parrot_v3.mp4 -o udp:239.0.0.1:5000 --repeat --repeat-pts bogus)
 
 # parrot-scrub and parrot-conform's argument handling, same rejection
 # discipline and same reasoning as the parrot-to-klv cases above (issue #13):
@@ -412,7 +418,8 @@ set_tests_properties(
   cli_rejects_ttl_without_udp cli_rejects_loop_without_udp
   cli_rejects_live_without_output
   cli_rejects_udp_ttl_out_of_range cli_rejects_repeat_without_file_live
-  cli_rejects_repeat_with_file_to_file
+  cli_rejects_repeat_with_file_to_file cli_rejects_repeat_pts_without_repeat
+  cli_rejects_repeat_pts_invalid_value
   scrub_rejects_unknown_option scrub_rejects_nan_lat
   scrub_rejects_out_of_range_lat scrub_rejects_missing_value
   scrub_rejects_extra_argument

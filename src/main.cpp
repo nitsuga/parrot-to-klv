@@ -214,7 +214,11 @@ void print_usage(std::ostream& out, const char* program) {
         << "                    (default).\n"
         << "  --no-loop         disable multicast loopback for udp: output.\n"
         << "  --repeat          loop file replay to a live sink until SIGINT\n"
-        << "                    (only with -i file.mp4 -o udp:/srt:).\n\n"
+        << "                    (only with -i file.mp4 -o udp:/srt:).\n"
+        << "  --repeat-pts <m>  how PTS behaves when looping: reset (each\n"
+        << "                    repetition restarts at 0) or continue (PTS\n"
+        << "                    keeps increasing across loops; default).\n"
+        << "                    Only with --repeat.\n\n"
         << "  -o/--output converts: writes an MPEG-TS carrying the source's\n"
         << "  video plus an ST 0601 KLV stream. The video is never decoded or\n"
         << "  re-encoded, but its timing NALs are rewritten: ST 0604 SEI is\n"
@@ -315,6 +319,8 @@ int main(int argc, char* argv[]) {
     bool has_loop = false;
     bool udp_loop = true;
     bool repeat = false;
+    bool has_repeat_pts = false;
+    bool repeat_pts_continue = true;  // continue is the default per spec
 
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
@@ -418,6 +424,18 @@ int main(int argc, char* argv[]) {
             has_loop = true;
         } else if (arg == "--repeat") {
             repeat = true;
+        } else if (arg == "--repeat-pts") {
+            if (i + 1 >= argc) {
+                std::cerr << "Error: --repeat-pts needs a value (reset or continue).\n";
+                return 1;
+            }
+            std::string val = argv[++i];
+            if (val != "reset" && val != "continue") {
+                std::cerr << "Error: --repeat-pts must be reset or continue (got '" << val << "').\n";
+                return 1;
+            }
+            repeat_pts_continue = (val == "continue");
+            has_repeat_pts = true;
         } else if (arg == "--live-rtsp" || arg == "--live-udp") {
             std::cerr
                 << "Error: --live-rtsp/--live-udp have been removed. Pass the input and "
@@ -484,6 +502,10 @@ int main(int argc, char* argv[]) {
         std::cerr << "Error: --repeat is only valid with -i file.mp4 -o udp:/srt:.\n";
         return 1;
     }
+    if (has_repeat_pts && !repeat) {
+        std::cerr << "Error: --repeat-pts is only valid with --repeat.\n";
+        return 1;
+    }
 
     // Routing by inferred input×output types.
     if (is_live_input && output.empty()) {
@@ -509,6 +531,7 @@ int main(int argc, char* argv[]) {
         cfg.udp_iface = udp_iface;
         cfg.udp_loop = udp_loop;
         cfg.repeat = repeat;
+        cfg.repeat_pts_continue = repeat_pts_continue;
         auto res = replay_file_to_live(cfg);
         if (!res) {
             std::cerr << "file replay failed: " << static_cast<int>(res.error()) << "\n";

@@ -20,6 +20,11 @@ struct FileReplayConfig {
     std::string udp_iface;
     bool udp_loop = true;
     bool repeat = false;
+    // When looping, how PTS behaves across the loop boundary. `continue` means
+    // the next repetition picks up where the previous left off (monotonic
+    // cumulative PTS); `reset` restarts at zero each pass. Only relevant when
+    // `repeat` is true; `continue` is the default per user spec.
+    bool repeat_pts_continue = true;
 };
 
 misbklv::Result<std::monostate> replay_file_to_live(const FileReplayConfig& cfg);
