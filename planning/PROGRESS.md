@@ -20,10 +20,10 @@ here: [MP4 metadata extraction](../context/mp4-extraction.md),
 surface — flags, output, the scrub and conform workflows — is in
 [`README.md`](../README.md).
 
-**`v0.2.1` is in preparation.** The libmisbklv pin now includes its Generate
-and high-level streaming hot-path improvements; the user-facing formats and CLI
-remain unchanged. `v0.2.0` remains the current published release until the
-patch release workflow completes.
+**`v0.2.1` is the current release.** This patch refreshes libmisbklv with its
+Generate and high-level streaming hot-path improvements; the user-facing
+formats and CLI remain unchanged. The live-streaming surface introduced in
+`v0.2.0` remains as documented in the README.
 
 **`v0.1.6` delivered** every fix merged since
 `v0.1.5` — an automated review round (issues #3, #4, #6, #7, #10, #12, #13,

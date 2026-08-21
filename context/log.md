@@ -7,6 +7,8 @@
 
 ## 2026-08-21
 
+* **Released `v0.2.1`:** patch bump (`0.2.0`→`0.2.1` in `CMakeLists.txt project(VERSION)`) for the libmisbklv performance refresh. `CHANGELOG.md` documents the lower-copy Generate and high-level streaming paths; tag `v0.2.1` triggers the existing bundle+image build, smoke test, and GitHub Release publish workflow. Output formats and CLI behavior are unchanged.
+
 * **Updated the libmisbklv performance pin:** moved `GIT_TAG` from `4400a2135f6fe7a8ea3826deb874edeef9c2e5cc` to `62ea5e13862dd53f00a1a58d9c2adb2260a727b8`, pulling in zero-copy ST 0604 timestamp reads, latched H.264 negotiation, consumer-side timestamp-map retirement that preserves lagging-video support, and zero-copy ownership transfer through the high-level `KlvStream`/`KlvSink` path. User-facing formats and CLI behavior are unchanged; this is the dependency commit for the `v0.2.1` patch release. A fresh Release build against the fetched pin passed all 64 runnable CTest cases; the optional real-data conformance case was skipped because its external corpus was absent.
 
 * **Released `v0.2.0`:** minor bump (`0.1.6`→`0.2.0` in `CMakeLists.txt project(VERSION)`) for the live-streaming surface — RTSP ingest, the unified `-i`/`-o` type-inferring CLI, and `file→UDP/SRT` replay (fork 13 / ADRs 0013/0014/0015) — plus the post-`v0.1.6` hardening batch (v3 decode validity #8/#9, strict `stsd` MIME parse #5, output-write reliability #11/#19/#17, sanitizer/packaging CI #16/#20/#21). `CHANGELOG.md` gains the `## v0.2.0` section `release.yml` publishes; tag `v0.2.0` pushed to trigger the bundle+image build, smoke test, and publish. `--live-rtsp`/`--live-udp` were added and removed within the unreleased window so are not a user-facing change vs. `v0.1.6`.
