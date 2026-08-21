@@ -1,6 +1,7 @@
 // Copyright 2026 Eric Schneider
 // Licensed under the Apache License, Version 2.0
 
+#include "live/file_replay.hpp"
 #include "live/live_ingest.hpp"
 #include "mp4_box_scan.hpp"
 #include "mp4_metadata_extractor.hpp"
@@ -211,7 +212,13 @@ void print_usage(std::ostream& out, const char* program) {
         << "                    with udp:).\n"
         << "  --loop            enable multicast loopback for udp: output\n"
         << "                    (default).\n"
-        << "  --no-loop         disable multicast loopback for udp: output.\n\n"
+        << "  --no-loop         disable multicast loopback for udp: output.\n"
+        << "  --repeat          loop file replay to a live sink until SIGINT\n"
+        << "                    (only with -i file.mp4 -o udp:/srt:).\n"
+        << "  --repeat-pts <m>  how PTS behaves when looping: reset (each\n"
+        << "                    repetition restarts at 0; default) or\n"
+        << "                    continue (PTS keeps increasing across loops).\n"
+        << "                    Only with --repeat.\n\n"
         << "  -o/--output converts: writes an MPEG-TS carrying the source's\n"
         << "  video plus an ST 0601 KLV stream. The video is never decoded or\n"
         << "  re-encoded, but its timing NALs are rewritten: ST 0604 SEI is\n"
@@ -227,7 +234,9 @@ void print_usage(std::ostream& out, const char* program) {
         << "  Examples:\n"
         << "    " << program << " flight.mp4 -o flight.ts\n"
         << "    " << program << " -i rtsp://192.168.0.1/live -o flight.ts\n"
-        << "    " << program << " -i rtsp://192.168.0.1/live -o udp://239.255.0.1:5000\n\n"
+        << "    " << program << " -i rtsp://192.168.0.1/live -o udp://239.255.0.1:5000\n"
+        << "    " << program << " -i flight.mp4 -o udp://239.0.0.1:5000 --iface eth1\n"
+        << "    " << program << " -i flight.mp4 -o srt://127.0.0.1:5000 --repeat\n\n"
         << "Attitude handling (Items 6/7):\n"
         << "  --clamp-attitude clamps pitch/roll to spec ranges (±20°, ±50°)\n"
         << "  instead of emitting 0x8000 when out of range. Use for consumers\n"
@@ -309,6 +318,9 @@ int main(int argc, char* argv[]) {
     bool has_ttl = false;
     bool has_loop = false;
     bool udp_loop = true;
+    bool repeat = false;
+    bool has_repeat_pts = false;
+    bool repeat_pts_continue = false;  // reset is the default — matches per-loop video restart; continue would desync KLV from the per-loop video (see PR #58 review)
 
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
@@ -410,6 +422,20 @@ int main(int argc, char* argv[]) {
         } else if (arg == "--no-loop") {
             udp_loop = false;
             has_loop = true;
+        } else if (arg == "--repeat") {
+            repeat = true;
+        } else if (arg == "--repeat-pts") {
+            if (i + 1 >= argc) {
+                std::cerr << "Error: --repeat-pts needs a value (reset or continue).\n";
+                return 1;
+            }
+            std::string val = argv[++i];
+            if (val != "reset" && val != "continue") {
+                std::cerr << "Error: --repeat-pts must be reset or continue (got '" << val << "').\n";
+                return 1;
+            }
+            repeat_pts_continue = (val == "continue");
+            has_repeat_pts = true;
         } else if (arg == "--live-rtsp" || arg == "--live-udp") {
             std::cerr
                 << "Error: --live-rtsp/--live-udp have been removed. Pass the input and "
@@ -471,14 +497,47 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+    // --repeat is only for file → live.
+    if (repeat && (is_live_input || !(is_udp_output || is_srt_output))) {
+        std::cerr << "Error: --repeat is only valid with -i file.mp4 -o udp:/srt:.\n";
+        return 1;
+    }
+    if (has_repeat_pts && !repeat) {
+        std::cerr << "Error: --repeat-pts is only valid with --repeat.\n";
+        return 1;
+    }
+
     // Routing by inferred input×output types.
     if (is_live_input && output.empty()) {
         std::cerr << "Error: live input needs an output (-o <path|udp://…|srt:…>).\n";
         return 1;
     }
     if (!is_live_input && (is_udp_output || is_srt_output)) {
-        std::cerr << "Error: file input to a live sink (udp:/srt:) is not yet supported.\n";
-        return 1;
+        std::string sink;
+        if (is_udp_output) sink = cli_detail::normalize_udp_sink(output);
+        else sink = output;
+        // Session metadata for file replay (same as offline path).
+        SessionMetadata session;
+        if (FILE* h = std::fopen(input.c_str(), "rb")) {
+            session = parse_session_metadata(h);
+            std::fclose(h);
+        }
+        FileReplayConfig cfg;
+        cfg.input_path = input;
+        cfg.output_sink = std::move(sink);
+        cfg.transform_options = options;
+        cfg.session = session.empty() ? std::nullopt : std::optional<SessionMetadata>{session};
+        cfg.udp_ttl = udp_ttl;
+        cfg.udp_iface = udp_iface;
+        cfg.udp_loop = udp_loop;
+        cfg.repeat = repeat;
+        cfg.repeat_pts_continue = repeat_pts_continue;
+        auto res = replay_file_to_live(cfg);
+        if (!res) {
+            std::cerr << "file replay failed: " << static_cast<int>(res.error()) << "\n";
+            return 1;
+        }
+        return 0;
     }
     if (is_live_input && !output.empty()) {
         std::string sink;

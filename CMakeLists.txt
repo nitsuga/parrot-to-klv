@@ -92,6 +92,7 @@ pkg_check_modules(GSTREAMER_RTP REQUIRED gstreamer-rtp-1.0)
 add_library(parrot_live STATIC
   src/live/parrot_rtp_header_extension.cpp
   src/live/live_ingest.cpp
+  src/live/file_replay.cpp
 )
 target_link_libraries(parrot_live PUBLIC parrot_extract misbklv::gst)
 target_include_directories(parrot_live PUBLIC ${CMAKE_SOURCE_DIR}/src)
@@ -282,15 +283,24 @@ add_test(NAME cli_rejects_ttl_without_udp
 add_test(NAME cli_rejects_loop_without_udp
          COMMAND ${CMAKE_SOURCE_DIR}/test/cli_reject_test.sh "only valid with a udp"
                  $<TARGET_FILE:parrot-to-klv> ${CMAKE_SOURCE_DIR}/test/fixtures/parrot_v3.mp4 -o ${CMAKE_CURRENT_BINARY_DIR}/cli_udp_loop_out.ts --loop)
-add_test(NAME cli_rejects_file_to_live_sink
-         COMMAND ${CMAKE_SOURCE_DIR}/test/cli_reject_test.sh "not yet supported"
-                 $<TARGET_FILE:parrot-to-klv> ${CMAKE_SOURCE_DIR}/test/fixtures/parrot_v3.mp4 -o udp:239.0.0.1:5000)
 add_test(NAME cli_rejects_live_without_output
          COMMAND ${CMAKE_SOURCE_DIR}/test/cli_reject_test.sh "live input needs"
                  $<TARGET_FILE:parrot-to-klv> -i rtsp://127.0.0.1/live)
 add_test(NAME cli_rejects_udp_ttl_out_of_range
          COMMAND ${CMAKE_SOURCE_DIR}/test/cli_reject_test.sh "must be 0..255"
                  $<TARGET_FILE:parrot-to-klv> -i ${CMAKE_SOURCE_DIR}/test/fixtures/parrot_v3.mp4 -o udp:239.0.0.1:5000 --ttl 300)
+add_test(NAME cli_rejects_repeat_without_file_live
+         COMMAND ${CMAKE_SOURCE_DIR}/test/cli_reject_test.sh "only valid with -i file.mp4 -o udp"
+                 $<TARGET_FILE:parrot-to-klv> -i rtsp://127.0.0.1/live -o udp:239.0.0.1:5000 --repeat)
+add_test(NAME cli_rejects_repeat_with_file_to_file
+         COMMAND ${CMAKE_SOURCE_DIR}/test/cli_reject_test.sh "only valid with -i file.mp4 -o udp"
+                 $<TARGET_FILE:parrot-to-klv> ${CMAKE_SOURCE_DIR}/test/fixtures/parrot_v3.mp4 -o ${CMAKE_CURRENT_BINARY_DIR}/cli_repeat_out.ts --repeat)
+add_test(NAME cli_rejects_repeat_pts_without_repeat
+         COMMAND ${CMAKE_SOURCE_DIR}/test/cli_reject_test.sh "only valid with --repeat"
+                 $<TARGET_FILE:parrot-to-klv> ${CMAKE_SOURCE_DIR}/test/fixtures/parrot_v3.mp4 -o udp:239.0.0.1:5000 --repeat-pts reset)
+add_test(NAME cli_rejects_repeat_pts_invalid_value
+         COMMAND ${CMAKE_SOURCE_DIR}/test/cli_reject_test.sh "must be reset or continue"
+                 $<TARGET_FILE:parrot-to-klv> ${CMAKE_SOURCE_DIR}/test/fixtures/parrot_v3.mp4 -o udp:239.0.0.1:5000 --repeat --repeat-pts bogus)
 
 # parrot-scrub and parrot-conform's argument handling, same rejection
 # discipline and same reasoning as the parrot-to-klv cases above (issue #13):
@@ -379,6 +389,10 @@ add_test(NAME conform_reports_stat_failure
                  $<TARGET_FILE:parrot-conform>
                  ${CMAKE_SOURCE_DIR}/test/fixtures)
 
+add_executable(file_replay_test test/file_replay_test.cpp)
+target_link_libraries(file_replay_test PRIVATE parrot_live)
+add_test(NAME file_replay COMMAND file_replay_test ${CMAKE_SOURCE_DIR}/test/fixtures)
+
 add_executable(live_rtp_test test/live_rtp_test.cpp)
 target_link_libraries(live_rtp_test PRIVATE parrot_live)
 add_test(NAME live_rtp COMMAND live_rtp_test ${CMAKE_SOURCE_DIR}/test/fixtures)
@@ -402,14 +416,16 @@ set_tests_properties(
   cli_rejects_output_without_path cli_rejects_two_inputs
   cli_rejects_live_flags_removed cli_rejects_udp_flag_without_udp
   cli_rejects_ttl_without_udp cli_rejects_loop_without_udp
-  cli_rejects_file_to_live_sink cli_rejects_live_without_output
-  cli_rejects_udp_ttl_out_of_range
+  cli_rejects_live_without_output
+  cli_rejects_udp_ttl_out_of_range cli_rejects_repeat_without_file_live
+  cli_rejects_repeat_with_file_to_file cli_rejects_repeat_pts_without_repeat
+  cli_rejects_repeat_pts_invalid_value
   scrub_rejects_unknown_option scrub_rejects_nan_lat
   scrub_rejects_out_of_range_lat scrub_rejects_missing_value
   scrub_rejects_extra_argument
   conform_rejects_unknown_option conform_rejects_missing_value
   conform_rejects_extra_argument conform_rejects_label_with_scan
-  conform_reports_stat_failure live_rtp
+  conform_reports_stat_failure live_rtp file_replay
   PROPERTIES LABELS "parrot;parrot-sanitize")
 set_tests_properties(
   conformance_real_data packaging_output_guard

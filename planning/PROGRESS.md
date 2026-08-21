@@ -60,19 +60,18 @@ The output MPEG-TS keeps the video-first PMT stream order introduced in
 selects the video. (The mechanism is upstream's, libmisbklv ADR 0020 § Stream
 order; `mux_test` pins it.)
 
-Live streaming (fork 13 / [ADR 0013](../context/decisions/0013-live-streaming-ingest.md)) is **accepted** and now exposed via a unified `-i`/`-o` CLI ([ADR 0014](../context/decisions/0014-unified-cli-input-output-inference.md)): `-i rtsp://… -o <path|udp://…|srt:…>` reaches `live_ingest` with file or UDP/SRT, `path→path` stays deterministic `mux_to_ts`, and `pipeline:` remains a `PARROT_TEST_ALLOW_PIPELINE`-gated test escape hatch behind `-i`. The `path→udp`/`srt:` file-replay bridge is **accepted per [ADR 0015](../context/decisions/0015-file-replay-live-output.md)** (paced realtime replay, one play-through or `--repeat` loop) and queued for implementation.
+Live streaming (fork 13 / [ADR 0013](../context/decisions/0013-live-streaming-ingest.md)) is **accepted** and now exposed via a unified `-i`/`-o` CLI ([ADR 0014](../context/decisions/0014-unified-cli-input-output-inference.md)): `-i rtsp://… -o <path|udp://…|srt:…>` reaches `live_ingest` with file or UDP/SRT, `path→path` stays deterministic `mux_to_ts`, and `pipeline:` remains a `PARROT_TEST_ALLOW_PIPELINE`-gated test escape hatch behind `-i`. The `path→udp`/`srt:` file-replay bridge is **landed per [ADR 0015](../context/decisions/0015-file-replay-live-output.md)** (paced realtime replay, one play-through or `--repeat` loop) — `-i file.mp4 -o udp://…` and `-i file.mp4 -o srt:…` now replay the recording on the pipeline clock.
 
 The one substantive feature piece left is **fork 4, Tier 2 geometry fidelity**
 — see [ROADMAP](./ROADMAP.md) § Open forks.
 
 ## In progress
 
-- File→UDP/SRT (MP4 replay to a live sink) — accepted per [ADR 0015](../context/decisions/0015-file-replay-live-output.md); implementation is the next item (paced emission, `--repeat` loop, hermetic clock-pinning gate).
+- None — the live surface is complete. File replay (`path→udp`/`srt:`) is landed; the unified CLI covers all four `input × output` cells.
 
 ## Next
 
-1. Implement the file→UDP/SRT replay bridge (`path→udp:/srt:` route) per [ADR 0015](../context/decisions/0015-file-replay-live-output.md).
-2. Fork 4, Tier 2 geometry fidelity, in [ROADMAP](./ROADMAP.md).
+1. Fork 4, Tier 2 geometry fidelity, in [ROADMAP](./ROADMAP.md).
 
 ## Known gaps
 - **Non-H.264 output carries no ST 0604.** Generation is H.264-only upstream, so
