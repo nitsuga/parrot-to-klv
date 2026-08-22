@@ -7,6 +7,32 @@ tell a user nothing.
 The release workflow publishes the section matching the tag, so a heading here
 must be exactly `## vX.Y.Z`.
 
+## v0.2.2
+
+This patch release fixes a rare crash when a live session ends, makes the
+release bundle work for live streaming, and lets Ctrl-C interrupt a replay
+promptly. Output formats and CLI behavior are unchanged.
+
+### Fixed
+
+- **No more crash when tearing down a live RTSP session with ST 0604 SEI
+  generation.** Ending such a session could occasionally crash on shutdown (a
+  use-after-free in the media backend's SEI-injection path). The underlying
+  libmisbklv fix is now pinned in, so teardown is deterministic. Sessions that
+  finished normally were already writing complete output; this removes the ugly
+  shutdown crash.
+
+- **The release bundle now works for live streaming.** The bundled wrapper was
+  missing the GStreamer plugins for UDP/SRT output and RTSP input, so
+  `-o udp://…`, `-o srt:…`, and `-i rtsp://…` failed from the bundle with
+  `file replay failed: 7`. Those plugins are now bundled, and a release smoke
+  test asserts each live path loads and runs end to end.
+
+- **Ctrl-C interrupts a file→live replay promptly.** During a paced replay
+  (`-i file.mp4 -o udp://…` or `srt:…`), an interrupt arriving after the
+  metadata ran out used to wait for the full remaining video duration to drain;
+  it now stops promptly.
+
 ## v0.2.1
 
 This patch release reduces copying and long-running overhead in the KLV/video

@@ -8,7 +8,7 @@ chronological history (what landed when, decision detail) lives in
 
 ## Now
 
-**Ctrl-C now cuts the file→live replay drain short (#63):** `replay_file_to_live` bridges the SIGINT flag to a `stop_source` and passes its token to every `KlvSink::close()`; the libmisbklv pin carries the cancellable `close()` (upstream ADR 0032) and the Generate encoder-shift fix (ADR 0033). The pipeline runs end to end — `parrot-to-klv in.mp4 -o out.ts` writes an MPEG-TS carrying the recording's own video plus a synchronous ST 0601 KLV stream. What remains is depth, not plumbing.
+**Ctrl-C now cuts the file→live replay drain short (#63):** `replay_file_to_live` bridges the SIGINT flag to a `stop_source` and passes its token to every `KlvSink::close()`; the libmisbklv pin carries the cancellable `close()` (upstream ADR 0032), the Generate encoder-shift fix (ADR 0033), and the SEI-probe teardown fix (upstream #38 — closes the live-RTSP Generate teardown use-after-free, this repo's #57). The pipeline runs end to end — `parrot-to-klv in.mp4 -o out.ts` writes an MPEG-TS carrying the recording's own video plus a synchronous ST 0601 KLV stream. What remains is depth, not plumbing.
 
 What each stage does, and why, is owned by its concept rather than restated
 here: [MP4 metadata extraction](../context/mp4-extraction.md),
@@ -18,19 +18,15 @@ here: [MP4 metadata extraction](../context/mp4-extraction.md),
 surface — flags, output, the scrub and conform workflows — is in
 [`README.md`](../README.md).
 
-**`v0.2.1` is the current release.** This patch refreshes libmisbklv with its
-Generate and high-level streaming hot-path improvements; the user-facing
-formats and CLI remain unchanged. The live-streaming surface introduced in
-`v0.2.0` remains as documented in the README.
-
-**Release-bundle plugin gap fixed (unreleased on `main`):** `make-bundle.sh`
-shipped only the file→file conversion plugins, so the `v0.2.0`+ live/replay
-paths (`-o udp://…`/`srt:…`, `-i rtsp://…`) failed from the bundle wrapper with
-`file replay failed: 7` — a missing `udpsink`/`srtsink`/`rtspsrc`. `PLUGINS` now
-also carries the live-path plugins, and the `release.yml` smoke test asserts
-each one loads (present, with its closure resolved) and that a live UDP path
-runs end to end, so a live-path plugin can never again ship absent behind green
-checks. A tagged patch release should carry this.
+**`v0.2.2` is the current release.** This patch pins libmisbklv's deterministic
+SEI-probe teardown fix (closes the live-RTSP Generate teardown use-after-free,
+#57 / upstream #38), ships the release bundle with its live-path GStreamer
+plugins so `-o udp://…`/`srt:…` and `-i rtsp://…` work from the wrapper (#62),
+and makes Ctrl-C interrupt a file→live replay promptly (#63). User-facing
+formats and CLI remain unchanged; the live-streaming surface introduced in
+`v0.2.0` is as documented in the README. A separate, still-unattributed
+teardown heap-corruption residual (glibc `tcache_thread_shutdown` at ~baseline
+rate) remains open on #57 and is out of scope for the pinned fix.
 
 **`v0.1.6` delivered** every fix merged since
 `v0.1.5` — an automated review round (issues #3, #4, #6, #7, #10, #12, #13,
