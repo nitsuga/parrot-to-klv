@@ -21,8 +21,10 @@ include(FetchContent)
 FetchContent_Declare(
   misbklv
   GIT_REPOSITORY git@github.com:nitsuga/libmisbklv.git
-  # Live surface plus Generate/high-level streaming hot-path fixes — ADR 0013.
-  GIT_TAG 252962707e4bf418a2b33ab8a049e5a7650bfdd9
+  # Deterministic SEI-probe teardown: closes the live-RTSP Generate teardown
+  # use-after-free (libmisbklv#38, this repo's #57). Prior: Generate/streaming
+  # hot-path fixes.
+  GIT_TAG 11bc55a9ed027387f423cd37959b972e72a53494
 )
 FetchContent_MakeAvailable(misbklv)
 
