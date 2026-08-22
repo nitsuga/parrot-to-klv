@@ -337,18 +337,61 @@ static bool test_repeat_until_interrupt() {
     return true;
 }
 
+// Regression for issue #63 (with upstream libmisbklv ADR 0032): an interrupt
+// landing after the last KLV sample — while close() drains the video branch at
+// wall-clock speed — must cut the drain short instead of playing out the
+// remaining video. Replays parrot_v3_video_tail.mp4, whose 6 s video track
+// far outlives its ~0.27 s metadata track, so the old behavior (close()
+// ignoring the interrupt) would block ~5 s past emission.
+static bool test_interrupt_during_drain_tail() {
+    std::cout << "test_interrupt_during_drain_tail\n";
+    // The previous test latched the global flag; clear it so this scenario
+    // starts from a clean (non-interrupted) state.
+    parrot_to_klv::reset_mux_interrupt_for_test();
+    const std::string input = g_fixtures + "/parrot_v3_video_tail.mp4";
+    if (!std::filesystem::exists(input)) {
+        std::cout << "  SKIP: " << input << " not generated (needs ffmpeg)\n";
+        return true;
+    }
+    const std::string out = "/tmp/file_replay_drain_tail.ts";
+    std::filesystem::remove(out);
+    parrot_to_klv::FileReplayConfig cfg;
+    cfg.input_path = input;
+    cfg.output_sink = "file:" + out;
+    cfg.test_disable_pacing = true;  // emission ends instantly; only the drain remains
+    // Run in a background thread; give emission time to finish and the video
+    // branch to settle into its wall-clock drain before pulling the trigger.
+    std::thread t([cfg]() { (void)parrot_to_klv::replay_file_to_live(cfg); });
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+    parrot_to_klv::request_mux_interrupt();
+    auto t0 = std::chrono::steady_clock::now();
+    if (t.joinable()) t.join();
+    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+                       std::chrono::steady_clock::now() - t0).count();
+    // The 6 s video still had ~5 s to play at this point. Without the stop
+    // token reaching close(), the join blocks until video EOS (~5 s); with it,
+    // the drain aborts within the poll interval.
+    const bool prompt = elapsed < 2000;
+    check(prompt, "drain-tail interrupt joined promptly (" + std::to_string(elapsed) + " ms)");
+    if (prompt) std::cout << "  ok join after drain-tail interrupt in " << elapsed << " ms\n";
+    std::filesystem::remove(out);
+    return true;
+}
+
 int main(int argc, char** argv) {
     if (argc > 1) g_fixtures = argv[1];
     else g_fixtures = "test/fixtures";
-    // Order matters: interrupt test latches global flag with no reset,
-    // so run all hermetic multi-loop tests before it, and keep interrupt last.
+    // Order matters: interrupt tests latch the global flag with no reset,
+    // so run all hermetic multi-loop tests first and keep both interrupt
+    // tests at the end.
     bool ok = true;
     ok &= test_replay_to_file();
     ok &= test_paced_emission();
     ok &= test_repeat_pts_reset();
     ok &= test_repeat_pts_continue();
-    // Must be last because it sets global interrupt.
     ok &= test_repeat_until_interrupt();
+    // Must be last: like test_repeat_until_interrupt, it latches the flag.
+    ok &= test_interrupt_during_drain_tail();
     if (ok && g_failures==0) std::cout << "All file_replay tests passed\n";
     return (ok && g_failures==0) ? 0 : 1;
 }

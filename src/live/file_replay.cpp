@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <cstdint>
 #include <span>
+#include <stop_token>
 #include <string>
 #include <thread>
 #include <vector>
@@ -44,6 +45,32 @@ void interruptible_sleep_for(std::chrono::microseconds delta, bool disable) {
         std::this_thread::sleep_for(chunk);
     }
 }
+
+// Bridge the SIGINT flag to a stop_source for sink.close(token). The
+// signal handler only sets an atomic flag (async-signal-safe), and a handler
+// cannot call stop_source::request_stop() safely either, so a watcher thread
+// polls the flag and forwards it. Without this, the final close() would still
+// drain the video branch at wall-clock speed after the emission loop has
+// already honored the interrupt — the drain tail this exists to cut short.
+class InterruptBridge {
+  public:
+    InterruptBridge() {
+        watcher_ = std::jthread([src = source_](std::stop_token self) mutable {
+            while (!self.stop_requested()) {
+                if (is_mux_interrupted()) {
+                    src.request_stop();
+                    return;
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            }
+        });
+    }
+    std::stop_token token() const { return source_.get_token(); }
+
+  private:
+    std::stop_source source_;
+    std::jthread watcher_;
+};
 
 // Build per-iteration sink string: for file: sinks with a test repeat limit,
 // emit each pass to a distinct file so the test can read back both loops
@@ -206,19 +233,24 @@ misbklv::Result<std::monostate> replay_file_to_live(const FileReplayConfig& cfg)
         return icfg;
     };
 
+    // One bridge for the whole call: every close() below takes its token, so
+    // an interrupt that lands during any drain tail cuts it short (ADR 0032
+    // upstream). The watcher joins when this scope exits.
+    InterruptBridge interrupt;
+
     if (!cfg.repeat) {
         misbklv::KlvSink sink(build_config(cfg.output_sink));
         if (sink.error()) return misbklv::Result<std::monostate>::err(*sink.error());
         auto r = do_one_pass(samples, session, first_monotonic_us, origin_us, 0, sink, cfg.transform_options, info.format, cfg.test_disable_pacing);
         if (!r) {
-            (void)sink.close();
+            (void)sink.close(interrupt.token());
             return r;
         }
         if (is_mux_interrupted()) {
-            (void)sink.close();
+            (void)sink.close(interrupt.token());
             return misbklv::Result<std::monostate>::ok(std::monostate{});
         }
-        return sink.close();
+        return sink.close(interrupt.token());
     } else {
         // Finite test mode: run exactly test_repeat_limit passes then return,
         // without requiring SIGINT. This keeps pre-interrupt tests hermetic
@@ -232,14 +264,14 @@ misbklv::Result<std::monostate> replay_file_to_live(const FileReplayConfig& cfg)
                 if (sink.error()) return misbklv::Result<std::monostate>::err(*sink.error());
                 auto r = do_one_pass(samples, session, first_monotonic_us, origin_us, pts_base_ns, sink, cfg.transform_options, info.format, cfg.test_disable_pacing);
                 if (!r) {
-                    (void)sink.close();
+                    (void)sink.close(interrupt.token());
                     return r;
                 }
                 if (is_mux_interrupted()) {
-                    (void)sink.close();
+                    (void)sink.close(interrupt.token());
                     break;
                 }
-                auto close_res = sink.close();
+                auto close_res = sink.close(interrupt.token());
                 if (!close_res) return close_res;
                 if (is_mux_interrupted()) break;
                 if (cfg.repeat_pts_continue) {
@@ -256,14 +288,14 @@ misbklv::Result<std::monostate> replay_file_to_live(const FileReplayConfig& cfg)
             if (sink.error()) return misbklv::Result<std::monostate>::err(*sink.error());
             auto r = do_one_pass(samples, session, first_monotonic_us, origin_us, pts_base_ns, sink, cfg.transform_options, info.format, cfg.test_disable_pacing);
             if (!r) {
-                (void)sink.close();
+                (void)sink.close(interrupt.token());
                 return r;
             }
             if (is_mux_interrupted()) {
-                (void)sink.close();
+                (void)sink.close(interrupt.token());
                 break;
             }
-            auto close_res = sink.close();
+            auto close_res = sink.close(interrupt.token());
             if (!close_res) return close_res;
             if (is_mux_interrupted()) break;
             if (cfg.repeat_pts_continue) {

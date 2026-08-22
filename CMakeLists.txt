@@ -22,7 +22,7 @@ FetchContent_Declare(
   misbklv
   GIT_REPOSITORY git@github.com:nitsuga/libmisbklv.git
   # Live surface plus Generate/high-level streaming hot-path fixes — ADR 0013.
-  GIT_TAG 62ea5e13862dd53f00a1a58d9c2adb2260a727b8
+  GIT_TAG 252962707e4bf418a2b33ab8a049e5a7650bfdd9
 )
 FetchContent_MakeAvailable(misbklv)
 

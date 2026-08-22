@@ -8,9 +8,7 @@ chronological history (what landed when, decision detail) lives in
 
 ## Now
 
-**Every phase has landed and the pipeline runs end to end** — `parrot-to-klv
-in.mp4 -o out.ts` writes an MPEG-TS carrying the recording's own video plus a
-synchronous ST 0601 KLV stream. What remains is depth, not plumbing.
+**Ctrl-C now cuts the file→live replay drain short (#63):** `replay_file_to_live` bridges the SIGINT flag to a `stop_source` and passes its token to every `KlvSink::close()`; the libmisbklv pin carries the cancellable `close()` (upstream ADR 0032) and the Generate encoder-shift fix (ADR 0033). The pipeline runs end to end — `parrot-to-klv in.mp4 -o out.ts` writes an MPEG-TS carrying the recording's own video plus a synchronous ST 0601 KLV stream. What remains is depth, not plumbing.
 
 What each stage does, and why, is owned by its concept rather than restated
 here: [MP4 metadata extraction](../context/mp4-extraction.md),

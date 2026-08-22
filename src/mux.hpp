@@ -75,5 +75,9 @@ MuxReport mux_to_ts(const std::string& input, const std::string& output,
 /// that call returns — this is cooperative, not preemptive, cancellation.
 void request_mux_interrupt();
 bool is_mux_interrupted();
+/// Clears the interrupt flag. Test-only: lets a test suite run more than one
+/// interrupt scenario in one process. Not async-signal-safe; never call it
+/// from production code or a handler.
+void reset_mux_interrupt_for_test();
 
 }  // namespace parrot_to_klv
