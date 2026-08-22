@@ -1,0 +1,110 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 25,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "displayName": "Base (hidden)",
+      "description": "Hidden base configure preset — shared defaults via inherits"
+    },
+    {
+      "name": "release",
+      "displayName": "Release",
+      "description": "Release build (build dir: build/release) — now build/release (was build)",
+      "binaryDir": "${sourceDir}/build/release",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "default",
+      "displayName": "Default",
+      "description": "Default configure preset (Release, build dir: build/release) — alias of release",
+      "binaryDir": "${sourceDir}/build/release",
+      "inherits": "release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "debug",
+      "displayName": "Debug",
+      "description": "Debug build for development (build dir: build/debug)",
+      "binaryDir": "${sourceDir}/build/debug",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "sanitize",
+      "displayName": "Sanitize (ASan+UBSan)",
+      "description": "Debug + PARROT_SANITIZE=ON with ASan+UBSan (build dir: build/sanitize — maps to CI's build-sanitizers) for ctest -L parrot-sanitize — 24 tests, per ADR 0012 + context mp4-extraction + build.yml; binaryDir is build/sanitize (singular, consistent with libmisbklv)",
+      "binaryDir": "${sourceDir}/build/sanitize",
+      "inherits": "debug",
+      "cacheVariables": {
+        "PARROT_SANITIZE": "ON"
+      }
+    },
+    {
+      "name": "release-bundle",
+      "displayName": "Release Bundle",
+      "description": "Release + PARROT_BUNDLE=ON (Release-only, build dir: build/bundle — mirrors release.yml bundle, was build-release) for release.yml relocatable bundle (ADR 0009); variant dir, not default build/release",
+      "binaryDir": "${sourceDir}/build/bundle",
+      "inherits": "release",
+      "cacheVariables": {
+        "PARROT_BUNDLE": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "displayName": "Base build (hidden)",
+      "description": "Hidden base build preset with parallel jobs tuned to this machine (nproc=7 -> jobs=6, nproc-1 to leave headroom)",
+      "jobs": 6
+    },
+    {
+      "name": "default",
+      "displayName": "Default build",
+      "description": "Build default (Release, build/release) with parallel jobs via base (nproc=7 -> jobs=6)",
+      "configurePreset": "default",
+      "inherits": "base"
+    },
+    {
+      "name": "release",
+      "displayName": "Release build",
+      "description": "Build release (Release, build/release) with parallel jobs via base (nproc=7 -> jobs=6)",
+      "configurePreset": "release",
+      "inherits": "base"
+    },
+    {
+      "name": "debug",
+      "displayName": "Debug build",
+      "description": "Build debug (Debug, build/debug) with parallel jobs via base (nproc=7 -> jobs=6)",
+      "configurePreset": "debug",
+      "inherits": "base"
+    },
+    {
+      "name": "sanitize",
+      "displayName": "Sanitize build",
+      "description": "Build sanitize (Debug + PARROT_SANITIZE=ON, build/sanitize — maps to CI's build-sanitizers) with jobs=6 via base — ASan+UBSan, 24 tests via ctest -L parrot-sanitize",
+      "configurePreset": "sanitize",
+      "inherits": "base"
+    },
+    {
+      "name": "release-bundle",
+      "displayName": "Release Bundle build",
+      "description": "Build release-bundle (Release + PARROT_BUNDLE=ON, build/bundle — mirrors release.yml bundle) with jobs=6 via base for release.yml bundle",
+      "configurePreset": "release-bundle",
+      "inherits": "base"
+    }
+  ]
+}

@@ -34,8 +34,25 @@ Build from source instead if you want to develop on it:
 ## Build
 
 C++ with CMake. [libmisbklv](https://github.com/nitsuga/libmisbklv) is pulled in
-via `FetchContent`, pinned to an exact commit in `CMakeLists.txt`, so a standard
-workflow is all that's needed:
+via `FetchContent`, pinned to an exact commit in `CMakeLists.txt`.
+`CMakePresets.json` (v6) provides the preferred workflow:
+
+```
+cmake --preset release        # or debug, sanitize, release-bundle — configure to build/<preset>
+cmake --build --preset release
+ctest --test-dir build/release
+```
+
+Preset matrix (all under `build/`): `release`/`default` → `build/release`
+(Release), `debug` → `build/debug` (Debug), `sanitize` → `build/sanitize`
+(Debug + `PARROT_SANITIZE=ON`, maps to CI `build-sanitizers` /
+`ctest -L parrot-sanitize`), `release-bundle` → `build/bundle` (Release +
+`PARROT_BUNDLE=ON`, mirrors `release.yml`). Build presets share a hidden `base`
+with `jobs=6` (`nproc 7 → 6`, `nproc-1` headroom) so
+`cmake --build --preset <preset>` builds in parallel without per-preset
+duplication.
+
+Manual fallback without presets is still supported:
 
 ```
 cmake -S . -B build && cmake --build build && ctest --test-dir build
