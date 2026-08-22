@@ -18,8 +18,8 @@ any precision or in fixed-point form.
 On a machine that has the footage, with recordings in `data/` (gitignored):
 
 ```
-cmake --build build
-./build/parrot-conform --scan data --reports test/conformance
+cmake --build --preset release
+./build/release/parrot-conform --scan data --reports test/conformance
 ```
 
 Review the JSON, then commit it. The recording stays put.
@@ -29,7 +29,7 @@ Review the JSON, then commit it. The recording stays put.
 `ctest` runs `conformance_real_data`, which regenerates each report and compares:
 
 ```
-ctest --test-dir build -R conformance_real_data
+ctest --test-dir build/release -R conformance_real_data
 ```
 
 It **skips** where there is no footage, so it is a no-op in CI and on machines

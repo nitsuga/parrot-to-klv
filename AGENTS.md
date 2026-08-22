@@ -134,7 +134,10 @@ So:
     single-header).
 - **Build / test / run**: C++ with CMake. FetchContent pulls libmisbklv at an
   exact commit — bumping that pin is its own commit, never a drive-by.
-  Standard CMake workflow: `cmake -S . -B build && cmake --build build && ctest --test-dir build`.
+  Preferred: `cmake --preset release && cmake --build --preset release && ctest --test-dir build/release`
+  (also `debug`, `sanitize`, `release-bundle` — see README.md's preset matrix;
+  these are the same presets CI uses). Fallback without presets:
+  `cmake -S . -B build && cmake --build build && ctest --test-dir build`.
   libmisbklv is a subproject, so a bare `ctest` runs its suite too — useful as
   early warning when the pin moves. `ctest -L parrot` is this project's tests
   alone, which is what CI runs; label every new test so it is not silently

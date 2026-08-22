@@ -257,8 +257,8 @@ precision or in fixed-point form. Extend that list when you add a report field.
 Workflow, on the machine that holds the footage:
 
 ```
-./build/parrot-conform --scan data --reports test/conformance      # generate
-ctest --test-dir build -R conformance_real_data                    # verify
+./build/release/parrot-conform --scan data --reports test/conformance      # generate
+ctest --test-dir build/release -R conformance_real_data                    # verify
 ```
 
 The `conformance_real_data` test regenerates and compares. It **skips** (ctest
