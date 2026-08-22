@@ -111,6 +111,10 @@ void convert_all(Mp4MetadataExtractor& extractor, const SessionMetadata& session
 
 void request_mux_interrupt() { g_interrupt_requested = 1; }
 bool is_mux_interrupted() { return g_interrupt_requested != 0; }
+// Test-only: the flag has no reset in production (an interrupt ends the
+// process), but file_replay_test runs two interrupt scenarios in one process
+// and the second would otherwise skip. Never call this from a signal handler.
+void reset_mux_interrupt_for_test() { g_interrupt_requested = 0; }
 
 MuxReport mux_to_ts(const std::string& input, const std::string& output,
                     const TransformOptions& options) {

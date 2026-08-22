@@ -328,22 +328,27 @@ def split_nals(annexb: bytes) -> list[bytes]:
     return [n for n in nals if n]
 
 
-def encode_h264(frames: int, width: int, height: int, fps: int) -> H264Track:
+def encode_h264(frames: int, width: int, height: int, fps: int,
+                crf: int | None = None) -> H264Track:
     """Encode a test pattern with ffmpeg and repackage it as AVCC samples.
 
     Access units are cut at each VCL NAL (types 1 and 5): x264 emits one slice
     per picture at this size, so a VCL NAL *is* the end of a frame. Parameter
     sets go into avcC, not into the samples, and AUD/SEI are dropped -- an MP4
     sample is the picture, and h264parse re-inserts what a decoder needs.
+    `crf` (when given) trades quality for committed bytes; the default keeps
+    the original fixtures' bytes identical.
     """
     import subprocess
     import tempfile
 
+    x264_opts = ["-crf", str(crf)] if crf is not None else []
     with tempfile.NamedTemporaryFile(suffix=".h264") as out:
         subprocess.run(
             ["ffmpeg", "-y", "-loglevel", "error",
              "-f", "lavfi", "-i", f"testsrc=size={width}x{height}:rate={fps}",
              "-frames:v", str(frames), "-c:v", "libx264", "-g", "1",
+             *x264_opts,
              "-pix_fmt", "yuv420p", "-f", "h264", out.name],
             check=True)
         annexb = Path(out.name).read_bytes()
@@ -1045,6 +1050,22 @@ def main() -> int:
         fixtures["parrot_v3_video_undecodable_metadata.mp4"] = build(
             MIME_PREFIX + "com.parrot.videometadata3",
             [b"\xff\xff\xff\xff" for _ in samples], h264.samples, video=h264)
+
+        # The shape that makes a realtime replay dangerous: video far outliving
+        # its metadata, so after the last KLV sample the sink's close() drains
+        # the remaining video at wall-clock speed. The file_replay drain-tail
+        # interrupt regression (issue #63) replays this fixture and asserts an
+        # interrupt cuts that tail short instead of playing it out.
+        try:
+            h264_tail = encode_h264(frames=180, width=64, height=64, fps=30,
+                                    crf=40)
+        except (FileNotFoundError, RuntimeError) as err:
+            print(f"parrot_v3_video_tail.mp4: SKIPPED ({err}) -- needs ffmpeg "
+                  "with libx264", file=sys.stderr)
+        else:
+            fixtures["parrot_v3_video_tail.mp4"] = build(
+                MIME_PREFIX + "com.parrot.videometadata3", samples,
+                h264_tail.samples, video=h264_tail)
 
     # An H.265 source takes the other branch of fork 7 (ADR 0007): it converts,
     # but carries no ST 0604, because generation is H.264-only upstream and
