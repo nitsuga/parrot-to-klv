@@ -18,6 +18,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          lfs: true  # test fixtures are LFS objects; a bare checkout gets pointers
 
       # -dev packages for the build (libmisbklv's gstreamer backend links
       # gstreamer-1.0, gstreamer-app-1.0 and gstreamer-codecparsers-1.0); the
@@ -99,6 +101,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
+        with:
+          lfs: true  # test fixtures are LFS objects; a bare checkout gets pointers
 
       # -dev packages for the build (libmisbklv's gstreamer backend links
       # gstreamer-1.0, gstreamer-app-1.0 and gstreamer-codecparsers-1.0); the

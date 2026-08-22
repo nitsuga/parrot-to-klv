@@ -1,2 +1,6 @@
 # Normalize line endings: store as LF in the repo, check out native.
 * text=auto
+
+# Binary fixtures are media blobs: store them in Git LFS so the plain clone
+# stays light and history does not grow by binary deltas.
+*.mp4 filter=lfs diff=lfs merge=lfs -text
