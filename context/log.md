@@ -7,6 +7,8 @@
 
 ## 2026-08-24
 
+* **Released `v0.2.3`:** patch bump (`0.2.2`→`0.2.3` in `CMakeLists.txt project(VERSION)`) for the libmisbklv live-insert teardown pin (`b8ad143`, #68) — the only user-facing change on `main` since `v0.2.2`; the other two commits are CI preset wiring and an authorship-wording doc sync. `CHANGELOG.md` gains the `## v0.2.3` section `release.yml` publishes, describing the residual crash in user terms (~1 in 60 live sessions under stress, gone) rather than in pad-lifecycle terms. Release evidence: 560 clean live runs against the fetched pin (interactive witness `live_rtp` 30/30, `live_video` 30/30, full suite 66/66; then a detached 250+250 `MALLOC_CHECK_=3`/`MALLOC_PERTURB_=165` campaign at `0/500` failures, 0 core-file delta, configured *without* `-DFETCHCONTENT_SOURCE_DIR_MISBKLV` and aborting unless the fetched HEAD matched `b8ad143`). 500 runs is what makes the sweep mean something: at the #57 baselines (5.2% `MALLOC_CHECK_`, 1.6% `MALLOC_PERTURB_`) it puts the upper 95% bound on any residual rate near 0.6%, where the 30-run witness alone was ~38% powered. Tag `v0.2.3` triggers the bundle+image build, smoke test, and GitHub Release publish. Output formats and CLI behavior are unchanged.
+
 * **chore: pin libmisbklv's live-insert teardown fix; #57 closed** (libmisbklv#40, merged
   `c1ed8d3`): the residual that survived the SEI-probe fix is attributed and gone.
   `GstInserter::finish()` was calling `gst_element_release_request_pad()` on the `mpegtsmux` pad

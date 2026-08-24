@@ -7,6 +7,27 @@ tell a user nothing.
 The release workflow publishes the section matching the tag, so a heading here
 must be exactly `## vX.Y.Z`.
 
+## v0.2.3
+
+This patch release removes the last crash on live-session teardown. Output
+formats and CLI behavior are unchanged.
+
+### Fixed
+
+- **Ending a live RTSP session with ST 0604 SEI generation no longer crashes,
+  in the remaining rare case.** `v0.2.2` fixed one use-after-free on this path
+  but left a rarer one behind: shutting down still tripped heap corruption in
+  roughly 1 in 60 live sessions under stress. The cause was upstream in
+  libmisbklv, which released the muxer's request pad while the pipeline was
+  still running, so the muxer thread could walk a freed list node. It now keeps
+  that pad in place and ends an unbounded live branch by draining it, so
+  teardown is deterministic. As before, sessions that finished normally were
+  already writing complete output; this removes the crash itself.
+
+  Verified against the new pin with 560 live runs under memory-checking
+  allocators and full CPU load: no failures and no core files, against a
+  pre-fix rate of 1.6-5.2%.
+
 ## v0.2.2
 
 This patch release fixes a rare crash when a live session ends, makes the

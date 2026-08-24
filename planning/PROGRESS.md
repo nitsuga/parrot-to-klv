@@ -8,7 +8,7 @@ chronological history (what landed when, decision detail) lives in
 
 ## Now
 
-**Ctrl-C now cuts the file→live replay drain short (#63):** `replay_file_to_live` bridges the SIGINT flag to a `stop_source` and passes its token to every `KlvSink::close()`; the libmisbklv pin carries the cancellable `close()` (upstream ADR 0032), the Generate encoder-shift fix (ADR 0033), and the SEI-probe teardown fix (upstream #38 — closes the live-RTSP Generate teardown use-after-free, this repo's #57). The pipeline runs end to end — `parrot-to-klv in.mp4 -o out.ts` writes an MPEG-TS carrying the recording's own video plus a synchronous ST 0601 KLV stream. What remains is depth, not plumbing.
+**Ctrl-C now cuts the file→live replay drain short (#63):** `replay_file_to_live` bridges the SIGINT flag to a `stop_source` and passes its token to every `KlvSink::close()`; the libmisbklv pin carries the cancellable `close()` (upstream ADR 0032), the Generate encoder-shift fix (ADR 0033), and both halves of the live-RTSP Generate teardown use-after-free (this repo's #57): the SEI-probe fix (upstream #38) and the request-pad drain that closed the residual (upstream #40). The pipeline runs end to end — `parrot-to-klv in.mp4 -o out.ts` writes an MPEG-TS carrying the recording's own video plus a synchronous ST 0601 KLV stream. What remains is depth, not plumbing.
 
 What each stage does, and why, is owned by its concept rather than restated
 here: [MP4 metadata extraction](../context/mp4-extraction.md),
@@ -18,16 +18,20 @@ here: [MP4 metadata extraction](../context/mp4-extraction.md),
 surface — flags, output, the scrub and conform workflows — is in
 [`README.md`](../README.md).
 
-**`v0.2.2` is the current release.** This patch pins libmisbklv's deterministic
-SEI-probe teardown fix (closes the live-RTSP Generate teardown use-after-free,
-#57 / upstream #38), ships the release bundle with its live-path GStreamer
-plugins so `-o udp://…`/`srt:…` and `-i rtsp://…` work from the wrapper (#62),
-and makes Ctrl-C interrupt a file→live replay promptly (#63). User-facing
-formats and CLI remain unchanged; the live-streaming surface introduced in
-`v0.2.0` is as documented in the README. The teardown heap-corruption residual that
-`v0.2.2` left open on #57 is now attributed and fixed upstream
-(libmisbklv#40 — `GstInserter::finish` released the `mpegtsmux` request pad
-mid-`PLAYING`); #57 is closed and the pin bump carrying that fix is in flight.
+**`v0.2.3` is the current release.** This patch closes the last live-teardown
+crash: the heap-corruption residual `v0.2.2` left open on #57 is attributed to
+libmisbklv's `GstInserter::finish` releasing the `mpegtsmux` request pad
+mid-`PLAYING`, fixed upstream (libmisbklv#40, ADR 0034) and pinned in here at
+`b8ad143` (#68). A 560-run stress campaign against that pin — `live_rtp` and
+`live_video` under `MALLOC_CHECK_=3` and `MALLOC_PERTURB_=165` at full CPU
+load — is clean, against a pre-fix rate of 1.6-5.2%. #57 is closed.
+
+**`v0.2.2` delivered** the libmisbklv deterministic SEI-probe teardown fix
+(the first half of the live-RTSP Generate use-after-free, #57 / upstream #38),
+the release bundle's live-path GStreamer plugins so `-o udp://…`/`srt:…` and
+`-i rtsp://…` work from the wrapper (#62), and prompt Ctrl-C interruption of a
+file→live replay (#63). User-facing formats and CLI remain unchanged; the
+live-streaming surface introduced in `v0.2.0` is as documented in the README.
 
 **`v0.1.6` delivered** every fix merged since
 `v0.1.5` — an automated review round (issues #3, #4, #6, #7, #10, #12, #13,
