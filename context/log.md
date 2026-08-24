@@ -5,6 +5,20 @@
      a fuller entry per significant implementation. Routine ingests/lint go here
      too. This is the ONLY home for history — PROGRESS.md is present-tense only. -->
 
+## 2026-08-24
+
+* **docs: one agent-authorship spelling; CONVENTIONS drops the single-actor claim**: the rule
+  already required an agent to sign PR/issue/comment prose, but mandated a `<provider>/<model>`
+  spelling that disagreed with the bundle's own `generated.by` actor form — the repo carried two
+  spellings for one concept. Both are now the same pair: `<producer>/<model>`, the vendor *or*
+  harness that generated the text plus the model, which `claude/opus-5` and
+  `opencode-go/muse-spark-1.2-contributor` already satisfy without renaming an agent or splitting
+  a model string. Considered and rejected exempting harness-distinct agents: it would let one
+  agent be spelled two ways in the same commit, which is the failure being fixed. Applies going
+  forward; the mixed formats already in PR history stay as they are. CONVENTIONS § Actors no
+  longer claims every `generated.by` is `claude/opus-5` — ADR 0012 is `claude/sonnet-5`. Ported
+  from the sibling libmisbklv `AGENTS.md`, which grew the same rule while reviewing libmisbklv#40.
+
 ## 2026-08-22
 
 * **build: CMakePresets.json v6→v3; wire build.yml/release.yml to `cmake --preset`**: `release.yml`'s `build` job is pinned to `ubuntu-22.04` (glibc floor), whose apt `cmake` is 3.22.1 — too old for the v6 schema (needs ≥3.25). Downgraded `CMakePresets.json` to v3 (`cmakeMinimumRequired` 3.21, satisfied by 3.22.1) and switched all three CI jobs to `cmake --preset`: `build.yml`'s `build` job uses `release` (`build/release`), its `sanitizers` job uses `sanitize` (`build/sanitize`), and `release.yml`'s `build` job uses `release-bundle` (`build/bundle`) — updating the hardcoded `build-release` path references (the glibc-floor `objdump` check, `make-bundle.sh`'s argument) to match. README.md, AGENTS.md, `test/conformance/README.md`, and `context/mp4-extraction.md` updated to drop stale v6/"maps to"/"mirrors" language now that CI uses these presets directly rather than parallel ad hoc flags.

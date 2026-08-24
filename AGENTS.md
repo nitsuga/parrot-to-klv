@@ -110,12 +110,25 @@ So:
 - **Commit messages**: Conventional Commits format. No `Co-Authored-By` trailer.
 - **Agent authorship on PRs/issues/comments**: when an agent posts a PR body,
   an issue, or a review comment, it identifies *itself* (the generating model)
-  as the author — e.g. `Author: <agent> (model: <provider/model>)` — separate
-  from the git commit author, which stays the human/machine that invoked `git`.
-  The commit message's author field is not the place for this; it goes in the
-  PR/issue/comment prose so a reader can tell which model produced what. This
-  repo uses the `<provider>/<model>` spelling (e.g. `opencode-go/deepseek-v4-flash`),
-  and a comment author line names the model that wrote that comment.
+  as the author — `Author: <agent> (model: <producer>/<model>)` — separate from
+  the git commit author, which stays the human/machine that invoked `git`. The
+  commit message's author field is not the place for this; it goes in the
+  PR/issue/comment prose so a reader can tell which model produced what. A
+  comment's author line names the model that wrote *that* comment, not the one
+  that opened the PR. More than one model works this repo, so an unattributed
+  comment is genuinely ambiguous — and the author line is the only place that
+  ambiguity gets resolved, since every agent's commits carry the same git
+  author.
+  - `<producer>` is the vendor or harness that generated the text, `<model>`
+    identifies the model: `claude/opus-5`,
+    `opencode-go/muse-spark-1.2-contributor`. One pair, no exceptions.
+  - That is the same pair the knowledge bundle's `generated.by` actor form uses
+    ([`context/CONVENTIONS.md`](context/CONVENTIONS.md) § Actors), written for a
+    narrower case — so an agent spells itself identically in frontmatter and in
+    prose. Two spellings for one agent is the failure this rule exists to
+    prevent; don't reintroduce it for a single awkward model string.
+  - Applies going forward. Comments predating it are left as they are —
+    re-signing history would churn many PRs for no gain.
 - **Repo layout**:
   - `references/` — source-of-truth inputs, append-only. Read; add a snapshot
     on a directed ingest; never edit what's there.
