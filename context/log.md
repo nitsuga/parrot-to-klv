@@ -7,6 +7,20 @@
 
 ## 2026-08-24
 
+* **chore: pin libmisbklv's live-insert teardown fix; #57 closed** (libmisbklv#40, merged
+  `c1ed8d3`): the residual that survived the SEI-probe fix is attributed and gone.
+  `GstInserter::finish()` was calling `gst_element_release_request_pad()` on the `mpegtsmux` pad
+  while the pipeline was still `PLAYING`, so the muxer's streaming thread could traverse a freed
+  request-pad-list node — the `g_list_last → libgstmpegtsmux → GstInserter::finish` core
+  (`751496`) this repo's D3 discriminator produced. Upstream now keeps the pad linked and ends an
+  unbounded live branch by pushing EOS through it, draining normally (libmisbklv ADR 0034);
+  upstream verification `0/500` against baseline `5/500`. Evidence the crash seen here was that
+  residual and not something new: the last CI segfault (run 32588593672, `0fa752a`) ran *after*
+  `d3d60dd` had already bumped to the #38 pin. #57 closed on root cause; its OpenH264
+  encoder-init hypothesis was never confirmed by any core and is recorded as unproven rather than
+  fixed. D2's finding — no KLV produced under `x264enc`, 250/250 deterministic — split out to #67
+  so it is not closed by implication.
+
 * **docs: one agent-authorship spelling; CONVENTIONS drops the single-actor claim**: the rule
   already required an agent to sign PR/issue/comment prose, but mandated a `<provider>/<model>`
   spelling that disagreed with the bundle's own `generated.by` actor form — the repo carried two

@@ -24,9 +24,10 @@ SEI-probe teardown fix (closes the live-RTSP Generate teardown use-after-free,
 plugins so `-o udp://…`/`srt:…` and `-i rtsp://…` work from the wrapper (#62),
 and makes Ctrl-C interrupt a file→live replay promptly (#63). User-facing
 formats and CLI remain unchanged; the live-streaming surface introduced in
-`v0.2.0` is as documented in the README. A separate, still-unattributed
-teardown heap-corruption residual (glibc `tcache_thread_shutdown` at ~baseline
-rate) remains open on #57 and is out of scope for the pinned fix.
+`v0.2.0` is as documented in the README. The teardown heap-corruption residual that
+`v0.2.2` left open on #57 is now attributed and fixed upstream
+(libmisbklv#40 — `GstInserter::finish` released the `mpegtsmux` request pad
+mid-`PLAYING`); #57 is closed and the pin bump carrying that fix is in flight.
 
 **`v0.1.6` delivered** every fix merged since
 `v0.1.5` — an automated review round (issues #3, #4, #6, #7, #10, #12, #13,

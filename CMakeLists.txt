@@ -21,10 +21,11 @@ include(FetchContent)
 FetchContent_Declare(
   misbklv
   GIT_REPOSITORY git@github.com:nitsuga/libmisbklv.git
-  # Deterministic SEI-probe teardown: closes the live-RTSP Generate teardown
-  # use-after-free (libmisbklv#38, this repo's #57). Prior: Generate/streaming
-  # hot-path fixes.
-  GIT_TAG 11bc55a9ed027387f423cd37959b972e72a53494
+  # Live insert teardown: keeps the mpegtsmux request pad linked through a real
+  # EOS drain instead of releasing it mid-PLAYING, closing the GList
+  # use-after-free that survived the SEI-probe fix (libmisbklv#40, this repo's
+  # #57). Prior: deterministic SEI-probe teardown (libmisbklv#38).
+  GIT_TAG b8ad143423388e198caf4b0f22016eea1466f211
 )
 FetchContent_MakeAvailable(misbklv)
 
