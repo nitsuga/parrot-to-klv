@@ -161,6 +161,20 @@ So:
   early warning when the pin moves. `ctest -L parrot` is this project's tests
   alone, which is what CI runs; label every new test so it is not silently
   absent there.
-- **Security**: `data/` contains sensitive test videos with real location data.
-  Never commit files from `data/`. Never store or mention identifying information
-  (e.g., embedded GPS coordinates) in memory, logs, or documentation.
+- **Security — location and identity data**: `data/` holds real recordings with
+  live location data. **Never commit a file from `data/`**, and never copy what
+  one contains — coordinates, airframe serials, absolute flight times, operator
+  or device identity — into code, tests, fixtures, commit messages,
+  documentation, or agent memory. Test fixtures are synthesized, never derived
+  from a recording, and `parrot-scrub` / `parrot-conform` exist precisely so a
+  real flight can yield shareable evidence without either: scrub replaces the
+  identifying fields, conform reports what an encoder produced as range checks
+  (`"latitude_within_range": true`) rather than as values.
+  - **Scope: recordings this project holds, and anything derived from them.**
+    The rule protects flight data; it is not a rule about citing external
+    material. Published facts about third-party media the project does not hold
+    — where a sample came from, who holds the rights, why its terms were judged
+    unclear — are bibliography, and belong wherever the reasoning belongs.
+  - The sibling repository **libmisbklv carries this same rule, scoped the same
+    way**. The same class of data crosses both repositories, so the two are kept
+    aligned deliberately — change one and change the other.
