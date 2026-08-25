@@ -116,20 +116,26 @@ provenance and leave no external ground truth at all.
 
 - The default checkout no longer contains the withdrawn material: nothing in a
   working tree at `main` carries Parrot's copyrighted documentation or its marks.
-  **Full clones still receive it through reachable history** — a normal clone
-  fetches the entire reachable ancestry, and the HTML, both logo SVGs, and
-  `hud.jpg` are still listed by `git rev-list --objects` from this branch's head.
-- **Publication remains blocked pending history remediation.** Deleting a file at
-  the tip does not remove it from history. Those blobs remain readable from every
-  commit ancestral to `main` and from all eleven release tags (`v0.1.0`–`v0.2.3`),
-  and from the 45 `refs/pull/*` refs, so changing visibility would publish them
-  exactly as before. Clearing them requires rewriting every reachable branch and
-  tag and asking GitHub Support to purge cached objects and `refs/pull/*`, or
-  publishing a fresh clean-history repository and keeping this one private.
+- **Deleting at the tip was never sufficient, and the history has since been
+  rewritten.** A normal clone fetches the entire reachable ancestry, so for as
+  long as the original commits stood, every clone still received the HTML, both
+  logo SVGs, and `hud.jpg` — from each commit ancestral to `main` and from every
+  release tag. On 2026-08-25 each reachable branch and tag was rewritten with
+  `git filter-repo` and force-pushed, giving `main` and all eleven release tags
+  (`v0.1.0`–`v0.2.3`) new commit identifiers. The rewritten tip tree is identical
+  to the one it replaced: working content did not change, only the history behind
+  it. A fresh clone now reaches none of the withdrawn objects through any branch
+  or tag.
+- **What is left is GitHub's, not git's.** The `refs/pull/*` refs the forge keeps
+  for this repository's pull requests still resolve to pre-rewrite commits, and
+  the withdrawn objects remain readable through them. Nothing pushable clears
+  that; it needs GitHub Support to purge those refs, the cached objects behind
+  them, and the source archives generated for the rewritten tags. Publication
+  waits on that purge being confirmed.
 - What this ADR settles is the **source policy** — the decision to withdraw, what
-  replaces it, and the amended append-only rule — and it cleans the default tree.
-  Redistribution by the repository is only **partially remediated** until history
-  is purged; that operation is tracked separately.
+  replaces it, and the amended append-only rule. The history operation it named
+  as a separate prerequisite is now done on the git side and pending on the forge
+  side; [`../log.md`](../log.md) carries the detail and the verification.
 - The arm64 release work does **not** depend on either. GitHub shipped arm64
   standard runners for private repositories in January 2026, free-tier eligible,
   so multi-architecture builds need no visibility change — see ROADMAP fork 15.

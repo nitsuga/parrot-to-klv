@@ -88,16 +88,15 @@ The one substantive feature piece left is **fork 4, Tier 2 geometry fidelity**
   available to private repositories in January 2026. libmisbklv went public on
   2026-08-25, so `FetchContent` now clones it over anonymous HTTPS and the
   private-dependency deploy key both CI workflows carried is retired; neither
-  workflow reads a secret. The source-policy
-  question is settled and the default tree is clean —
-  Parrot's documentation snapshot was not redistributable and has been withdrawn
-  from `references/` in favor of a link file plus the schema vendored under
-  BSD-3-Clause ([ADR 0016](../context/decisions/0016-references-licensing-withdrawal.md))
-  — but **publication remains blocked pending history remediation**: full clones
-  still receive the withdrawn blobs through reachable history, release tags, and
-  `refs/pull/*`.
-  The flip itself has not happened, and libmisbklv must flip in the same motion
-  or this repository becomes visible source nobody can build.
+  workflow reads a secret. Parrot's documentation snapshot was not
+  redistributable and has been withdrawn from `references/` in favor of a link
+  file plus the schema vendored under BSD-3-Clause
+  ([ADR 0016](../context/decisions/0016-references-licensing-withdrawal.md)), and
+  the history behind it has been rewritten and force-pushed, so no branch or tag
+  reaches the withdrawn objects. **The one remaining blocker is not ours to
+  clear**: GitHub's `refs/pull/*` refs still resolve to pre-rewrite commits, and
+  only GitHub Support can purge them along with the cached objects and the
+  generated tag archives. The flip waits on that purge being confirmed.
 - The live surface is complete: file replay (`path→udp`/`srt:`) is landed and the
   unified CLI covers all four `input × output` cells.
 
