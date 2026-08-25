@@ -82,11 +82,28 @@ The one substantive feature piece left is **fork 4, Tier 2 geometry fidelity**
 
 ## In progress
 
-- None — the live surface is complete. File replay (`path→udp`/`srt:`) is landed; the unified CLI covers all four `input × output` cells.
+- **Preparing to make the repository public.** The driver is multi-architecture
+  releases: GitHub's free arm64 hosted runners and unmetered Actions minutes are
+  public-repo benefits, and going public also retires the private-dependency
+  deploy key both CI workflows carry — though **not** arm64 itself, which
+  GitHub made available to private repositories in January 2026. The source-policy
+  question is settled and the default tree is clean —
+  Parrot's documentation snapshot was not redistributable and has been withdrawn
+  from `references/` in favor of a link file plus the schema vendored under
+  BSD-3-Clause ([ADR 0016](../context/decisions/0016-references-licensing-withdrawal.md))
+  — but **publication remains blocked pending history remediation**: full clones
+  still receive the withdrawn blobs through reachable history, release tags, and
+  `refs/pull/*`.
+  The flip itself has not happened, and libmisbklv must flip in the same motion
+  or this repository becomes visible source nobody can build.
+- The live surface is complete: file replay (`path→udp`/`srt:`) is landed and the
+  unified CLI covers all four `input × output` cells.
 
 ## Next
 
-1. Fork 4, Tier 2 geometry fidelity, in [ROADMAP](./ROADMAP.md).
+1. Decide the multi-architecture release approach — see [ROADMAP](./ROADMAP.md)
+   § Open forks.
+2. Fork 4, Tier 2 geometry fidelity, in [ROADMAP](./ROADMAP.md).
 
 ## Known gaps
 - **Non-H.264 output carries no ST 0604.** Generation is H.264-only upstream, so

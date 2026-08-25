@@ -8,8 +8,10 @@ generated:
   at: 2026-07-23T19:00:00Z
 sources:
   - id: libvideo-metadata
-    resource: https://github.com/Parrot-Developers/libvideo-metadata
-    title: Parrot-Developers/libvideo-metadata (C reference implementation)
+    resource: https://github.com/Parrot-Developers/libvideo-metadata/tree/22f715adbb52ad14693b3b98fa537f3dbef53409
+    title: >-
+      Parrot-Developers/libvideo-metadata at 22f715a (C reference
+      implementation, BSD-3-Clause)
 ---
 
 # libvideo-metadata
@@ -18,8 +20,21 @@ Parrot's official C library for reading and writing video metadata embedded in
 drone recordings and streams. Used as a **reference** for this project, not as a
 build dependency.
 
-**Source:** https://github.com/Parrot-Developers/libvideo-metadata  
-**Local clone:** `/home/schneiderer/workspaces/github/libvideo-metadata`
+**Source:** <https://github.com/Parrot-Developers/libvideo-metadata>, pinned at
+[`22f715a`](https://github.com/Parrot-Developers/libvideo-metadata/tree/22f715adbb52ad14693b3b98fa537f3dbef53409)
+(2026-04-14).
+
+**License:** BSD-3-Clause — `COPYING` and `.MODULE_LICENSE_BSD`, plus an in-file
+notice at the head of each source file. GitHub's detector reports `NOASSERTION`
+because the license is not in a filename it recognizes; the text is the standard
+3-clause form.
+
+**Why it is the primary source.** Parrot's documentation is copyrighted with no
+redistribution grant, so its snapshot was withdrawn from `../references/` before
+this repository could be made public ([[0016-references-licensing-withdrawal]]).
+This repository carries the same substance under a license that permits both
+citation and vendoring, and a commit pin is immutable in the way the append-only
+rule wants. `proto/vmeta.proto` is vendored here as `../references/vmeta.proto`.
 
 ## Why Reference-Only?
 

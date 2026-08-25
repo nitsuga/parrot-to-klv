@@ -318,3 +318,17 @@ faithful snapshot (§ Operations — Ingest), then leave it alone forever.
 Correcting a source you believe is wrong is *never* an edit there: the
 correction is knowledge, so it belongs in a `context/` concept that cites the
 original and says where it departs from it.
+
+**Withdrawal — the one exception.** A snapshot may be *removed* when keeping it
+would redistribute content this project has no license to redistribute. This
+repository is intended to be public, and an immutable copy of someone else's
+copyrighted work is not ours to publish. It is the sole exception and not a
+license to prune: a withdrawal requires, in the same commit, a **link file** in
+the snapshot's place (what the source was, where it lives, the version and date
+observed, its terms), **pinned replacements** for the claims it carried wherever
+a redistributable equivalent exists, and an **ADR** recording what was lost —
+because a withdrawal destroys ground truth, and that cost belongs on the record.
+See [[0016-references-licensing-withdrawal]]. Prefer a redistributable source in
+the first place: where a vendor publishes both documentation and a reference
+implementation, the implementation is usually the better snapshot, and a commit
+pin is immutable in exactly the way this directory needs.

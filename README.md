@@ -215,7 +215,7 @@ context/               agent-owned OKF knowledge bundle
 planning/
   ROADMAP.md           scope, phases, open + candidate forks
   PROGRESS.md          present state: Now / In-progress / Next
-references/            source inputs (append-only; snapshots immutable) — Parrot metadata spec
+references/            source inputs (append-only; snapshots immutable) — Parrot vmeta.proto (BSD-3) + doc link file
 docs/                  human-facing guides
 data/                  test inputs — gitignored, never committed
 ```

@@ -10,8 +10,10 @@ generated:
   at: 2026-08-20T23:10:00Z
 sources:
   - id: parrot-vmeta-html
-    resource: ../../references/Embedded Video Metadata - 8.4.2.html
-    title: Parrot Embedded Video Metadata — "Integration in the RTP stream"
+    resource: ../../references/parrot-video-metadata.md
+    title: >-
+      Parrot Embedded Video Metadata § "Integration in the RTP stream" — cited
+      via the link file; the snapshot was withdrawn per ADR 0016
   - id: libmisbklv-0031
     resource: https://github.com/nitsuga/libmisbklv/blob/4a28859511c7b4c5117959335afd4e845f3e7313/context/decisions/0031-live-streaming-surface.md
     title: "libmisbklv ADR 0031 (fork 28, accepted) — Vendor-neutral live streaming surface"

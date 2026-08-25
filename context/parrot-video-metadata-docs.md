@@ -5,13 +5,20 @@ description: Official Parrot developer documentation for embedded video metadata
 tags: [parrot, documentation, reference]
 generated:
   by: claude/opus-5
-  at: 2026-07-23T19:00:00Z
+  at: 2026-08-24T18:00:00Z
 sources:
-  - id: parrot-vmeta-html
-    resource: "../references/Embedded Video Metadata - 8.4.2.html"
+  - id: parrot-vmeta-doc-link
+    resource: "../references/parrot-video-metadata.md"
     title: >-
-      Official Parrot developer documentation, saved from
-      https://developer.parrot.com/docs/groundsdk-tools/video-metadata.html
+      Link file for Parrot's embedded-metadata documentation — URL, version and
+      date observed, terms, and the pinned replacements (the snapshot was
+      withdrawn per ADR 0016)
+  - id: parrot-vmeta-proto
+    resource: "../references/vmeta.proto"
+    title: Parrot's vmeta.proto, vendored from libvideo-metadata under BSD-3-Clause
+  - id: libvideo-metadata-pin
+    resource: https://github.com/Parrot-Developers/libvideo-metadata/tree/22f715adbb52ad14693b3b98fa537f3dbef53409
+    title: Parrot-Developers/libvideo-metadata at 22f715a — BSD-3-Clause reference implementation
 ---
 
 # Parrot Video Metadata Documentation
@@ -19,8 +26,25 @@ sources:
 Official documentation from Parrot Developers describing the video metadata
 formats embedded in drone recordings and streams.
 
-**Source:** `../references/Embedded Video Metadata - 8.4.2.html` (saved from
-https://developer.parrot.com/docs/groundsdk-tools/video-metadata.html)
+**Source:** <https://developer.parrot.com/docs/groundsdk-tools/video-metadata.html>,
+version 8.4.2 as observed 2026-08-24.
+
+> **The local snapshot was withdrawn.** This documentation is copyrighted by
+> Parrot with no redistribution grant, so the verbatim HTML export that used to
+> back this concept was removed from `../references/` before this repository
+> could be made public — see
+> [[0016-references-licensing-withdrawal]]. What remains is
+> `../references/parrot-video-metadata.md` (the link file: URL, version and date
+> observed, terms) and `../references/vmeta.proto` (the schema itself, vendored
+> under BSD-3-Clause).
+>
+> Consequences for reading this concept: the **schema and the binary struct
+> layouts** are still locally checkable, against `../references/vmeta.proto` and
+> the pinned `vmeta_frame_v3.h` / `vmeta_frame_v2.h` in [[libvideo-metadata]].
+> The **prose** below — fixed-point encodings, field semantics, the extension
+> narrative — is this project's reading of a page that is no longer held
+> locally, and re-checking it means fetching the live URL at whatever version it
+> then serves. The URL is unversioned, so that may not be 8.4.2.
 
 ## Content
 
@@ -64,4 +88,7 @@ Read this documentation to understand:
 - Binary encoding details (fixed-point precision, byte order)
 - Coordinate systems (NED, EGM96 altitude datum)
 
-Cross-reference with [[libvideo-metadata]] source code for implementation details.
+Cross-reference with [[libvideo-metadata]] source code for implementation
+details. Since the withdrawal that source is the **primary** one: prefer a
+commit-pinned citation into `libvideo-metadata` over a section reference to this
+page wherever both would serve.

@@ -28,6 +28,7 @@ diverge; one fork can span several ADRs).
 | 13 | [0013 — Live ingest and multicast output — vendor extraction stays here, generic mux comes from libmisbklv](./0013-live-streaming-ingest.md) | accepted |
 | 13 | [0014 — Unified -i/-o CLI with input/output type inference](./0014-unified-cli-input-output-inference.md) | accepted |
 | 13 | [0015 — File replay to a live sink — MP4 -> UDP/SRT multicast](./0015-file-replay-live-output.md) | accepted |
+| 14 | [0016 — Withdraw the Parrot documentation snapshot; cite the BSD-3 reference implementation instead](./0016-references-licensing-withdrawal.md) | accepted |
 
 _ADR 0001 predates formal fork numbering (no fork #): chosen direct MP4 parsing
 over GStreamer qtdemux based on investigation._

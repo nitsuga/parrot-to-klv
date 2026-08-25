@@ -9,10 +9,11 @@ generated:
   by: claude/opus-5
   at: 2026-07-26T00:37:34Z
 sources:
-  - id: parrot-vmeta-html
-    resource: "../../references/Embedded Video Metadata - 8.4.2.html"
+  - id: parrot-vmeta-proto
+    resource: "../../references/vmeta.proto"
     title: >-
-      Embedded vmeta.proto schema (proto3, package vmeta, TimedMetadata)
+      Parrot's vmeta.proto schema (proto3, package vmeta, TimedMetadata),
+      vendored from libvideo-metadata at 22f715a under BSD-3-Clause
 ---
 
 # Context
@@ -30,8 +31,7 @@ clock to `media_date`).
 Four facts shape the choice, and three of them were not obvious before looking:
 
 **The schema is already in `references/`, not just cited by it.** The complete
-`vmeta.proto` text is embedded in
-`references/Embedded Video Metadata - 8.4.2.html` — `syntax = "proto3"`,
+`vmeta.proto` text sits at `references/vmeta.proto` — `syntax = "proto3"`,
 `package vmeta`, 35 messages, 18 enums, ~316 fields. Nothing needs to be
 fetched from Parrot's SDK, and the schema is immutable-by-convention where it
 sits.
@@ -170,6 +170,9 @@ cannot validate.
 - The transcribed `.proto` is a second copy of a schema that lives in
   `references/`. It can drift from the reference if Parrot publishes 8.5. Its
   provenance must be cited in-file, and re-checked when a new reference lands.
+  Since [[0016-references-licensing-withdrawal]] put the schema itself at
+  `references/vmeta.proto`, that re-check is a local diff rather than a re-fetch
+  — and the first such diff found every transcribed field number correct.
 - Fixture generation would gain a developer-time dependency on Python's protobuf
   package, if one becomes available. `make_fixture.py` already exists and is
   developer-time only; the generated fixtures stay committed, so building and
@@ -202,8 +205,10 @@ cannot validate.
 
 # Citations
 
-- `references/Embedded Video Metadata - 8.4.2.html` — the embedded
-  `vmeta.proto` schema (`syntax = "proto3"`, `package vmeta`, `TimedMetadata`)
+- `references/vmeta.proto` — the schema itself (`syntax = "proto3"`,
+  `package vmeta`, `TimedMetadata`), vendored under BSD-3-Clause
+- [[0016-references-licensing-withdrawal]] — why this citation moved off the
+  documentation export, which was withdrawn as not redistributable
 - [[parrot-metadata-formats]] § Protobuf Format (proto) — format identity and
   the enum-numbering divergence between binary and protobuf
 - [[field-mapping-analysis]] — what proto uniquely supplies (Items 2, 15, 45/46,

@@ -4,11 +4,16 @@
 // records the field numbers and wire types it implements, in a form a real
 // protobuf toolchain can also read.
 //
-// Provenance: transcribed by hand from the embedded schema in
-//   references/Embedded Video Metadata - 8.4.2.html
-// which presents itself as <SDK>/packages/libvideo-metadata/proto/vmeta.proto.
-// It has NOT been diffed against Parrot's SDK repository. Re-check this file
-// when a newer reference lands.
+// Provenance: transcribed by hand from Parrot's schema. The original was the
+// embedded copy in Parrot's Embedded Video Metadata 8.4.2 documentation; that
+// snapshot was withdrawn as not redistributable (ADR 0016), and the schema now
+// sits at references/vmeta.proto, vendored from
+// Parrot-Developers/libvideo-metadata proto/vmeta.proto at commit
+// 22f715adbb52ad14693b3b98fa537f3dbef53409 under BSD-3-Clause.
+// This transcription HAS now been diffed against that original (2026-08-24):
+// all 19 transcribed messages/enums exist upstream and every field number
+// agrees. Re-check when a newer reference lands -- which is now a local diff
+// rather than a re-fetch.
 //
 // Only the messages the ST 0601 mapping draws on are transcribed (13 of the
 // schema's 35). The rest decode into fields ADR 0002 drops.

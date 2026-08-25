@@ -51,7 +51,8 @@ The pin-bump log entry that brought this in reasoned "Parrot records H.264, so
 this never fires for us in practice." That cannot be reconciled with
 [[mux-stage]] § Video is never decoded — one of the two is wrong, and which one
 decides how much this matters. The ANAFI Ai is squarely in scope: ROADMAP names "ANAFI Ai / UKR", the
-proto parser exists for it, and `references/Embedded Video Metadata` § 8.4.2
+proto parser exists for it, and Parrot's Embedded Video Metadata documentation
+(version 8.4.2, cited via `references/parrot-video-metadata.md`)
 describes Parrot timing as living in "H.264 picture timing SEI or H.265 time
 code SEI" — which reads as Parrot shipping both codecs.
 

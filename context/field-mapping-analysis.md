@@ -7,9 +7,15 @@ generated:
   by: claude/opus-5
   at: 2026-07-31T16:36:53Z
 sources:
-  - id: parrot-vmeta-html
-    resource: "../references/Embedded Video Metadata - 8.4.2.html"
-    title: Parrot's vmeta.proto schema and v1/v2/v3 binary structs, verbatim
+  - id: parrot-vmeta-proto
+    resource: "../references/vmeta.proto"
+    title: Parrot's vmeta.proto schema, vendored from libvideo-metadata at 22f715a (BSD-3-Clause)
+  - id: parrot-vmeta-v3-header
+    resource: https://github.com/Parrot-Developers/libvideo-metadata/blob/22f715adbb52ad14693b3b98fa537f3dbef53409/include/video-metadata/vmeta_frame_v3.h
+    title: libvideo-metadata — v3 binary struct layout
+  - id: parrot-vmeta-doc-link
+    resource: "../references/parrot-video-metadata.md"
+    title: Link file for Parrot's embedded-metadata documentation (withdrawn snapshot, ADR 0016)
   - id: libmisbklv-uas0601
     resource: https://github.com/nitsuga/libmisbklv/blob/1732e0c986e4b252a030147c389585da8248ddb2/registry/uas0601.toml
     title: libmisbklv — registered ST 0601.19 item set
@@ -25,8 +31,10 @@ UAS Datalink Local Set items.
 
 **Sources:**
 - [[parrot-metadata-formats]] — Parrot field definitions
-- `references/Embedded Video Metadata - 8.4.2.html` — Parrot's `vmeta.proto` and
-  the v1/v2/v3 binary structs, verbatim
+- `references/vmeta.proto` — Parrot's schema, vendored verbatim under BSD-3-Clause
+- libvideo-metadata `include/video-metadata/vmeta_frame_v3.h` § `struct vmeta_frame_v3`
+  — the v3 binary struct layout, at the commit pinned in
+  `references/parrot-video-metadata.md`
 - libmisbklv `registry/uas0601.toml` — the registered ST 0601.19 item set
 - libmisbklv `references/ST0601.19.txt` — the standard itself (per-item format
   blocks, Tables 3/10/11/12)
