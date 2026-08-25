@@ -1,50 +1,36 @@
-# CI setup — the one secret `build.yml` needs
+# CI setup — no secrets required
 
-`build.yml` clones **libmisbklv**, which is a separate *private* repository. The
-automatic `GITHUB_TOKEN` is scoped to this repository alone and cannot read it,
-so the runner needs a credential of its own.
+`build.yml` and `release.yml` fetch **libmisbklv** through `FetchContent` in
+`CMakeLists.txt`, pinned to an exact commit. Since libmisbklv became public on
+2026-08-25 the clone goes over anonymous HTTPS
+(`https://github.com/nitsuga/libmisbklv.git`) and needs no credential at all.
 
-**Use a read-only deploy key**, not a personal SSH key: a deploy key grants read
-access to exactly one repository, where a personal key carries whatever its owner
-can reach. A key that lives in a CI secret is a key that any workflow — including
-one added in a pull request — can use.
+Neither workflow reads a secret. The automatic `GITHUB_TOKEN` is enough for
+everything else they do, and a fork's pull request builds without any setup —
+which was not true before.
 
-One-time setup:
+## What this replaces
 
-```bash
-# 1. A dedicated keypair, kept out of ~/.ssh so it is never used interactively.
-ssh-keygen -t ed25519 -N '' -C 'parrot-to-klv CI' -f /tmp/misbklv-ci
+While libmisbklv was private, `GITHUB_TOKEN` could not clone it, so each of the
+three build jobs ran an "Authorize the private dependency" step that installed a
+read-only deploy key from the `MISBKLV_DEPLOY_KEY` secret and rewrote
+`~/.ssh/config` to use it. `GIT_REPOSITORY` was `git@github.com:` accordingly.
 
-# 2. Public half -> a read-only deploy key on the dependency.
-gh repo deploy-key add /tmp/misbklv-ci.pub \
-  --repo nitsuga/libmisbklv --title 'parrot-to-klv CI (read-only)'
+All of that is gone: the three steps, the secret, and the deploy key on
+libmisbklv. A deploy key was the right shape for the problem — read access to
+exactly one repository, where a personal key carries whatever its owner can
+reach — but the problem no longer exists, and a secret that any workflow can
+read is worth not having.
 
-# 3. Private half -> a secret on this repository.
-gh secret set MISBKLV_DEPLOY_KEY --repo nitsuga/parrot-to-klv < /tmp/misbklv-ci
+The rejected alternatives are recorded for the same reason. A fine-grained PAT
+plus a `url.<https>.insteadOf` rewrite also worked and avoided SSH, but a PAT is
+account-scoped and expires. Vendoring or a submodule would have removed the
+credential problem too, at the cost of the exact-commit pin in `CMakeLists.txt`
+being the single record of which libmisbklv this project builds against — that
+pin survives the transport change unaltered.
 
-# 4. Both halves are now where they belong; remove the local copies.
-shred -u /tmp/misbklv-ci /tmp/misbklv-ci.pub
-```
+## If libmisbklv ever goes private again
 
-Omit `--allow-write` (the default is read-only) — CI only ever clones.
-
-## Why not the alternatives
-
-- **A fine-grained PAT** with read access to libmisbklv, plus a
-  `url.<https>.insteadOf` rewrite, also works and avoids SSH entirely. It is a
-  reasonable second choice, but a PAT is account-scoped and expires, so it is
-  more to hold correctly than a per-repo key that does not.
-- **Vendoring or a submodule** would remove the credential problem, at the cost
-  of the exact-commit pin in `CMakeLists.txt` being the single record of which
-  libmisbklv this project builds against.
-
-## Rotating or revoking
-
-Delete the deploy key (`gh repo deploy-key list --repo nitsuga/libmisbklv`, then
-`delete <id>`) and re-run the steps above. Nothing else references the key.
-
-## When libmisbklv goes public
-
-Drop the "Authorize the private dependency" step, and switch
-`GIT_REPOSITORY` in `CMakeLists.txt` from `git@github.com:` to
-`https://github.com/` so the clone needs no credential at all.
+Restore the deploy key per the history of this file (`git log -p --
+.github/workflows/README-ci.md`) and switch `GIT_REPOSITORY` back to
+`git@github.com:`. Nothing else in this repository depends on the transport.

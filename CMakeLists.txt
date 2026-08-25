@@ -20,7 +20,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 include(FetchContent)
 FetchContent_Declare(
   misbklv
-  GIT_REPOSITORY git@github.com:nitsuga/libmisbklv.git
+  GIT_REPOSITORY https://github.com/nitsuga/libmisbklv.git
   # Live insert teardown: keeps the mpegtsmux request pad linked through a real
   # EOS drain instead of releasing it mid-PLAYING, closing the GList
   # use-after-free that survived the SEI-probe fix (libmisbklv#40, this repo's

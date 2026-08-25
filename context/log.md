@@ -1,5 +1,9 @@
 # Knowledge Bundle Log
 
+## 2026-08-25
+
+* **chore: libmisbklv is public, so CI fetches it over anonymous HTTPS and the deploy key is retired.** `FetchContent`'s `GIT_REPOSITORY` moves from `git@github.com:nitsuga/libmisbklv.git` to `https://github.com/nitsuga/libmisbklv.git`; the exact-commit pin is unchanged, and bumping it stays its own commit. The three "Authorize the private dependency" steps — two in `build.yml` (build, sanitizers), one in `release.yml` — are deleted along with the `MISBKLV_DEPLOY_KEY` secret they read and the read-only deploy key on libmisbklv they authenticated with. **Neither workflow now reads any secret**, which also means a fork's pull request builds with no setup, something the private dependency made impossible. Verified before pushing: an anonymous clone with `GIT_SSH_COMMAND=/bin/false` and an emptied credential helper reaches the repository and fetches the pinned commit `b8ad143`, so nothing was relying on ambient SSH credentials. `.github/workflows/README-ci.md` is rewritten around the current state and keeps the retired setup, and the reasons the PAT and submodule alternatives were rejected, on the record. [ADR 0009](./decisions/0009-release-bundle.md) § Context still says building requires "a deploy key for a private dependency": left as written, because an ADR records what was true when the decision was taken and is not restated as circumstances move. libmisbklv keeps a second deploy key for `dji-to-klv`, which is a different repository's business and untouched.
+
 <!-- Durable chronological record, newest first, ISO YYYY-MM-DD day headings.
      One thin line per decision (chronology + link — the ADR owns the rationale);
      a fuller entry per significant implementation. Routine ingests/lint go here

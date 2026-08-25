@@ -44,24 +44,6 @@ jobs:
             gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
             gstreamer1.0-plugins-bad
 
-      # Same read-only deploy key as the test workflow — GITHUB_TOKEN is scoped
-      # to this repository and cannot clone the private dependency. See
-      # .github/workflows/README-ci.md.
-      - name: Authorize the private dependency
-        env:
-          MISBKLV_DEPLOY_KEY: ${{ secrets.MISBKLV_DEPLOY_KEY }}
-        run: |
-          if [ -z "$MISBKLV_DEPLOY_KEY" ]; then
-            echo "::error::secret MISBKLV_DEPLOY_KEY is not set — see .github/workflows/README-ci.md"
-            exit 1
-          fi
-          mkdir -p ~/.ssh && chmod 700 ~/.ssh
-          printf '%s\n' "$MISBKLV_DEPLOY_KEY" > ~/.ssh/misbklv
-          chmod 600 ~/.ssh/misbklv
-          ssh-keyscan -t rsa,ecdsa,ed25519 github.com >> ~/.ssh/known_hosts 2>/dev/null
-          printf 'Host github.com\n  IdentityFile ~/.ssh/misbklv\n  IdentitiesOnly yes\n' \
-            >> ~/.ssh/config
-
       - name: Build
         run: |
           cmake --preset release-bundle

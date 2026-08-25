@@ -84,9 +84,11 @@ The one substantive feature piece left is **fork 4, Tier 2 geometry fidelity**
 
 - **Preparing to make the repository public.** The driver is multi-architecture
   releases: GitHub's free arm64 hosted runners and unmetered Actions minutes are
-  public-repo benefits, and going public also retires the private-dependency
-  deploy key both CI workflows carry — though **not** arm64 itself, which
-  GitHub made available to private repositories in January 2026. The source-policy
+  public-repo benefits — though **not** arm64 itself, which GitHub made
+  available to private repositories in January 2026. libmisbklv went public on
+  2026-08-25, so `FetchContent` now clones it over anonymous HTTPS and the
+  private-dependency deploy key both CI workflows carried is retired; neither
+  workflow reads a secret. The source-policy
   question is settled and the default tree is clean —
   Parrot's documentation snapshot was not redistributable and has been withdrawn
   from `references/` in favor of a link file plus the schema vendored under
