@@ -1,0 +1,247 @@
+---
+type: Decision
+title: ADR 0017 — Ship arm64 alongside x86-64, building both in a pinned 22.04 container on hosted runners
+description: Multi-architecture deliverables come from a matrixed native build on GitHub's Linux arm64 hosted runners, with both architectures built inside a pinned ubuntu:22.04 job container so the glibc floor stops depending on a runner label that is being retired; one bundle and one arch-tagged container per architecture, no fat manifest
+decision_status: accepted
+fork: 15
+tags: [decision, release, packaging, ci, arm64, portability, glibc]
+generated:
+  by: claude/opus-5
+  at: 2026-08-26T00:00:00Z
+sources:
+  - id: gh-hosted-runners
+    resource: https://docs.github.com/en/actions/reference/runners/github-hosted-runners
+    title: GitHub — About GitHub-hosted runners (arm64 labels, vCPU by repository visibility)
+  - id: ubuntu-2204-deprecation
+    resource: https://github.com/actions/runner-images/issues/14254
+    title: actions/runner-images#14254 — ubuntu-22.04 and ubuntu-22.04-arm begin deprecation 2026-09-17, fully unsupported 2027-04-17
+---
+
+# Context
+
+Fork 15 asks for `aarch64` deliverables beside the x86-64 ones. The fork was
+originally framed as gated on making this repository public; that framing was
+wrong and has already been corrected in [ROADMAP](../../planning/ROADMAP.md) —
+arm64 hosted runners reached private repositories in January 2026. Visibility
+changes the *resources* (4 vCPU and unmetered minutes public, 2 vCPU against the
+included allotment private), not the availability. **This decision is therefore
+not blocked on the pending publication work.**
+
+The code side is already done, and by accident rather than by effort. Nothing in
+`src/`, `CMakeLists.txt`, or `CMakePresets.json` names an architecture: no
+intrinsics, no `-march`, no assumed word size beyond what the fixed-width KLV and
+MP4 parsing already spell explicitly. libmisbklv is the same.
+`packaging/make-bundle.sh` discovers GStreamer through `pkg-config` and closes
+the shared-object set with `ldd`, so it has no architecture-specific path to get
+wrong. `packaging/Dockerfile` is `FROM gcr.io/distroless/base-debian12`, a
+multi-architecture manifest that resolves to arm64 on an arm host without being
+told. What is *not* architecture-clean is `release.yml`, and only in its naming.
+
+**A second, unrelated clock forced its way into this fork.** The x86 build job is
+pinned to `ubuntu-22.04` deliberately: [ADR 0009](./0009-release-bundle.md) makes
+the oldest supported target the build host, because glibc compatibility runs
+forward only, and the 2.35 floor *is* that runner image. Both `ubuntu-22.04` and
+its natural arm counterpart `ubuntu-22.04-arm` begin deprecation on 2026-09-17
+and are fully unsupported after 2027-04-17, with brownout windows before then
+that fail jobs outright.
+
+That would have been a separate fork, except that resolving it separately means
+building the arm leg on a label already scheduled for removal — knowingly writing
+a second job that has to be rewritten within months. ADR 0009 anticipated this
+exactly, in its own open questions:
+
+> Assumes `ubuntu-22.04` remains available as a GitHub runner. It is deprecated
+> eventually; when it goes, the choice is a `container: ubuntu:22.04` build (the
+> 20.04 plan, resurrected) or dropping 22.04.
+
+So this ADR resolves both: **which infrastructure builds arm64**, and **what the
+glibc floor rests on once the runner image carrying it is gone.**
+
+# Decision
+
+**Build both architectures natively on GitHub's hosted runners, inside a pinned
+`ubuntu:22.04` job container, as a matrixed `release.yml` producing a complete
+independent deliverable set per architecture.**
+
+Three parts.
+
+## 1. Native arm64, matrixed
+
+The `build` job matrices over an x86-64 runner and an arm64 one, with the
+architecture carried as a matrix variable and substituted into the bundle name in
+place of the literal `linux-x86_64`. `smoke` and `smoke-image` matrix the same
+way and run **natively on their own architecture** — `smoke-image` especially,
+since it does a real `docker load` and executes the launcher, which cannot be
+emulated honestly.
+
+Artifacts get architecture-qualified names. `upload-artifact` on its current
+major rejects a duplicate artifact name rather than merging into it, so two
+matrix legs uploading `bundle` is an error; `publish` collects them by pattern
+and attaches every asset to the one release.
+
+## 2. The glibc floor moves into a container
+
+The build job runs on `ubuntu-24.04` / `ubuntu-24.04-arm` with
+`container: ubuntu:22.04` pinned by digest. The runner image becomes irrelevant
+to the produced binary; what determines the floor is a base image we name.
+
+This **keeps the 22.04 support commitment intact** rather than dropping it, and
+it is strictly more honest than the status quo: today the floor is asserted by a
+runner label that GitHub controls and is retiring. After this it is asserted by a
+pinned digest, and the existing glibc check still verifies the result rather than
+trusting either.
+
+The check itself is **unchanged**. It reads the highest `GLIBC_<version>` symbol
+the binary imports and fails above 2.35 — a comparison of version strings, not of
+architectures, correct on aarch64 as written. It remains the thing that would
+catch this decision being implemented wrongly.
+
+## 3. The container image tag becomes architecture-qualified
+
+`packaging/make-image.sh` tags the image `parrot-to-klv:<version>`, and
+`packaging/parrot-to-klv` (the launcher) loads the tarball **only if that tag is
+not already present**:
+
+```sh
+if ! "$ENGINE" image inspect "$IMAGE_TAG" >/dev/null 2>&1; then
+  ... "$ENGINE" load -i "$IMAGE_FILE"
+fi
+```
+
+That check is right for its original purpose — load once, not on every
+invocation. With two architectures publishing the same tag it becomes a trap: on
+a machine that has loaded either image, the other architecture's launcher finds
+the tag, **skips its own load**, and runs the wrong binary. The failure is silent
+at load time and surfaces as an exec-format error or an emulated run, neither of
+which points at the cause.
+
+Qualifying the tag (`parrot-to-klv:<version>-<arch>`) costs one `sed`
+substitution in `make-image.sh`, preserves the launcher's caching behavior, and
+makes the two deliverables genuinely independent — which is what
+[ADR 0010](./0010-container-deliverable.md) already claims they are.
+
+# Alternatives considered
+
+**QEMU emulation on x86 runners.** Rejected. A bundle is not just a compile:
+`make-bundle.sh` runs `pkg-config`, `ldd`, and `strip` against the target's own
+libraries, and `smoke`/`smoke-image` exist precisely to execute the result. Under
+emulation the release's central claim — "this runs on a clean target" — would be
+tested by an emulator rather than by the architecture, and the GStreamer-heavy
+build would run several times slower for the privilege. Native runners are
+available and free-tier eligible.
+
+**Cross-compilation with a sysroot.** Rejected more firmly. It would require
+assembling an aarch64 GStreamer/GLib sysroot and teaching `make-bundle.sh` to
+resolve against it instead of the host, converting a script with no
+architecture-specific logic into one that has plenty. It also cannot run what it
+produces, so it removes the smoke tests rather than adapting them.
+
+**Self-hosted arm64 runners.** Rejected. It solves a problem this project does
+not have (custom hardware, sustained throughput) and adds ones it does not want:
+a machine to maintain and secure, and — once this repository is public — a
+self-hosted runner reachable from fork pull requests, a well-known foot-gun.
+
+**One fat multi-architecture container manifest via `buildx` + a registry.**
+Rejected as a *different deliverable*, not a better one. ADR 0010's container is
+deliberately a `docker save` tarball plus a launcher: downloadable from the
+release page, loadable with no registry, no login, and no network after download.
+A multi-architecture manifest is a registry construct — producing one means
+either publishing to a registry (a new distribution channel, new credentials, its
+own decision) or hand-assembling a manifest list into a tarball that `docker
+load` handles inconsistently across engines. Two clearly-labeled
+single-architecture tarballs match what a user downloads: one, for their machine.
+
+**Ship arm64 as bundle-only.** Rejected as an arbitrary asymmetry. The image is
+built *from* the bundle (ADR 0010) and costs one extra job leg.
+
+**Move to `ubuntu-24.04` and raise the floor to glibc 2.39.** Rejected, and this
+is the alternative that most deserved to win. It is the simplest possible answer
+to the deprecation — change two labels, delete the container wiring, done — and
+Ubuntu 22.04 leaves standard support in April 2027 anyway, weeks before the
+runner image does. What it is not is a CI change: it silently drops every 22.04
+user, and it does so as a side effect of a workflow edit rather than as a stated
+support decision. The bundle exists so that someone who cannot `apt install`
+anything can still convert a flight, and that user is disproportionately on the
+older LTS. Dropping them is defensible, but it should be a decision someone makes
+on purpose, with release notes — not a consequence of a runner label expiring.
+
+**Keep `ubuntu-22.04` until it breaks.** Rejected. It works until 2026-09-17,
+degrades through brownouts that fail releases at unpredictable times, and the
+work still has to be done — just later, under time pressure, possibly during a
+release.
+
+# Consequences
+
+- **The glibc floor is now a property of a pinned digest rather than a runner
+  label.** This is the durable win, and it outlives fork 15: the same wiring
+  survives the 24.04 and 26.04 deprecations without another decision, and the
+  floor moves only when someone deliberately moves it.
+- **This resolves ADR 0009's open question** about `ubuntu-22.04` availability,
+  choosing the `container: ubuntu:22.04` branch it named over dropping 22.04.
+  ADR 0009 is not amended — it recorded what was true when taken.
+- **The build job's dependency install changes shape.** A bare `ubuntu:22.04`
+  container is not a runner image: `sudo` is absent (steps run as root, so it is
+  also unnecessary), and `git` plus `git-lfs` must be installed *before*
+  `actions/checkout`, or checkout falls back to an API tarball and the LFS
+  fixtures arrive as pointers. The smoke job already demonstrates the
+  container-job pattern in this workflow, so this is not new ground.
+- **The `libunwind-*-dev` workaround probably becomes unnecessary.** It exists
+  because the 22.04 *runner image* ships LLVM's `libunwind-*-dev`, conflicting
+  with the `libunwind-dev` that `libgstreamer1.0-dev` needs. A stock `ubuntu:22.04`
+  base image carries no such preinstall. It is already written `|| true`, so
+  leaving it costs nothing — but it should be removed deliberately once observed
+  to be a no-op, not left as cargo.
+- **Release deliverables double, and so does release wall-clock.** Both
+  architectures build, smoke, and smoke-image in parallel, so wall-clock is
+  bounded by the slower leg — arm, at 2 vCPU while this repository stays private.
+  Building in a container also adds a dependency install that the runner image
+  partly preinstalled today.
+- **The smoke tests get stronger, not merely wider.** The bundle smoke job's real
+  claim is that nothing leaks in from the host; running it on a second
+  architecture is an independent trial of that claim, and a host dependency that
+  slipped into the bundle is far likelier to surface as a missing or mismatched
+  object on arm than as a subtle bug on x86.
+- Documentation asserting a single architecture must change:
+  [ADR 0009](./0009-release-bundle.md) § Consequences and PROGRESS § Known gaps
+  both state the bundle is x86-64 only, and `packaging/usage-head-bundle.md` /
+  `usage-head-docker.md` describe one download.
+- A user now picks an architecture at download time. The `-linux-x86_64` /
+  `-linux-aarch64` suffixes are the whole of that guidance, so they stay in that
+  spelling rather than `-amd64` / `-arm64`: `uname -m` prints the former pair,
+  which is what a user checks with.
+- The `IR`/thermal and real-footage gaps are untouched. Architecture coverage is
+  not evidence coverage.
+
+# Assumptions / open questions
+
+- **Whether arm64 has ever run this code is untested.** The claim that the source
+  is architecture-clean comes from reading it, not from a green suite. The first
+  arm CI run is the evidence; if it fails, it fails on real portability grounds
+  (alignment, `char` signedness, endianness assumptions in the KLV and MP4 paths)
+  worth an ADR of their own.
+- **Settle the container-build wiring on x86 before adding the arm leg.**
+  `release.yml` has a `workflow_dispatch` trigger that runs the whole pipeline and
+  stops before publishing, which exists for this. Two changes land here — a new
+  architecture and a new build environment — and debugging them together is
+  avoidable by sequencing them.
+- Job containers on arm64 hosted runners are assumed to work as they do on x86;
+  GitHub documents no architecture restriction, but it is not positively
+  confirmed either. The `workflow_dispatch` run settles this too.
+- Pinning `ubuntu:22.04` by digest means nothing updates it, including security
+  updates to the build toolchain. That is the same trade ADR 0009 already made
+  for the bundle's GStreamer, and the answer is the same: a rebuild, deliberately.
+- Ubuntu 22.04 leaves standard support in April 2027. The base image stays
+  pullable well beyond that, so this decision does not expire then — but the
+  *support commitment* it preserves should be revisited on that date rather than
+  inherited indefinitely.
+- Whether anyone is asking for arm64 deliverables is not established. The case is
+  that the cost is now low and the code is already portable — not that a user
+  requested it.
+
+# Citations
+
+- [[0009-release-bundle]] — the relocatable bundle, the glibc floor, the
+  x86-64-only statement this amends, and the open question this resolves.
+- [[0010-container-deliverable]] — the container as a `docker save` tarball plus
+  launcher, which is why a multi-architecture manifest is the wrong shape here.
+- [ROADMAP](../../planning/ROADMAP.md) § Open forks — fork 15 as stated.

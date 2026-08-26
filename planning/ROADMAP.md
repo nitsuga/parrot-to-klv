@@ -83,17 +83,6 @@ register).
   it has: Tier 1 is complete and Items 21/22/23/24/25/57/78/82–89 are the
   remainder. See [field mapping](../context/field-mapping-analysis.md) § Tier 2.
 
-- **Fork 15 — Multi-architecture release** `OPEN`: ship arm64 (`aarch64`)
-  deliverables alongside x86-64. The code is architecture-clean in both this
-  repository and libmisbklv, so the choice is about build infrastructure —
-  native hosted runners, QEMU emulation on x86 runners, or self-hosted arm64 —
-  each trading cost against build time and against how much of the suite can be
-  trusted to run. **Not gated on repository visibility:** GitHub shipped arm64
-  standard runners for private repositories in January 2026, free-tier eligible,
-  so the public/private split here is resources and billing (4 vCPU and
-  unlimited minutes public, 2 vCPU against the included allotment private), not
-  availability.
-
 Fork 13 (live streaming — ingest, unified `-i`/`-o` CLI, and file→live replay)
 is decided and implemented; it has left this list for the
 [register](../context/decisions/index.md) (ADRs 0013/0014/0015).
@@ -101,6 +90,10 @@ is decided and implemented; it has left this list for the
 Fork 14 (the `references/` licensing withdrawal) was deliberated and decided in
 one session, so it never appeared here; see the
 [register](../context/decisions/index.md).
+
+Fork 15 (multi-architecture release) is decided and not yet implemented; it has
+left this list for the [register](../context/decisions/index.md) (ADR 0017),
+which also resolved where the glibc floor rests once `ubuntu-22.04` is retired.
 
 Genuinely open (undeliberated) forks get a line here until they have an ADR;
 once decided they move to the [register](../context/decisions/index.md) and leave
