@@ -102,8 +102,10 @@ The one substantive feature piece left is **fork 4, Tier 2 geometry fidelity**
 
 ## Next
 
-1. Decide the multi-architecture release approach — see [ROADMAP](./ROADMAP.md)
-   § Open forks.
+1. Implement [ADR 0017](../context/decisions/0017-multi-architecture-release.md)
+   in `release.yml`, in the order that ADR sets: move the x86 build into the
+   pinned `ubuntu:22.04` job container first and prove it through
+   `workflow_dispatch`, then add the arm64 matrix leg.
 2. Fork 4, Tier 2 geometry fidelity, in [ROADMAP](./ROADMAP.md).
 
 ## Known gaps
