@@ -18,13 +18,13 @@ here: [MP4 metadata extraction](../context/mp4-extraction.md),
 surface — flags, output, the scrub and conform workflows — is in
 [`README.md`](../README.md).
 
-**`v0.2.3` is the current release.** This patch closes the last live-teardown
-crash: the heap-corruption residual `v0.2.2` left open on #57 is attributed to
-libmisbklv's `GstInserter::finish` releasing the `mpegtsmux` request pad
-mid-`PLAYING`, fixed upstream (libmisbklv#40, ADR 0034) and pinned in here at
-`b8ad143` (#68). A 560-run stress campaign against that pin — `live_rtp` and
-`live_video` under `MALLOC_CHECK_=3` and `MALLOC_PERTURB_=165` at full CPU
-load — is clean, against a pre-fix rate of 1.6-5.2%. #57 is closed.
+**`v0.3.0` is the current release.** Native x86-64 and `aarch64` bundles and
+container images ship together, each built and smoke-tested on its own
+architecture. The Ubuntu 22.04 compatibility floor now comes from the shared
+digest-pinned Jammy build container rather than a retiring runner label, while
+the GLIBC symbol check continues to enforce 2.35. Artifact filenames, inner
+image archives, and image tags carry the `uname -m` architecture spelling. CLI
+behavior and output formats are unchanged.
 
 **`v0.2.2` delivered** the libmisbklv deterministic SEI-probe teardown fix
 (the first half of the live-RTSP Generate use-after-free, #57 / upstream #38),
@@ -115,15 +115,6 @@ The one substantive feature piece left is **fork 4, Tier 2 geometry fidelity**
   intersection — the substantive remaining work in the transform stage, and the
   one part of the mapping with no direct Parrot source. Its fidelity is fork 4,
   now open in [ROADMAP](./ROADMAP.md).
-- **The latest published bundle (`v0.2.3`) is x86-64 only.** The release workflow
-  now builds independent x86-64 and `aarch64` bundles/images and smokes each on
-  a native 24.04 runner; the first full matrix run is green, and publishing is
-  deliberately all-or-nothing across the two architectures. The outer release
-  assets, inner image archives, and image tags are architecture-qualified.
-  22.04 compatibility rests on the checked glibc floor, not a smoke run. Each
-  bundle pins its build-time GStreamer: host security updates do not reach it,
-  a rebuild does ([ADR 0009](../context/decisions/0009-release-bundle.md)
-  § Consequences).
 - **The `IR` half of `--infer-image-source` has never met a thermal recording.**
   The `EO` half is exercised by fixtures and by real EO flights; that thermal
   imagery always writes the thermal extension is reasoning about the format, not

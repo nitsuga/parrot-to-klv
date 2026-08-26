@@ -7,6 +7,37 @@ tell a user nothing.
 The release workflow publishes the section matching the tag, so a heading here
 must be exactly `## vX.Y.Z`.
 
+## v0.3.0
+
+This release adds native arm64 downloads alongside x86-64 and makes the release
+build independent of GitHub's retiring Ubuntu 22.04 runner labels. CLI behavior
+and output formats are unchanged.
+
+### Added
+
+- **Native `aarch64` release deliverables.** Every release now carries a
+  self-contained bundle and an exported container image for arm64 as well as
+  x86-64. Choose the `x86_64` or `aarch64` filename that matches `uname -m`;
+  each artifact is built and smoke-tested on a native runner.
+
+### Changed
+
+- **The Ubuntu 22.04 compatibility floor now comes from a pinned build
+  container.** Both architectures build inside the same digest-pinned Jammy
+  image on Ubuntu 24.04 hosts, with the existing GLIBC symbol check still
+  enforcing the 2.35 ceiling. This preserves Ubuntu 22.04 compatibility without
+  depending on runner labels scheduled for retirement.
+- **Container image files and tags identify their architecture.** The supplied
+  launchers handle this automatically. When running an image directly, use
+  `parrot-to-klv:0.3.0-x86_64` or `parrot-to-klv:0.3.0-aarch64`.
+
+### Fixed
+
+- **Bundle assembly no longer intermittently exits with status 141.** SONAME
+  discovery now consumes the complete `objdump` stream, so a large shared
+  object's remaining output cannot turn successful discovery into a SIGPIPE
+  failure under `pipefail`.
+
 ## v0.2.3
 
 This patch release removes the last crash on live-session teardown. Output
