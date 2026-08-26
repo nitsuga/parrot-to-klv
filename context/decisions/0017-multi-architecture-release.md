@@ -7,7 +7,7 @@ fork: 15
 tags: [decision, release, packaging, ci, arm64, portability, glibc]
 generated:
   by: openai/gpt-5
-  at: 2026-08-26T05:04:57Z
+  at: 2026-08-26T05:13:14Z
 sources:
   - id: gh-hosted-runners
     resource: https://docs.github.com/en/actions/reference/runners/github-hosted-runners
@@ -243,19 +243,21 @@ release.
 
 # Assumptions / open questions
 
-- **Whether arm64 has ever run this code is untested.** The claim that the source
-  is architecture-clean comes from reading it, not from a green suite. The first
-  arm CI run is the evidence; if it fails, it fails on real portability grounds
-  (alignment, `char` signedness, endianness assumptions in the KLV and MP4 paths)
-  worth an ADR of their own.
+- **arm64 now has native release evidence.** The first matrix run compiled the
+  code, enforced the glibc floor, assembled both deliverables, and passed the
+  bundle and image smoke suites on `ubuntu-24.04-arm` in
+  [`workflow_dispatch` run 32932948339](https://github.com/nitsuga/parrot-to-klv/actions/runs/32932948339).
+  The earlier architecture-clean claim is therefore no longer source reading
+  alone.
 - **The container-build wiring was settled on x86 before the arm leg was
   added.** The isolated first implementation commit passed the whole release
   pipeline through [`workflow_dispatch`](https://github.com/nitsuga/parrot-to-klv/actions/runs/32932383100),
   including bundle and image smoke tests. Only then was the arm matrix added, so
   any failure in its first run has one new cause.
-- Job containers on arm64 hosted runners are assumed to work as they do on x86;
-  GitHub documents no architecture restriction, but it is not positively
-  confirmed either. The `workflow_dispatch` run settles this too.
+- Job containers on arm64 hosted runners are confirmed for this workflow by the
+  same run: the pinned multi-architecture Jammy image initialized natively,
+  bootstrapped Git/LFS, reached the mounted host Docker daemon, and completed the
+  release build.
 - The digest needs a deliberate owner. Nothing moves it, which is the point, but
   nothing prompts anyone to move it either — so the base image ages silently
   while the toolchain installed on top of it keeps updating from Jammy. This is a

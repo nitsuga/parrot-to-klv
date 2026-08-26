@@ -91,10 +91,10 @@ Fork 14 (the `references/` licensing withdrawal) was deliberated and decided in
 one session, so it never appeared here; see the
 [register](../context/decisions/index.md).
 
-Fork 15 (multi-architecture release) is decided and implemented in the release
-workflow; first native arm evidence is pending its manual run. It has left this
-list for the [register](../context/decisions/index.md) (ADR 0017), which also
-resolved where the glibc floor rests once `ubuntu-22.04` is retired.
+Fork 15 (multi-architecture release) is decided, implemented, and proven on both
+native architectures. It has left this list for the
+[register](../context/decisions/index.md) (ADR 0017), which also resolved where
+the glibc floor rests once `ubuntu-22.04` is retired.
 
 Genuinely open (undeliberated) forks get a line here until they have an ADR;
 once decided they move to the [register](../context/decisions/index.md) and leave
