@@ -2,6 +2,8 @@
 
 ## 2026-08-26
 
+* **release: move the x86-64 bundle build off the deprecating runner image and into the pinned Jammy job container — ADR 0017's first implementation stage.** `release.yml` now supplies compute with `ubuntu-24.04` while the build runs in the multi-architecture `ubuntu:22.04@sha256:2edbbc…c7dbc` image. A pre-checkout bootstrap installs Git and Git LFS because the stock image has neither and checkout's REST fallback cannot satisfy `lfs: true`; subsequent dependency installation runs as the container's root user, without `sudo`, and explicitly supplies `make` plus the Docker client that talks to the host daemon through the socket GitHub mounts into job containers. Inspection of that exact base found no installed `libunwind-*-dev`, so the runner-image-only removal workaround is deliberately gone rather than surviving as a silent `|| true` no-op. Manual artifact versions come directly from `GITHUB_SHA` rather than asking Git to trust the host-owned workspace. The x86-only shape is intentional and temporary: this commit must pass `workflow_dispatch` before the arm64 matrix is added, keeping a failed run attributable to one environmental change.
+
 * **Fork 15 decided: arm64 ships beside x86-64, and the glibc floor moves off the runner label that carries it** ([ADR 0017](./decisions/0017-multi-architecture-release.md), #75). Two clocks resolved as one decision, because `ubuntu-22.04` and `ubuntu-22.04-arm` both begin deprecation on 2026-09-17 and the arm leg would otherwise have been written against a label already scheduled for removal. Not yet implemented.
 
 ## 2026-08-25

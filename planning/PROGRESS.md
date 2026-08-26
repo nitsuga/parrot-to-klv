@@ -102,10 +102,10 @@ The one substantive feature piece left is **fork 4, Tier 2 geometry fidelity**
 
 ## Next
 
-1. Implement [ADR 0017](../context/decisions/0017-multi-architecture-release.md)
-   in `release.yml`, in the order that ADR sets: move the x86 build into the
-   pinned `ubuntu:22.04` job container first and prove it through
-   `workflow_dispatch`, then add the arm64 matrix leg.
+1. Finish [ADR 0017](../context/decisions/0017-multi-architecture-release.md):
+   the x86 build has moved into the pinned `ubuntu:22.04` job container on an
+   `ubuntu-24.04` host; prove that isolated change through `workflow_dispatch`,
+   then add the arm64 matrix leg only after the run is green.
 2. Fork 4, Tier 2 geometry fidelity, in [ROADMAP](./ROADMAP.md).
 
 ## Known gaps
