@@ -102,11 +102,7 @@ The one substantive feature piece left is **fork 4, Tier 2 geometry fidelity**
 
 ## Next
 
-1. Implement [ADR 0017](../context/decisions/0017-multi-architecture-release.md)
-   in `release.yml`, in the order that ADR sets: move the x86 build into the
-   pinned `ubuntu:22.04` job container first and prove it through
-   `workflow_dispatch`, then add the arm64 matrix leg.
-2. Fork 4, Tier 2 geometry fidelity, in [ROADMAP](./ROADMAP.md).
+1. Fork 4, Tier 2 geometry fidelity, in [ROADMAP](./ROADMAP.md).
 
 ## Known gaps
 - **Non-H.264 output carries no ST 0604.** Generation is H.264-only upstream, so
@@ -119,10 +115,15 @@ The one substantive feature piece left is **fork 4, Tier 2 geometry fidelity**
   intersection — the substantive remaining work in the transform stage, and the
   one part of the mapping with no direct Parrot source. Its fidelity is fork 4,
   now open in [ROADMAP](./ROADMAP.md).
-- **The bundle is x86-64 only, and CI can only prove 24.04.** 22.04 rests on the
-  glibc floor — a sound argument, not a test. It also pins a build-time
-  GStreamer: host security updates do not reach it, a rebuild does
-  ([ADR 0009](../context/decisions/0009-release-bundle.md) § Consequences).
+- **The latest published bundle (`v0.2.3`) is x86-64 only.** The release workflow
+  now builds independent x86-64 and `aarch64` bundles/images and smokes each on
+  a native 24.04 runner; the first full matrix run is green, and publishing is
+  deliberately all-or-nothing across the two architectures. The outer release
+  assets, inner image archives, and image tags are architecture-qualified.
+  22.04 compatibility rests on the checked glibc floor, not a smoke run. Each
+  bundle pins its build-time GStreamer: host security updates do not reach it,
+  a rebuild does ([ADR 0009](../context/decisions/0009-release-bundle.md)
+  § Consequences).
 - **The `IR` half of `--infer-image-source` has never met a thermal recording.**
   The `EO` half is exercised by fixtures and by real EO flights; that thermal
   imagery always writes the thermal extension is reasoning about the format, not

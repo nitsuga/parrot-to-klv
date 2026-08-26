@@ -7,7 +7,7 @@ fork: 9
 tags: [decision, packaging, release, gstreamer, ci, phase-3]
 generated:
   by: claude/opus-5
-  at: 2026-07-28T10:45:00Z
+  at: 2026-08-26T05:04:57Z
 sources:
   - id: libmisbklv-0025-demuxer-passthrough
     resource: https://github.com/nitsuga/libmisbklv/blob/1732e0c986e4b252a030147c389585da8248ddb2/context/decisions/0025-explicit-demuxer-passthrough.md
@@ -135,9 +135,10 @@ being solved.
   distribution should not carry to have it sit unused in a registry. libmisbklv's
   ADR 0025 replaced parsebin with an explicit demuxer instead. Packaging found a
   latent defect that would have hit any minimal deployment.
-- The bundle is **x86-64 only** and CI can only prove **24.04**. 22.04 rests on
-  the glibc floor, which is a sound argument and not a test. Real coverage would
-  need a self-hosted runner.
+- **Revisited 2026-08-26:** the bundle was x86-64-only when this decision was
+  written. [ADR 0017](./0017-multi-architecture-release.md) adds an independent
+  `aarch64` bundle and native 24.04 smoke coverage for both architectures. 22.04
+  compatibility still rests on the checked glibc floor rather than a smoke run.
 - The container list the tool can read is now libmisbklv's explicit table
   (MP4/MOV, MPEG-TS, Matroska) rather than whatever GStreamer could autoplug.
   Irrelevant for Parrot MP4s; worth knowing.

@@ -5,16 +5,23 @@
 # Build the container image from an already-assembled bundle, and package it as
 # the second release deliverable: the exported image, the launcher, and usage.
 #
-#   ./packaging/make-image.sh <bundle-dir> <version> <staging-dir>
+#   ./packaging/make-image.sh <bundle-dir> <version> <architecture> <staging-dir>
 #
 # The bundle is the input on purpose — one build feeds both deliverables, so
 # they cannot describe different binaries. See ADR 0010.
 
 set -euo pipefail
 
-BUNDLE=${1:?usage: make-image.sh <bundle-dir> <version> <staging-dir>}
-VERSION=${2:?usage: make-image.sh <bundle-dir> <version> <staging-dir>}
-OUT=${3:?usage: make-image.sh <bundle-dir> <version> <staging-dir>}
+usage='make-image.sh <bundle-dir> <version> <architecture> <staging-dir>'
+BUNDLE=${1:?usage: $usage}
+VERSION=${2:?usage: $usage}
+ARCH=${3:?usage: $usage}
+OUT=${4:?usage: $usage}
+
+case "$ARCH" in
+  x86_64|aarch64) ;;
+  *) echo "unsupported release architecture: $ARCH" >&2; exit 2 ;;
+esac
 
 here=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 source "$here/staging-output-guard.sh"
@@ -22,8 +29,8 @@ staging_output_guard_validate "$OUT" "$BUNDLE"
 engine=$(command -v docker || command -v podman) || {
   echo "neither docker nor podman on PATH" >&2; exit 1; }
 
-tag="parrot-to-klv:$VERSION"
-image_file="parrot-to-klv-$VERSION-image.tar.gz"
+tag="parrot-to-klv:$VERSION-$ARCH"
+image_file="parrot-to-klv-$VERSION-$ARCH-image.tar.gz"
 
 # Build in a scratch context so the Dockerfile's COPY finds the bundle at a
 # fixed path regardless of where the caller staged it.
@@ -45,7 +52,8 @@ sed -e "s|@IMAGE_TAG@|$tag|g" -e "s|@IMAGE_FILE@|$image_file|g" \
     "$here/parrot-to-klv" > "$OUT/parrot-to-klv"
 chmod +x "$OUT/parrot-to-klv"
 
-sed "s|@VERSION@|$VERSION|g" "$here/usage-head-docker.md" > "$OUT/USAGE.md"
+sed -e "s|@VERSION@|$VERSION|g" -e "s|@ARCH@|$ARCH|g" \
+    "$here/usage-head-docker.md" > "$OUT/USAGE.md"
 printf '\n' >> "$OUT/USAGE.md"
 cat "$here/usage-common.md" >> "$OUT/USAGE.md"
 cp "$BUNDLE/THIRD-PARTY.md" "$OUT/THIRD-PARTY.md"

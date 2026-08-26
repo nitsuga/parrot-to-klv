@@ -3,7 +3,8 @@
 Parrot drone telemetry to MISB ST 0601 KLV, in an MPEG-TS.
 
 Self-contained: everything it needs is in this directory. Nothing to install, no
-root, no changes to your system. Ubuntu 22.04 or 24.04, x86-64.
+root, no changes to your system. Ubuntu 22.04 or 24.04, x86-64 or arm64
+(`aarch64`).
 
 ## Running it
 

@@ -17,32 +17,53 @@ concurrency:
 
 jobs:
   build:
-    # Pinned to the OLDEST supported release, deliberately, and not
-    # ubuntu-latest. glibc compatibility runs forward only: a binary built
-    # against 22.04's 2.35 runs on 24.04, one built on 24.04 does not run on
-    # 22.04. Moving this to a newer image silently drops 22.04 support.
-    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    # The host label supplies compute; the digest-pinned job container supplies
+    # the oldest supported userspace. glibc compatibility runs forward only: a
+    # binary built against 22.04's 2.35 runs on 24.04, one built on 24.04 does
+    # not run on 22.04. The symbol check below enforces that floor independently.
+    runs-on: ${{ matrix.runner }}
+    container:
+      # OCI index digest, not a per-architecture manifest digest: both matrix
+      # legs resolve their native image from this one multi-architecture pin.
+      image: ubuntu:22.04@sha256:2edbbc5dc405e9612ba3584ce95480277e3eb374407b5505fe26f17df77c7dbc
+    env:
+      ARCH: ${{ matrix.arch }}
     steps:
+      # A bare Ubuntu container has no git. checkout's REST fallback cannot
+      # materialize LFS objects and fails when lfs=true, so bootstrap both tools
+      # before asking checkout to touch the repository (ADR 0017).
+      - name: Bootstrap checkout
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            ca-certificates git git-lfs
+
       - uses: actions/checkout@v7
         with:
-          lfs: true  # test fixtures are LFS objects; a bare checkout gets pointers
+          lfs: true  # test fixtures must be materialized, not left as pointers
 
       - name: Install build dependencies
         run: |
-          sudo apt-get update
-          # The 22.04 runner image ships LLVM's libunwind-*-dev, which conflicts
-          # with the plain libunwind-dev that libgstreamer1.0-dev depends on —
-          # apt then reports "held broken packages" and names only the
-          # dependency, not the conflict. Nothing here needs LLVM's copy. This
-          # does not arise on the 24.04 image the test workflow uses, so it is
-          # specific to pinning the build to the oldest target.
-          sudo apt-get remove -y 'libunwind-*-dev' || true
-          sudo apt-get install -y --no-install-recommends \
-            cmake g++ libunwind-dev \
+          # The old runner-image build removed LLVM's preinstalled
+          # libunwind-*-dev before this install. The stock job container has no
+          # libunwind development package, so install the required one directly.
+          # GitHub mounts the host daemon socket into job containers; docker.io
+          # supplies the client that builds the image from this job's bundle.
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            cmake docker.io g++ make libunwind-dev \
             libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
             libgstreamer-plugins-bad1.0-dev \
             gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
             gstreamer1.0-plugins-bad
+          docker version
 
       - name: Build
         run: |
@@ -66,8 +87,8 @@ jobs:
       - name: Assemble the bundle
         run: |
           version="${GITHUB_REF_NAME#v}"
-          [ "$GITHUB_REF_TYPE" = tag ] || version="$(git rev-parse --short HEAD)"
-          name="parrot-to-klv-${version}-linux-x86_64"
+          [ "$GITHUB_REF_TYPE" = tag ] || version="$(printf '%.7s' "$GITHUB_SHA")"
+          name="parrot-to-klv-${version}-linux-${ARCH}"
           echo "BUNDLE_NAME=$name" >> "$GITHUB_ENV"
           ./packaging/make-bundle.sh build/bundle "staging/$name"
           tar -C staging -czf "$name.tar.gz" "$name"
@@ -77,10 +98,10 @@ jobs:
       # both deliverables, so they cannot describe different binaries (ADR 0010).
       - name: Assemble the container deliverable
         run: |
-          version="${BUNDLE_NAME#parrot-to-klv-}"; version="${version%-linux-x86_64}"
+          version="${BUNDLE_NAME#parrot-to-klv-}"; version="${version%-linux-$ARCH}"
           name="${BUNDLE_NAME}-docker"
           echo "DOCKER_NAME=$name" >> "$GITHUB_ENV"
-          ./packaging/make-image.sh "staging/$BUNDLE_NAME" "$version" "staging/$name"
+          ./packaging/make-image.sh "staging/$BUNDLE_NAME" "$version" "$ARCH" "staging/$name"
           tar -C staging -czf "$name.tar.gz" "$name"
           sha256sum "$name.tar.gz" | tee "$name.tar.gz.sha256"
 
@@ -90,7 +111,7 @@ jobs:
       # node20, which is what produces the runtime deprecation warnings.
       - uses: actions/upload-artifact@v7
         with:
-          name: bundle
+          name: bundle-${{ matrix.arch }}
           path: |
             ${{ env.BUNDLE_NAME }}.tar.gz
             ${{ env.BUNDLE_NAME }}.tar.gz.sha256
@@ -102,7 +123,7 @@ jobs:
       # has no git, and the point of that job is to add as little as possible.
       - uses: actions/upload-artifact@v7
         with:
-          name: smoke-fixtures
+          name: smoke-fixtures-${{ matrix.arch }}
           path: test/fixtures/parrot_v3_video_audio.mp4
           if-no-files-found: error
 
@@ -112,13 +133,27 @@ jobs:
     # and it is the reason this workflow exists rather than trusting the glibc
     # argument alone.
     needs: build
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     container: ubuntu:24.04
+    env:
+      ARCH: ${{ matrix.arch }}
     steps:
       - uses: actions/download-artifact@v8
-        with: {name: bundle, path: dl}
+        with:
+          name: bundle-${{ matrix.arch }}
+          path: dl
       - uses: actions/download-artifact@v8
-        with: {name: smoke-fixtures, path: fixtures}
+        with:
+          name: smoke-fixtures-${{ matrix.arch }}
+          path: fixtures
 
       # Prove the negative before relying on it. If a base image ever starts
       # shipping GStreamer, this test quietly stops testing anything.
@@ -134,8 +169,8 @@ jobs:
         run: |
           # Specific, not dl/*.tar.gz: the container deliverable sits beside this
           # one and would be swept up by a loose glob.
-          tar -xzf dl/parrot-to-klv-*-linux-x86_64.tar.gz
-          cd parrot-to-klv-*-linux-x86_64/
+          tar -xzf dl/parrot-to-klv-*-linux-${ARCH}.tar.gz
+          cd parrot-to-klv-*-linux-${ARCH}/
           ./parrot-to-klv ../fixtures/parrot_v3_video_audio.mp4 -o /tmp/out.ts
           test -s /tmp/out.ts || { echo "::error::no output written"; exit 1; }
 
@@ -163,7 +198,7 @@ jobs:
       # udpsink, so the guarantee covers every plugin this PR added.
       - name: Check every live-path plugin loads from the bundle
         run: |
-          b=$(echo parrot-to-klv-*-linux-x86_64)
+          b=$(echo parrot-to-klv-*-linux-${ARCH})
           export LD_LIBRARY_PATH="$b/lib"
           rc=0
           for p in udp srt rtsp rtp rtpmanager; do
@@ -189,7 +224,7 @@ jobs:
       # needed; the replay does one play-through then exits.
       - name: Check a live output path runs from the bundle
         run: |
-          cd parrot-to-klv-*-linux-x86_64/
+          cd parrot-to-klv-*-linux-${ARCH}/
           ./parrot-to-klv -i ../fixtures/parrot_v3_video_audio.mp4 -o udp://127.0.0.1:30011 \
             || { echo "::error::file->UDP replay failed from the bundle — a live-path plugin is missing"; exit 1; }
           echo "file->UDP replay succeeded from the bundle"
@@ -201,12 +236,24 @@ jobs:
     # output owned by them", which is the failure mode a containerized file tool
     # gets wrong.
     needs: build
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/download-artifact@v8
-        with: {name: bundle, path: dl}
+        with:
+          name: bundle-${{ matrix.arch }}
+          path: dl
       - uses: actions/download-artifact@v8
-        with: {name: smoke-fixtures, path: fixtures}
+        with:
+          name: smoke-fixtures-${{ matrix.arch }}
+          path: fixtures
 
       - name: Load and convert through the launcher
         run: |
@@ -252,7 +299,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7   # for CHANGELOG.md
       - uses: actions/download-artifact@v8
-        with: {name: bundle, path: dl}
+        with:
+          pattern: bundle-*
+          path: dl
+          merge-multiple: true
 
       # The release page gets the hand-written section from CHANGELOG.md, not
       # just the commit list. --generate-notes alone would publish raw commit

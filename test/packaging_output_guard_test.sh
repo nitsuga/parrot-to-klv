@@ -101,5 +101,5 @@ touch "$bundle_output/sentinel" "$image_output/sentinel"
 expect_refusal bundle_contains_input "$bundle_script" "$bundle_build" "$bundle_output"
 [ -f "$bundle_output/sentinel" ] || fail "make-bundle removed its unsafe output"
 
-expect_refusal image_overlaps_input "$image_script" "$image_bundle" 0.0-test "$image_output"
+expect_refusal image_overlaps_input "$image_script" "$image_bundle" 0.0-test x86_64 "$image_output"
 [ -f "$image_output/sentinel" ] || fail "make-image removed its unsafe output"
