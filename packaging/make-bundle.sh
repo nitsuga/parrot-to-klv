@@ -120,8 +120,13 @@ done
 # only shows up on the target machine.
 while read -r lib; do
   [ -n "$lib" ] || continue
-  soname=$(objdump -p "$lib" 2>/dev/null | awk '/SONAME/ {print $2; exit}')
-  cp -L "$lib" "$OUT/lib/${soname:-$(basename "$lib")}"
+  # Consume all of objdump's output even after finding SONAME. Exiting awk
+  # early can close the pipe while objdump is still writing a large dynamic
+  # section; under pipefail that intermittent SIGPIPE aborts bundle assembly.
+  soname=$(objdump -p "$lib" 2>/dev/null |
+           awk '/SONAME/ && !found {print $2; found=1}')
+  target="$OUT/lib/${soname:-$(basename "$lib")}"
+  cp -L "$lib" "$target"
 done < "$OUT/.closure"
 rm -f -- "$OUT/.closure"
 
