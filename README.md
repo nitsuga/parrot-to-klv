@@ -1,5 +1,8 @@
 # Parrot to KLV
 
+[![CI](https://github.com/nitsuga/parrot-to-klv/actions/workflows/build.yml/badge.svg)](https://github.com/nitsuga/parrot-to-klv/actions/workflows/build.yml)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+
 Converts Parrot drone telemetry metadata embedded in MP4 files into MPEG-TS files
 carrying the video alongside a MISB ST 0601 KLV stream. A command-line tool.
 
