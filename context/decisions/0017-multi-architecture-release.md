@@ -18,6 +18,9 @@ sources:
   - id: checkout-rest-fallback
     resource: https://github.com/actions/checkout/blob/main/adrs/0153-checkout-v2.md
     title: actions/checkout ADR 0153 — REST API fallback when git is unavailable; fails outright when lfs is true
+  - id: ubuntu-jammy-libc6
+    resource: https://packages.ubuntu.com/jammy/libc6
+    title: Ubuntu — libc6 in jammy (glibc 2.35; jammy-updates and -security carry Ubuntu revisions of the same upstream release)
 ---
 
 # Context
@@ -91,11 +94,19 @@ to the produced binary; what determines the floor is a base image we name.
 **What the digest pins is the starting filesystem and apt configuration — not
 the toolchain.** The job still runs `apt-get update` and installs CMake, GCC,
 and the GStreamer development packages from the live Jammy repositories, so
-those can move between builds. That is fine, and deliberately not worth fixing:
-the floor this decision protects is glibc, and Jammy's repositories do not serve
-a glibc newer than 2.35. Freezing the toolchain outright would mean snapshot
-repositories or pinned package versions, which buys a reproducibility this
-decision does not need.
+those can move between builds. That is fine, and deliberately not worth fixing.
+What the container selects is a **distribution line**, and Jammy's repositories
+carry glibc 2.35 — `jammy-updates` and `jammy-security` ship Ubuntu revisions of
+that same upstream release, not a newer one.[^ubuntu-jammy-libc6] So the moving
+packages cannot raise the floor.
+
+That is an assumption about a distribution's update policy, though, not a
+guarantee this repository controls — which is exactly why the GLIBC symbol check
+is the thing that **enforces** the floor. If Jammy ever did serve a newer glibc,
+the check fails the build rather than shipping a binary that dies on a user's
+machine. Freezing the toolchain outright would mean snapshot repositories or
+pinned package versions, which buys a reproducibility this decision does not
+need.
 
 This **keeps the 22.04 support commitment intact** rather than dropping it, and
 it is strictly more honest than the status quo: today the floor is asserted by a
@@ -279,6 +290,10 @@ release.
 - `actions/checkout` ADR 0153[^checkout-rest-fallback] supplied the REST-fallback
   behavior, correcting a first draft of this ADR that described the no-git case
   as degrading to pointer files rather than failing.
+- Ubuntu's `libc6` package page for jammy[^ubuntu-jammy-libc6] is what makes the
+  distribution line load-bearing rather than merely plausible: it is the reason
+  a moving toolchain cannot raise the floor. It is a policy observation, not a
+  guarantee — the symbol check is the guarantee.
 
 [^gh-hosted-runners]: GitHub — *About GitHub-hosted runners* § Supported runners
     and hardware resources: the `ubuntu-22.04-arm` / `ubuntu-24.04-arm` labels,
@@ -293,3 +308,8 @@ release.
     — the REST archive path is taken when git is unavailable or too old, and
     "LFS files are not included in the archive. Therefore fail if LFS is set to
     true."
+
+[^ubuntu-jammy-libc6]: Ubuntu — `libc6` in jammy: upstream glibc **2.35**, with
+    `jammy-updates` / `jammy-security` carrying Ubuntu revisions
+    (`2.35-0ubuntu3`, `2.35-0ubuntu3.14`) of that same upstream release rather
+    than a newer one.
