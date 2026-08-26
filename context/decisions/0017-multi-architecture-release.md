@@ -6,8 +6,8 @@ decision_status: accepted
 fork: 15
 tags: [decision, release, packaging, ci, arm64, portability, glibc]
 generated:
-  by: claude/opus-5
-  at: 2026-08-26T00:00:00Z
+  by: openai/gpt-5
+  at: 2026-08-26T05:04:57Z
 sources:
   - id: gh-hosted-runners
     resource: https://docs.github.com/en/actions/reference/runners/github-hosted-runners
@@ -213,12 +213,12 @@ release.
   `lfs: true`.[^checkout-rest-fallback] A loud failure is the better of the two
   outcomes, but it is still a failed release. The smoke job already demonstrates
   the container-job pattern in this workflow, so this is not new ground.
-- **The `libunwind-*-dev` workaround probably becomes unnecessary.** It exists
-  because the 22.04 *runner image* ships LLVM's `libunwind-*-dev`, conflicting
-  with the `libunwind-dev` that `libgstreamer1.0-dev` needs. A stock `ubuntu:22.04`
-  base image carries no such preinstall. It is already written `|| true`, so
-  leaving it costs nothing — but it should be removed deliberately once observed
-  to be a no-op, not left as cargo.
+- **The `libunwind-*-dev` workaround is removed deliberately.** It existed
+  because the 22.04 *runner image* shipped LLVM's `libunwind-*-dev`, conflicting
+  with the `libunwind-dev` that `libgstreamer1.0-dev` needs. Inspection of the
+  pinned stock container found no installed libunwind development package, and
+  the isolated x86 container run installed `libunwind-dev` cleanly. The old
+  `apt-get remove ... || true` therefore does not survive as cargo.
 - **Release deliverables double; runner minutes roughly double; wall-clock does
   not.** Both architectures build, smoke, and smoke-image in parallel, so
   wall-clock is bounded by the slower leg rather than by the sum — that leg being
@@ -230,10 +230,10 @@ release.
   architecture is an independent trial of that claim, and a host dependency that
   slipped into the bundle is far likelier to surface as a missing or mismatched
   object on arm than as a subtle bug on x86.
-- Documentation asserting a single architecture must change:
-  [ADR 0009](./0009-release-bundle.md) § Consequences and PROGRESS § Known gaps
-  both state the bundle is x86-64 only, and `packaging/usage-head-bundle.md` /
-  `usage-head-docker.md` describe one download.
+- Documentation now names both architectures: [ADR 0009](./0009-release-bundle.md)
+  § Consequences records the expansion, README and the generated usage guides
+  tell the user to select the `uname -m` spelling, and PROGRESS distinguishes
+  the last x86-only release from the matrixed release workflow.
 - A user now picks an architecture at download time. The `-linux-x86_64` /
   `-linux-aarch64` suffixes are the whole of that guidance, so they stay in that
   spelling rather than `-amd64` / `-arm64`: `uname -m` prints the former pair,
@@ -248,11 +248,11 @@ release.
   arm CI run is the evidence; if it fails, it fails on real portability grounds
   (alignment, `char` signedness, endianness assumptions in the KLV and MP4 paths)
   worth an ADR of their own.
-- **Settle the container-build wiring on x86 before adding the arm leg.**
-  `release.yml` has a `workflow_dispatch` trigger that runs the whole pipeline and
-  stops before publishing, which exists for this. Two changes land here — a new
-  architecture and a new build environment — and debugging them together is
-  avoidable by sequencing them.
+- **The container-build wiring was settled on x86 before the arm leg was
+  added.** The isolated first implementation commit passed the whole release
+  pipeline through [`workflow_dispatch`](https://github.com/nitsuga/parrot-to-klv/actions/runs/32932383100),
+  including bundle and image smoke tests. Only then was the arm matrix added, so
+  any failure in its first run has one new cause.
 - Job containers on arm64 hosted runners are assumed to work as they do on x86;
   GitHub documents no architecture restriction, but it is not positively
   confirmed either. The `workflow_dispatch` run settles this too.

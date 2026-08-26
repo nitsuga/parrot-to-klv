@@ -17,13 +17,14 @@ ST 0604 SEI, which the output carries because we ask libmisbklv to generate it
 
 ## Getting it
 
-Tagged releases carry two prebuilt deliverables for Ubuntu 22.04 / 24.04,
-x86-64, on the [releases page](https://github.com/nitsuga/parrot-to-klv/releases):
+Tagged releases carry two prebuilt deliverables for each supported architecture
+on Ubuntu 22.04 / 24.04. Choose `x86_64` or `aarch64` to match `uname -m` on the
+target machine, on the [releases page](https://github.com/nitsuga/parrot-to-klv/releases):
 
-- **`…-linux-x86_64.tar.gz`** — extract and run. Self-contained: no GStreamer,
-  no root, nothing installed. This is the recommended one.
-- **`…-linux-x86_64-docker.tar.gz`** — an exported container image plus a
-  launcher, for hosts that already run containers.
+- **`…-linux-<architecture>.tar.gz`** — extract and run. Self-contained: no
+  GStreamer, no root, nothing installed. This is the recommended one.
+- **`…-linux-<architecture>-docker.tar.gz`** — an exported container image plus
+  a launcher, for hosts that already run containers.
 
 Each carries a `USAGE.md`. Why they are shaped this way:
 [ADR 0009](context/decisions/0009-release-bundle.md) and

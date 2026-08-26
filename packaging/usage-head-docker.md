@@ -6,6 +6,10 @@ Runs from a container image, so the only thing you need installed is Docker or
 Podman. The image is loaded from the tarball beside this file on first use and
 reused after that; every run is ephemeral (`--rm`).
 
+This deliverable contains the `@ARCH@` image. Its architecture-qualified tag is
+`parrot-to-klv:@VERSION@-@ARCH@`, so it cannot collide with the other
+architecture's image when both have been loaded on one machine.
+
 ## Running it
 
 ```sh
@@ -36,7 +40,7 @@ The script is a convenience, not a requirement. The equivalent by hand:
 docker run --rm --network none \
   --user "$(id -u):$(id -g)" \
   -v /path/to/flights:/work \
-  parrot-to-klv:@VERSION@ /work/flight.mp4 -o /work/flight.ts
+  parrot-to-klv:@VERSION@-@ARCH@ /work/flight.mp4 -o /work/flight.ts
 ```
 
 Mount read-only and split the directories if input and output live apart:
@@ -45,7 +49,7 @@ Mount read-only and split the directories if input and output live apart:
 docker run --rm --network none \
   --user "$(id -u):$(id -g)" \
   -v /path/to/input:/in:ro -v /path/to/output:/out \
-  parrot-to-klv:@VERSION@ /in/flight.mp4 -o /out/flight.ts
+  parrot-to-klv:@VERSION@-@ARCH@ /in/flight.mp4 -o /out/flight.ts
 ```
 
 `--network none` is not required — the tool never uses the network, so it costs
