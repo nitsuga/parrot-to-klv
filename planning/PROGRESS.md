@@ -123,8 +123,7 @@ The one substantive feature piece left is **fork 4, Tier 2 geometry fidelity**
   22.04 compatibility rests on the checked glibc floor, not a smoke run. Each
   bundle pins its build-time GStreamer: host security updates do not reach it,
   a rebuild does ([ADR 0009](../context/decisions/0009-release-bundle.md)
-  § Consequences). Bundle SONAME discovery consumes all `objdump` output so
-  `pipefail` cannot mistake successful discovery for a SIGPIPE failure.
+  § Consequences).
 - **The `IR` half of `--infer-image-source` has never met a thermal recording.**
   The `EO` half is exercised by fixtures and by real EO flights; that thermal
   imagery always writes the thermal extension is reasoning about the format, not
