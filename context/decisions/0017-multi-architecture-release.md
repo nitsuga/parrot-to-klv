@@ -15,6 +15,9 @@ sources:
   - id: ubuntu-2204-deprecation
     resource: https://github.com/actions/runner-images/issues/14254
     title: actions/runner-images#14254 — ubuntu-22.04 and ubuntu-22.04-arm begin deprecation 2026-09-17, fully unsupported 2027-04-17
+  - id: checkout-rest-fallback
+    resource: https://github.com/actions/checkout/blob/main/adrs/0153-checkout-v2.md
+    title: actions/checkout ADR 0153 — REST API fallback when git is unavailable; fails outright when lfs is true
 ---
 
 # Context
@@ -23,9 +26,9 @@ Fork 15 asks for `aarch64` deliverables beside the x86-64 ones. The fork was
 originally framed as gated on making this repository public; that framing was
 wrong and has already been corrected in [ROADMAP](../../planning/ROADMAP.md) —
 arm64 hosted runners reached private repositories in January 2026. Visibility
-changes the *resources* (4 vCPU and unmetered minutes public, 2 vCPU against the
-included allotment private), not the availability. **This decision is therefore
-not blocked on the pending publication work.**
+changes the *resources* (4 vCPU and unmetered minutes public, 2 vCPU against
+the included allotment private), not the availability.[^gh-hosted-runners]
+**This decision is therefore not blocked on the pending publication work.**
 
 The code side is already done, and by accident rather than by effort. Nothing in
 `src/`, `CMakeLists.txt`, or `CMakePresets.json` names an architecture: no
@@ -43,7 +46,7 @@ the oldest supported target the build host, because glibc compatibility runs
 forward only, and the 2.35 floor *is* that runner image. Both `ubuntu-22.04` and
 its natural arm counterpart `ubuntu-22.04-arm` begin deprecation on 2026-09-17
 and are fully unsupported after 2027-04-17, with brownout windows before then
-that fail jobs outright.
+that fail jobs outright.[^ubuntu-2204-deprecation]
 
 That would have been a separate fork, except that resolving it separately means
 building the arm leg on a label already scheduled for removal — knowingly writing
@@ -84,6 +87,15 @@ and attaches every asset to the one release.
 The build job runs on `ubuntu-24.04` / `ubuntu-24.04-arm` with
 `container: ubuntu:22.04` pinned by digest. The runner image becomes irrelevant
 to the produced binary; what determines the floor is a base image we name.
+
+**What the digest pins is the starting filesystem and apt configuration — not
+the toolchain.** The job still runs `apt-get update` and installs CMake, GCC,
+and the GStreamer development packages from the live Jammy repositories, so
+those can move between builds. That is fine, and deliberately not worth fixing:
+the floor this decision protects is glibc, and Jammy's repositories do not serve
+a glibc newer than 2.35. Freezing the toolchain outright would mean snapshot
+repositories or pinned package versions, which buys a reproducibility this
+decision does not need.
 
 This **keeps the 22.04 support commitment intact** rather than dropping it, and
 it is strictly more honest than the status quo: today the floor is asserted by a
@@ -172,30 +184,36 @@ release.
 
 # Consequences
 
-- **The glibc floor is now a property of a pinned digest rather than a runner
-  label.** This is the durable win, and it outlives fork 15: the same wiring
-  survives the 24.04 and 26.04 deprecations without another decision, and the
-  floor moves only when someone deliberately moves it.
+- **The glibc floor stops depending on a runner label GitHub controls.** This is
+  the durable win, and it outlives fork 15: the same wiring survives the 24.04
+  and 26.04 deprecations without another decision. The digest fixes which
+  distribution release the build runs against, that release's repositories fix
+  the available glibc, and the GLIBC symbol check remains what actually enforces
+  the result — as it already did when the floor rested on a label.
 - **This resolves ADR 0009's open question** about `ubuntu-22.04` availability,
   choosing the `container: ubuntu:22.04` branch it named over dropping 22.04.
   ADR 0009 is not amended — it recorded what was true when taken.
 - **The build job's dependency install changes shape.** A bare `ubuntu:22.04`
   container is not a runner image: `sudo` is absent (steps run as root, so it is
   also unnecessary), and `git` plus `git-lfs` must be installed *before*
-  `actions/checkout`, or checkout falls back to an API tarball and the LFS
-  fixtures arrive as pointers. The smoke job already demonstrates the
-  container-job pattern in this workflow, so this is not new ground.
+  `actions/checkout`. Without a usable git, checkout falls back to downloading a
+  REST archive — and that path **fails outright** rather than degrading, because
+  LFS objects are not in the archive and this repository checks out with
+  `lfs: true`.[^checkout-rest-fallback] A loud failure is the better of the two
+  outcomes, but it is still a failed release. The smoke job already demonstrates
+  the container-job pattern in this workflow, so this is not new ground.
 - **The `libunwind-*-dev` workaround probably becomes unnecessary.** It exists
   because the 22.04 *runner image* ships LLVM's `libunwind-*-dev`, conflicting
   with the `libunwind-dev` that `libgstreamer1.0-dev` needs. A stock `ubuntu:22.04`
   base image carries no such preinstall. It is already written `|| true`, so
   leaving it costs nothing — but it should be removed deliberately once observed
   to be a no-op, not left as cargo.
-- **Release deliverables double, and so does release wall-clock.** Both
-  architectures build, smoke, and smoke-image in parallel, so wall-clock is
-  bounded by the slower leg — arm, at 2 vCPU while this repository stays private.
-  Building in a container also adds a dependency install that the runner image
-  partly preinstalled today.
+- **Release deliverables double; runner minutes roughly double; wall-clock does
+  not.** Both architectures build, smoke, and smoke-image in parallel, so
+  wall-clock is bounded by the slower leg rather than by the sum — that leg being
+  arm, at 2 vCPU while this repository stays private. Building in a container
+  adds a dependency install to both legs that the runner image partly
+  preinstalled today, so the increase is that install plus the arm/x86 gap.
 - **The smoke tests get stronger, not merely wider.** The bundle smoke job's real
   claim is that nothing leaks in from the host; running it on a second
   architecture is an independent trial of that claim, and a host dependency that
@@ -227,9 +245,12 @@ release.
 - Job containers on arm64 hosted runners are assumed to work as they do on x86;
   GitHub documents no architecture restriction, but it is not positively
   confirmed either. The `workflow_dispatch` run settles this too.
-- Pinning `ubuntu:22.04` by digest means nothing updates it, including security
-  updates to the build toolchain. That is the same trade ADR 0009 already made
-  for the bundle's GStreamer, and the answer is the same: a rebuild, deliberately.
+- The digest needs a deliberate owner. Nothing moves it, which is the point, but
+  nothing prompts anyone to move it either — so the base image ages silently
+  while the toolchain installed on top of it keeps updating from Jammy. This is a
+  weaker version of the trade ADR 0009 made for the bundle's GStreamer, not the
+  same one: there the *shipped* libraries froze, here only the build
+  environment's starting point does.
 - Ubuntu 22.04 leaves standard support in April 2027. The base image stays
   pullable well beyond that, so this decision does not expire then — but the
   *support commitment* it preserves should be revisited on that date rather than
@@ -244,4 +265,31 @@ release.
   x86-64-only statement this amends, and the open question this resolves.
 - [[0010-container-deliverable]] — the container as a `docker save` tarball plus
   launcher, which is why a multi-architecture manifest is the wrong shape here.
-- [ROADMAP](../../planning/ROADMAP.md) § Open forks — fork 15 as stated.
+- [`#75`](https://github.com/nitsuga/parrot-to-klv/issues/75) — the tracking
+  issue this decision resolves, and the stable record of fork 15 as it was
+  stated while open. [ROADMAP](../../planning/ROADMAP.md) no longer carries it:
+  a decided fork leaves the open list for the register.
+- GitHub's hosted-runner reference[^gh-hosted-runners] supplied the arm64 labels
+  and the public/private resource split — which is what establishes that this
+  decision does not wait on the publication work.
+- `actions/runner-images#14254`[^ubuntu-2204-deprecation] supplied the
+  deprecation and retirement dates. It is the reason the glibc-floor question was
+  folded into this fork rather than deferred: the arm leg would otherwise have
+  been written against a label already scheduled for removal.
+- `actions/checkout` ADR 0153[^checkout-rest-fallback] supplied the REST-fallback
+  behavior, correcting a first draft of this ADR that described the no-git case
+  as degrading to pointer files rather than failing.
+
+[^gh-hosted-runners]: GitHub — *About GitHub-hosted runners* § Supported runners
+    and hardware resources: the `ubuntu-22.04-arm` / `ubuntu-24.04-arm` labels,
+    and arm64 at 4 vCPU for public repositories against 2 vCPU for private ones.
+
+[^ubuntu-2204-deprecation]: `actions/runner-images#14254` — the `ubuntu-22.04`
+    and `ubuntu-22.04-arm` labels begin deprecation 2026-09-17 and are fully
+    unsupported after 2027-04-17, with brownout windows that fail jobs in
+    between.
+
+[^checkout-rest-fallback]: `actions/checkout` ADR 0153 § Fallback to GitHub API
+    — the REST archive path is taken when git is unavailable or too old, and
+    "LFS files are not included in the archive. Therefore fail if LFS is set to
+    true."
