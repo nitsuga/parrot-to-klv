@@ -7,7 +7,7 @@ fork: 10
 tags: [decision, packaging, release, docker, ci]
 generated:
   by: claude/opus-5
-  at: 2026-07-28T12:00:00Z
+  at: 2026-08-26T06:45:50Z
 ---
 
 # Context
@@ -33,10 +33,15 @@ containing the image, a launcher, and usage:
 ```
 parrot-to-klv-<version>-linux-x86_64-docker/
   parrot-to-klv                          launcher (docker | podman)
-  parrot-to-klv-<version>-image.tar.gz   docker load
+  parrot-to-klv-<version>-x86_64-image.tar.gz   docker load
   USAGE.md
   THIRD-PARTY.md
 ```
+
+> **Revisited 2026-08-26.** The original x86-64 deliverable named its inner
+> image archive `parrot-to-klv-<version>-image.tar.gz`. ADR 0017 added a second
+> architecture, so both the image tag and this archive now carry the `uname -m`
+> architecture spelling. The deliverable shape is otherwise unchanged.
 
 **Built FROM the bundle.** `make-image.sh` takes the staged bundle as input,
 because two independently-built artifacts would eventually describe different

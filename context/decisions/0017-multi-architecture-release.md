@@ -6,7 +6,7 @@ decision_status: accepted
 fork: 15
 tags: [decision, release, packaging, ci, arm64, portability, glibc]
 generated:
-  by: openai/gpt-5
+  by: claude/opus-5
   at: 2026-08-26T05:13:14Z
 sources:
   - id: gh-hosted-runners
@@ -230,6 +230,11 @@ release.
   architecture is an independent trial of that claim, and a host dependency that
   slipped into the bundle is far likelier to surface as a missing or mismatched
   object on arm than as a subtle bug on x86.
+- **Publishing is atomic across architectures.** `publish` needs every bundle
+  and image smoke leg, so a failure on either architecture blocks the whole
+  release even when the other architecture passed. This is deliberate: no
+  release is preferable to silently publishing only half of the promised asset
+  set. `fail-fast: false` still lets every leg finish and report its evidence.
 - Documentation now names both architectures: [ADR 0009](./0009-release-bundle.md)
   § Consequences records the expansion, README and the generated usage guides
   tell the user to select the `uname -m` spelling, and PROGRESS distinguishes
@@ -243,21 +248,24 @@ release.
 
 # Assumptions / open questions
 
-- **arm64 now has native release evidence.** The first matrix run compiled the
-  code, enforced the glibc floor, assembled both deliverables, and passed the
-  bundle and image smoke suites on `ubuntu-24.04-arm` in
-  [`workflow_dispatch` run 32932948339](https://github.com/nitsuga/parrot-to-klv/actions/runs/32932948339).
-  The earlier architecture-clean claim is therefore no longer source reading
-  alone.
-- **The container-build wiring was settled on x86 before the arm leg was
-  added.** The isolated first implementation commit passed the whole release
-  pipeline through [`workflow_dispatch`](https://github.com/nitsuga/parrot-to-klv/actions/runs/32932383100),
-  including bundle and image smoke tests. Only then was the arm matrix added, so
-  any failure in its first run has one new cause.
-- Job containers on arm64 hosted runners are confirmed for this workflow by the
-  same run: the pinned multi-architecture Jammy image initialized natively,
-  bootstrapped Git/LFS, reached the mounted host Docker daemon, and completed the
-  release build.
+- **Whether arm64 has ever run this code is untested at decision time.** The
+  claim that the source is architecture-clean comes from reading it, not from a
+  green suite. The first arm CI run is the evidence; if it fails, it fails on
+  real portability grounds (alignment, `char` signedness, endianness assumptions
+  in the KLV and MP4 paths) worth an ADR of their own. Resolved during
+  implementation; see the 2026-08-26 release-evidence entry in
+  [the log](../log.md).
+- **Settle the container-build wiring on x86 before adding the arm leg.**
+  `release.yml` has a `workflow_dispatch` trigger that runs the whole pipeline
+  and stops before publishing, which exists for this. Two changes land here — a
+  new architecture and a new build environment — and debugging them together is
+  avoidable by sequencing them. Resolved in that order during implementation;
+  see the 2026-08-26 release entries in [the log](../log.md).
+- Job containers on arm64 hosted runners are assumed at decision time to work as
+  they do on x86; GitHub documents no architecture restriction, but it is not
+  positively confirmed either. The `workflow_dispatch` run settles this too.
+  Resolved during implementation; see the 2026-08-26 release-evidence entry in
+  [the log](../log.md).
 - The digest needs a deliberate owner. Nothing moves it, which is the point, but
   nothing prompts anyone to move it either — so the base image ages silently
   while the toolchain installed on top of it keeps updating from Jammy. This is a

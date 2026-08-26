@@ -6,7 +6,7 @@ decision_status: accepted
 fork: 9
 tags: [decision, packaging, release, gstreamer, ci, phase-3]
 generated:
-  by: openai/gpt-5
+  by: claude/opus-5
   at: 2026-08-26T05:04:57Z
 sources:
   - id: libmisbklv-0025-demuxer-passthrough

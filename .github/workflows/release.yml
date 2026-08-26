@@ -31,6 +31,8 @@ jobs:
     # not run on 22.04. The symbol check below enforces that floor independently.
     runs-on: ${{ matrix.runner }}
     container:
+      # OCI index digest, not a per-architecture manifest digest: both matrix
+      # legs resolve their native image from this one multi-architecture pin.
       image: ubuntu:22.04@sha256:2edbbc5dc405e9612ba3584ce95480277e3eb374407b5505fe26f17df77c7dbc
     env:
       ARCH: ${{ matrix.arch }}

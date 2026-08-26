@@ -30,7 +30,7 @@ engine=$(command -v docker || command -v podman) || {
   echo "neither docker nor podman on PATH" >&2; exit 1; }
 
 tag="parrot-to-klv:$VERSION-$ARCH"
-image_file="parrot-to-klv-$VERSION-image.tar.gz"
+image_file="parrot-to-klv-$VERSION-$ARCH-image.tar.gz"
 
 # Build in a scratch context so the Dockerfile's COPY finds the bundle at a
 # fixed path regardless of where the caller staged it.
