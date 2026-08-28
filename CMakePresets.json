@@ -23,16 +23,6 @@
       }
     },
     {
-      "name": "default",
-      "displayName": "Default",
-      "description": "Default configure preset (Release, build dir: build/release) — alias of release",
-      "binaryDir": "${sourceDir}/build/release",
-      "inherits": "release",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release"
-      }
-    },
-    {
       "name": "debug",
       "displayName": "Debug",
       "description": "Debug build for development (build dir: build/debug)",
@@ -70,13 +60,6 @@
       "displayName": "Base build (hidden)",
       "description": "Hidden base build preset with parallel jobs tuned to this machine (nproc=7 -> jobs=6, nproc-1 to leave headroom)",
       "jobs": 6
-    },
-    {
-      "name": "default",
-      "displayName": "Default build",
-      "description": "Build default (Release, build/release) with parallel jobs via base (nproc=7 -> jobs=6)",
-      "configurePreset": "default",
-      "inherits": "base"
     },
     {
       "name": "release",

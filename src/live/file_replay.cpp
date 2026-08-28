@@ -27,10 +27,6 @@
 namespace parrot_to_klv {
 namespace {
 
-bool starts_with(const std::string& s, const std::string& prefix) {
-    return s.rfind(prefix, 0) == 0;
-}
-
 void interruptible_sleep_for(std::chrono::microseconds delta, bool disable) {
     if (disable || delta.count() <= 0) return;
     auto deadline = std::chrono::steady_clock::now() + delta;
@@ -76,7 +72,7 @@ class InterruptBridge {
 // emit each pass to a distinct file so the test can read back both loops
 // independently (single file sink would be truncated by the second KlvSink).
 std::string sink_for_iteration(const std::string& sink, int iteration, int limit) {
-    if (limit > 0 && starts_with(sink, "file:")) {
+    if (limit > 0 && sink.starts_with("file:")) {
         // For finite test repeats with a file sink, disambiguate per pass.
         // e.g. file:/tmp/out.ts -> file:/tmp/out.ts.pass0 , .pass1
         // The extension stays parseable; KlvStream only cares it exists.
@@ -157,9 +153,9 @@ misbklv::Result<std::monostate> replay_file_to_live(const FileReplayConfig& cfg)
     }
     // Validate sink scheme. For test_repeat_limit>0 we validate the base sink
     // prefix; per-pass disambiguation preserves the file: prefix.
-    bool is_udp = starts_with(cfg.output_sink, "udp:");
-    bool is_srt = starts_with(cfg.output_sink, "srt:");
-    bool is_file = starts_with(cfg.output_sink, "file:");
+    bool is_udp = cfg.output_sink.starts_with("udp:");
+    bool is_srt = cfg.output_sink.starts_with("srt:");
+    bool is_file = cfg.output_sink.starts_with("file:");
     if (!is_udp && !is_srt && !is_file) {
         return misbklv::Result<std::monostate>::err(misbklv::Error::Unsupported);
     }

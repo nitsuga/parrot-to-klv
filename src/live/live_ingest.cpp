@@ -27,17 +27,13 @@
 namespace parrot_to_klv {
 namespace {
 
-bool starts_with(const std::string& s, const std::string& prefix) {
-    return s.rfind(prefix, 0) == 0;
-}
-
 bool is_valid_sink(const std::string& s) {
-    return starts_with(s, "udp:") || starts_with(s, "file:") || starts_with(s, "srt:");
+    return s.starts_with("udp:") || s.starts_with("file:") || s.starts_with("srt:");
 }
 
 bool is_valid_video_source(const std::string& s) {
-    return starts_with(s, "rtsp://") || starts_with(s, "rtsps://") ||
-           starts_with(s, "pipeline:");  // pipeline: is test-only hermetic escape hatch; CLI gates it via PARROT_TEST_ALLOW_PIPELINE
+    return s.starts_with("rtsp://") || s.starts_with("rtsps://") ||
+           s.starts_with("pipeline:");  // pipeline: is test-only hermetic escape hatch; CLI gates it via PARROT_TEST_ALLOW_PIPELINE
 }
 
 TelemetrySnapshot make_dummy_snapshot(int idx) {
@@ -239,7 +235,7 @@ misbklv::Result<std::monostate> live_ingest(const LiveIngestConfig& cfg) {
     std::vector<std::byte> proto_coalesce;
     uint64_t proto_coalesce_pts = GST_CLOCK_TIME_NONE;
 
-    bool is_pipeline = starts_with(video_src, "pipeline:");
+    bool is_pipeline = video_src.starts_with("pipeline:");
 
     // Drive mode (ADR 0013):
     // run_duration == nullopt -> indefinite live-unbounded (drive until

@@ -75,7 +75,7 @@ order; `mux_test` pins it.)
 
 Live streaming (fork 13 / [ADR 0013](../context/decisions/0013-live-streaming-ingest.md)) is **accepted** and now exposed via a unified `-i`/`-o` CLI ([ADR 0014](../context/decisions/0014-unified-cli-input-output-inference.md)): `-i rtsp://… -o <path|udp://…|srt:…>` reaches `live_ingest` with file or UDP/SRT, `path→path` stays deterministic `mux_to_ts`, and `pipeline:` remains a `PARROT_TEST_ALLOW_PIPELINE`-gated test escape hatch behind `-i`. The `path→udp`/`srt:` file-replay bridge is **landed per [ADR 0015](../context/decisions/0015-file-replay-live-output.md)** (paced realtime replay, one play-through or `--repeat` loop) — `-i file.mp4 -o udp://…` and `-i file.mp4 -o srt:…` now replay the recording on the pipeline clock.
 
-Build presets are consolidated under `build/` via `CMakePresets.json` (v3, CMake ≥3.21 for the `ubuntu-22.04` release runner) — `release`/`default` → `build/release` (Release), `debug` → `build/debug` (Debug), `sanitize` → `build/sanitize` (Debug + `PARROT_SANITIZE=ON`, used by `build.yml`'s sanitizers job / `ctest -L parrot-sanitize`), `release-bundle` → `build/bundle` (Release + `PARROT_BUNDLE=ON`, used by `release.yml`); parallel builds via a hidden `base` (`jobs=6`, `nproc 7 → 6`, `nproc-1` headroom). `build.yml` and `release.yml` configure/build through these same presets rather than ad hoc flags.
+Build presets are consolidated under `build/` via `CMakePresets.json` (v3, CMake ≥3.21 for the `ubuntu-22.04` release runner) — `release` → `build/release` (Release), `debug` → `build/debug` (Debug), `sanitize` → `build/sanitize` (Debug + `PARROT_SANITIZE=ON`, used by `build.yml`'s sanitizers job / `ctest -L parrot-sanitize`), `release-bundle` → `build/bundle` (Release + `PARROT_BUNDLE=ON`, used by `release.yml`); parallel builds via a hidden `base` (`jobs=6`, `nproc 7 → 6`, `nproc-1` headroom). `build.yml` and `release.yml` configure/build through these same presets rather than ad hoc flags.
 
 The one substantive feature piece left is **fork 4, Tier 2 geometry fidelity**
 — see [ROADMAP](./ROADMAP.md) § Open forks.
@@ -97,12 +97,12 @@ The one substantive feature piece left is **fork 4, Tier 2 geometry fidelity**
   clear**: GitHub's `refs/pull/*` refs still resolve to pre-rewrite commits, and
   only GitHub Support can purge them along with the cached objects and the
   generated tag archives. The flip waits on that purge being confirmed.
-- **The live drive loops are deduplicated (#81).** `live_ingest` and
-  `file_replay` each ran one loop instead of two near-identical branches, and
-  the in-memory MP4 box reader `session_metadata` and `parrot_scrub` had
-  separately grown is now shared in `mp4_box_scan`. Behavior is unchanged; the
-  shared reader is the wrap-safe one, so the scrub path checks hostile
-  largesize bounds more tightly than before.
+- **The over-engineering audit cleanup is complete (#81, #82).** The live drive
+  loops and in-memory MP4 box reader are deduplicated; C++20 string prefix
+  checks replace three private helpers; one bounded-FIFO insertion owns the
+  live RTP queue invariant; coverage reports share their item-label formatter;
+  and unused preset and GStreamer compatibility aliases are gone. Behavior is
+  unchanged.
 - The live surface is complete: file replay (`path→udp`/`srt:`) is landed and the
   unified CLI covers all four `input × output` cells.
 

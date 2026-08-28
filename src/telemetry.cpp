@@ -4,6 +4,7 @@
 #include "telemetry.hpp"
 
 #include <cmath>
+#include <cstdio>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -184,12 +185,9 @@ TelemetrySnapshot from_v3(const ParrotV3Frame& f) {
     if (f.thermal) s.dropped_fields.push_back("thermal");
     if (f.automation) s.dropped_fields.push_back("automation.animation");
     for (uint16_t id : f.skipped_extension_ids) {
-        s.dropped_fields.push_back("undecoded extension 0x" + [id] {
-            const char* hex = "0123456789abcdef";
-            std::string out;
-            for (int shift = 12; shift >= 0; shift -= 4) out += hex[(id >> shift) & 0xF];
-            return out;
-        }());
+        char hex[7];
+        std::snprintf(hex, sizeof(hex), "0x%04x", static_cast<unsigned>(id));
+        s.dropped_fields.push_back("undecoded extension " + std::string(hex));
     }
 
     // v3's target comes from the automation extension's framing target. It

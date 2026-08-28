@@ -15,6 +15,12 @@ constexpr size_t kMaxCaptured = 128;
 std::mutex g_mu;
 std::deque<CapturedExtension> g_captured;
 
+void push_bounded(CapturedExtension cap) {
+    std::lock_guard<std::mutex> lk(g_mu);
+    if (g_captured.size() >= kMaxCaptured) g_captured.pop_front();
+    g_captured.push_back(std::move(cap));
+}
+
 }  // namespace
 
 std::optional<CapturedExtension> parrot_extension_pop_next() {
@@ -40,22 +46,14 @@ void parrot_extension_push_for_test(std::span<const uint8_t> payload, uint64_t p
     cap.payload.reserve(payload.size());
     for (auto b : payload) cap.payload.push_back(static_cast<std::byte>(b));
     cap.pts_ns = pts_ns;
-    std::lock_guard<std::mutex> lk(g_mu);
-    if (g_captured.size() >= kMaxCaptured) {
-        g_captured.pop_front();
-    }
-    g_captured.push_back(std::move(cap));
+    push_bounded(std::move(cap));
 }
 
 void parrot_extension_push_for_test(std::span<const std::byte> payload, uint64_t pts_ns) {
     CapturedExtension cap;
     cap.payload = std::vector<std::byte>(payload.begin(), payload.end());
     cap.pts_ns = pts_ns;
-    std::lock_guard<std::mutex> lk(g_mu);
-    if (g_captured.size() >= kMaxCaptured) {
-        g_captured.pop_front();
-    }
-    g_captured.push_back(std::move(cap));
+    push_bounded(std::move(cap));
 }
 
 }  // namespace parrot_to_klv
@@ -114,14 +112,7 @@ static gboolean parrot_read(GstRTPHeaderExtension* /*ext*/,
     } else {
         cap.pts_ns = GST_CLOCK_TIME_NONE;
     }
-    {
-        std::lock_guard<std::mutex> lk(parrot_to_klv::g_mu);
-        // Bounded FIFO — drop oldest when full.
-        if (parrot_to_klv::g_captured.size() >= parrot_to_klv::kMaxCaptured) {
-            parrot_to_klv::g_captured.pop_front();
-        }
-        parrot_to_klv::g_captured.push_back(std::move(cap));
-    }
+    parrot_to_klv::push_bounded(std::move(cap));
     return TRUE;
 }
 
@@ -136,11 +127,6 @@ static void parrot_rtp_header_extension_class_init(
     gst_rtp_header_extension_class_set_uri(
         ext_class, parrot_to_klv::kParrotRtpHeaderExtensionUri);
 
-    gst_element_class_set_details_simple(GST_ELEMENT_CLASS(klass),
-                                         "Parrot RTP header extension",
-                                         GST_RTP_HDREXT_ELEMENT_CLASS,
-                                         "Captures Parrot P1/P2/P3/Pb RTP header extensions",
-                                         "Eric Schneider <eric@nitsuga.org>");
     gst_element_class_set_metadata(GST_ELEMENT_CLASS(klass),
                                    "Parrot RTP header extension",
                                    GST_RTP_HDREXT_ELEMENT_CLASS,

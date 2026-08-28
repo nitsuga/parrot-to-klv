@@ -188,6 +188,13 @@ std::string_view item_name(uint16_t tag) {
   return descriptor ? descriptor->name : std::string_view{};
 }
 
+std::string item_label(uint16_t tag, std::size_t width) {
+    std::ostringstream row;
+    row << "    Item " << std::setw(3) << tag << "  " << std::left
+        << std::setw(static_cast<int>(width)) << item_name(tag) << std::right;
+    return row.str();
+}
+
 /// The registry's units for a tag, or empty where it has none.
 std::string_view item_units(uint16_t tag) {
   const auto* descriptor = misbklv::gen::uas_0601.find(tag);
@@ -251,19 +258,12 @@ std::string CoverageReport::to_text(const Disclosure& disclosure) const {
     for (const auto& [tag, value] : emitted) width = std::max(width, item_name(tag).size());
     for (const auto& [tag, reason] : omitted) width = std::max(width, item_name(tag).size());
 
-    const auto label = [&](uint16_t tag) {
-        std::ostringstream row;
-        row << "    Item " << std::setw(3) << tag << "  " << std::left << std::setw(
-                   static_cast<int>(width)) << std::string(item_name(tag)) << std::right;
-        return row.str();
-    };
-
     std::ostringstream out;
     out << "  emitted " << emitted.size() << " item(s):\n";
     for (const auto& [tag, value] : emitted) {
         const bool hide = (is_location(tag) && !disclosure.location) ||
                           (is_identity(tag) && !disclosure.identity);
-        out << label(tag) << "  = " << (hide ? "withheld" : value);
+        out << item_label(tag, width) << "  = " << (hide ? "withheld" : value);
         // Units only on a bare number: a value already carrying a qualifier
         // ("20.000 (clamped)") would read as "(clamped) deg", and "withheld deg"
         // says nothing that "withheld" did not.
@@ -276,7 +276,7 @@ std::string CoverageReport::to_text(const Disclosure& disclosure) const {
     if (!omitted.empty()) {
         out << "  omitted " << omitted.size() << " item(s):\n";
         for (const auto& [tag, reason] : omitted) {
-            out << label(tag) << "  — " << to_string(reason) << "\n";
+            out << item_label(tag, width) << "  — " << to_string(reason) << "\n";
         }
     }
     if (!dropped_fields.empty()) {
@@ -306,13 +306,6 @@ std::string AggregatedCoverage::to_text() const {
     std::size_t width = 0;
     for (const auto& [tag, counts] : items) width = std::max(width, item_name(tag).size());
 
-    const auto label = [&](uint16_t tag) {
-        std::ostringstream row;
-        row << "    Item " << std::setw(3) << tag << "  " << std::left << std::setw(
-                   static_cast<int>(width)) << std::string(item_name(tag)) << std::right;
-        return row.str();
-    };
-
     std::ostringstream out;
     out << "Coverage across " << frames_counted << " frame(s):\n";
     std::vector<uint16_t> varying;
@@ -320,7 +313,7 @@ std::string AggregatedCoverage::to_text() const {
         uint32_t total_omitted = 0;
         for (const auto& [reason, count] : counts.omitted) total_omitted += count;
 
-        out << label(tag) << "  emitted " << counts.emitted << "/" << frames_counted;
+        out << item_label(tag, width) << "  emitted " << counts.emitted << "/" << frames_counted;
         if (total_omitted > 0) {
             out << ", omitted " << total_omitted << "/" << frames_counted << " (";
             bool first = true;
