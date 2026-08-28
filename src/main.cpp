@@ -255,12 +255,8 @@ void print_usage(std::ostream& out, const char* program) {
 
 namespace cli_detail {
 
-bool starts_with(const std::string& s, const std::string& prefix) {
-    return s.rfind(prefix, 0) == 0;
-}
-
 std::string normalize_udp_sink(const std::string& s) {
-    if (starts_with(s, "udp://")) {
+    if (s.starts_with("udp://")) {
         return "udp:" + s.substr(6);
     }
     return s;
@@ -279,13 +275,13 @@ bool udp_sink_host_port_valid(const std::string& s) {
 }
 
 bool is_live_input_value(const std::string& s) {
-    return starts_with(s, "rtsp://") || starts_with(s, "rtsps://") ||
-           starts_with(s, "pipeline:");
+    return s.starts_with("rtsp://") || s.starts_with("rtsps://") ||
+           s.starts_with("pipeline:");
 }
 
-bool is_udp_sink_value(const std::string& s) { return starts_with(s, "udp:"); }
+bool is_udp_sink_value(const std::string& s) { return s.starts_with("udp:"); }
 
-bool is_srt_sink_value(const std::string& s) { return starts_with(s, "srt:"); }
+bool is_srt_sink_value(const std::string& s) { return s.starts_with("srt:"); }
 
 }  // namespace cli_detail
 
@@ -474,7 +470,7 @@ int main(int argc, char* argv[]) {
     }
 
     // pipeline: is test-only hermetic escape hatch; CLI gates it via PARROT_TEST_ALLOW_PIPELINE.
-    if (is_live_input && cli_detail::starts_with(input, "pipeline:")) {
+    if (is_live_input && input.starts_with("pipeline:")) {
         if (!std::getenv("PARROT_TEST_ALLOW_PIPELINE")) {
             std::fprintf(stderr,
                          "error: pipeline: video_source is test-only; set "
