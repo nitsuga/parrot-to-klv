@@ -2,6 +2,21 @@
 
 ## 2026-08-28
 
+* **Bumped the libmisbklv pin for live terminal status:** moved the exact
+  `GIT_TAG` from `b8ad143` to upstream `08f65de`, which adds the nonblocking
+  `KlvSink::poll()` API consumed by issue #94. This pin change is kept separate
+  from the parrot integration commit.
+
+* **Returned live pipeline terminal failures for issue #94:** libmisbklv now
+  exposes `Inserter::poll()`/`KlvSink::poll()`; the GStreamer backend observes
+  EOS/ERROR without blocking and retains a consumed terminal result for a later
+  `close()`. `live_ingest` polls that surface on its drive loop, returns
+  `Error::Backend` before telemetry can arrive when the pipeline fails, stops
+  cleanly on EOS, and preserves the timed dummy path plus explicit indefinite
+  mode.
+  The focused no-telemetry failure regression passed, as did the debug and
+  sanitizer suites.
+
 * **Returned generated-KLV parse failures for issue #95:** `try_decode_and_emit`
   and file-to-live replay now return `Message::parse` errors for KLV produced by
   `to_0601`, instead of treating an internal generated-packet invariant failure
