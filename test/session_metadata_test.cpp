@@ -132,6 +132,16 @@ void check_iso8601() {
     if (epoch_hour) {
         check_eq(*epoch_hour, int64_t{1538842372}, "hour-only offset is subtracted");
     }
+    auto epoch_nul = parse_iso8601_to_epoch(std::string("2018-10-06T18:12:52+02:00") + '\0');
+    check(epoch_nul.has_value(), "a trailing NUL is ignored");
+    if (epoch_nul) {
+        check_eq(*epoch_nul, int64_t{1538842372}, "trailing NUL does not change the epoch");
+    }
+    auto epoch_padded = parse_iso8601_to_epoch("2018-10-06T18:12:52+02:00 ");
+    check(epoch_padded.has_value(), "trailing space is ignored");
+    if (epoch_padded) {
+        check_eq(*epoch_padded, int64_t{1538842372}, "trailing space does not change the epoch");
+    }
     check(!parse_iso8601_to_epoch("1969-12-31T23:59:58+00:00").has_value(),
           "a pre-epoch date is rejected before unsigned timestamp arithmetic");
 
@@ -220,6 +230,19 @@ void check_pre_epoch_date(const std::string& fixture_dir) {
           "pre-epoch media date leaves Item 2 needing usable session data");
 }
 
+void check_padded_date(const std::string& fixture_dir) {
+    FILE* file = std::fopen((fixture_dir + "/parrot_v3_padded_date.mp4").c_str(), "rb");
+    check(file != nullptr, "padded-date fixture opens");
+    if (!file) return;
+
+    const SessionMetadata session = parse_session_metadata(file);
+    std::fclose(file);
+    check(session.media_date && *session.media_date == "2018-10-06T18:12:52+02:00",
+          "NUL-padded media date is trimmed before storage");
+    check(session.media_date_epoch_s && *session.media_date_epoch_s == int64_t{1538842372},
+          "NUL-padded media date still anchors to the correct epoch");
+}
+
 void check_anchoring() {
     SessionMetadata session;
     session.media_date_epoch_s = 1538842372;
@@ -245,6 +268,13 @@ void check_anchoring() {
     const auto klv = to_0601(snapshot, &session);
     check(klv.coverage.emitted.count(2) == 1, "Item 2 is emitted once anchored");
     check(klv.coverage.omitted.count(2) == 0, "…and no longer reported as omitted");
+
+    session.media_date_epoch_s = -1;
+    auto negative_session = from_v3(frame);
+    anchor_to_session(negative_session, session, uint64_t{0});
+    check(!negative_session.utc_timestamp_us.has_value(),
+          "a negative session epoch is not cast into a wrapped Item 2 timestamp");
+    session.media_date_epoch_s = 1538842372;
 
     // A session with no media date must leave the snapshot alone rather than
     // anchoring to the epoch.
@@ -404,6 +434,7 @@ int main(int argc, char** argv) {
     check_fixture(argv[1]);
     check_iso8601();
     check_pre_epoch_date(argv[1]);
+    check_padded_date(argv[1]);
     check_hostile_largesize_is_rejected(argv[1]);
     check_anchoring();
     check_v3_absent_data(argv[1]);

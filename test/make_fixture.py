@@ -1024,6 +1024,11 @@ def main() -> int:
         "parrot_v3_pre_epoch.mp4": build(
             MIME_PREFIX + "com.parrot.videometadata3", samples, video,
             media_date="1969-12-31T23:59:58+00:00"),
+        # Some MP4 writers NUL-terminate ilst strings inside their declared
+        # box length; the parser must keep the valid date before that padding.
+        "parrot_v3_padded_date.mp4": build(
+            MIME_PREFIX + "com.parrot.videometadata3", samples, video,
+            media_date="2018-10-06T18:12:52+02:00\x00"),
         # Real serialized TimedMetadata, not v3 bytes under a proto MIME type.
         "parrot_proto.mp4": build(MIME_PREFIX + "com.parrot.videometadataproto",
                                   [proto_sample(i) for i in range(8)], video),

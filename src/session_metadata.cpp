@@ -76,10 +76,11 @@ bool SessionMetadata::empty() const {
 }
 
 std::optional<int64_t> parse_iso8601_to_epoch(const std::string& text) {
+    const std::string clean_text = tidy(text);
     int year = 0, month = 0, day = 0, hour = 0, minute = 0, second = 0;
     char separator = 0;
     // "2018-10-06T18:12:52+02:00" — Parrot sometimes writes a space for the 'T'.
-    if (std::sscanf(text.c_str(), "%4d-%2d-%2d%c%2d:%2d:%2d", &year, &month, &day, &separator,
+    if (std::sscanf(clean_text.c_str(), "%4d-%2d-%2d%c%2d:%2d:%2d", &year, &month, &day, &separator,
                     &hour, &minute, &second) != 7) {
         return std::nullopt;
     }
@@ -122,11 +123,12 @@ std::optional<int64_t> parse_iso8601_to_epoch(const std::string& text) {
     // must reject the whole timestamp rather than silently fall back to +00:00
     // -- that would anchor every frame's Item 2 at a confidently wrong wall
     // time.
-    const size_t time_end = text.find(separator);
-    const size_t offset_pos = text.find_first_of("+-", time_end == std::string::npos ? 0 : time_end);
+    const size_t time_end = clean_text.find(separator);
+    const size_t offset_pos =
+        clean_text.find_first_of("+-", time_end == std::string::npos ? 0 : time_end);
     int64_t offset_s = 0;
     if (offset_pos != std::string::npos) {
-        const std::string_view offset = std::string_view(text).substr(offset_pos);
+        const std::string_view offset = std::string_view(clean_text).substr(offset_pos);
         const bool hour_only = offset.size() == 3;
         const bool basic = offset.size() == 5;
         const bool extended = offset.size() == 6 && offset[3] == ':';
@@ -153,7 +155,7 @@ std::optional<int64_t> parse_iso8601_to_epoch(const std::string& text) {
             return std::nullopt;
         }
         offset_s = (static_cast<int64_t>(*offset_hour) * 3600) + (offset_minute * 60);
-        if (text[offset_pos] == '-') offset_s = -offset_s;
+        if (clean_text[offset_pos] == '-') offset_s = -offset_s;
     }
     const int64_t epoch_s = static_cast<int64_t>(utc) - offset_s;
     // ST 0601 Item 2 is an unsigned epoch timestamp. Reject pre-1970 dates

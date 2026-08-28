@@ -353,6 +353,7 @@ void anchor_to_session(TelemetrySnapshot& snapshot, const SessionMetadata& sessi
     // worse than the omission the caller asked for.
     if (snapshot.source_format != ParrotFormat::V3) return;
     if (!session.media_date_epoch_s) return;
+    if (*session.media_date_epoch_s < 0) return;  // defense in depth before the unsigned cast
     if (!first_monotonic_us) return;  // origin sample's extraction/parse failed
     if (!snapshot.monotonic_us) return;  // this frame has no timestamp extension
     // The monotonic clock can run backwards relative to the first sample only
