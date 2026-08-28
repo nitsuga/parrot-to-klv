@@ -583,6 +583,22 @@ def automation_ext() -> bytes:
     return ext(0x4533, payload)
 
 
+def short_automation_ext() -> bytes:
+    # A v3 automation id with only the first coordinate triple. The parser
+    # cannot decode it as AutomationExt, so the scrubber must treat it as
+    # unknown rather than letting its location-bearing bytes pass through.
+    payload = struct.pack(">iii", round(48.858370 * Q10_22),
+                          round(2.294481 * Q10_22), round(135.25 * Q16_16))
+    return ext(0x4533, payload)
+
+
+def truncated_unknown_ext() -> bytes:
+    # Declares 40 payload bytes but provides only 8. The parser records the id
+    # and stops; the scrubber must still clear the bytes that are present.
+    payload = struct.pack(">ii", round(48.858370 * Q10_22), round(2.294481 * Q10_22))
+    return struct.pack(">HH", 0x4536, 10) + payload
+
+
 def thermal_ext() -> bytes:
     payload = struct.pack(">hhh", round(0.25 * Q11_5), round(0.5 * Q11_5),
                           round(283.15 * Q11_5))            # min spot
@@ -988,6 +1004,20 @@ def main() -> int:
             [v3_sample(i, timestamp_ext(33333 * i)
                        + ext(0x4536, struct.pack(">ii", round(48.858370 * Q10_22),
                                                  round(2.294481 * Q10_22))))
+             for i in range(8)],
+            video),
+        # A short automation extension must be treated as unknown, not as a
+        # valid automation payload whose location fields can be left intact.
+        "parrot_v3_short_automation.mp4": build(
+            MIME_PREFIX + "com.parrot.videometadata3",
+            [v3_sample(i, timestamp_ext(33333 * i) + short_automation_ext())
+             for i in range(8)],
+            video),
+        # A trailing extension can declare more bytes than remain in the
+        # sample. Its present bytes are still sensitive and must be cleared.
+        "parrot_v3_truncated_ext.mp4": build(
+            MIME_PREFIX + "com.parrot.videometadata3",
+            [v3_sample(i, timestamp_ext(33333 * i) + truncated_unknown_ext())
              for i in range(8)],
             video),
         # A metadata track that is not Parrot's -- must be rejected, not guessed.

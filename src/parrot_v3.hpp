@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <span>
@@ -165,5 +166,9 @@ std::optional<ParrotV3Frame> parse_v3(std::span<const uint8_t> sample,
 
 /// Size of the v3 base structure, extensions excluded.
 inline constexpr size_t kParrotV3BaseSize = 72;
+
+/// Minimum payload size of the v3 automation extension: 6 x int32, 2 x uint8,
+/// and one uint16 reserved field.
+inline constexpr size_t kParrotV3AutomationPayloadSize = 28;
 
 }  // namespace parrot_to_klv
