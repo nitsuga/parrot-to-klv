@@ -30,51 +30,14 @@ constexpr uint32_t kKeyCopyright = 0xA9637079u; // '©cpy'
 constexpr uint32_t kKeyDay = 0xA9646179u;       // '©day' media date
 constexpr uint32_t kKeyXyz = 0xA978797Au;       // '©xyz' geotag
 
-struct Box {
-    uint32_t type = 0;
-    size_t body_begin = 0;
-    size_t body_end = 0;
-};
-
-uint32_t read_u32(const std::vector<uint8_t>& buf, size_t pos) {
-    return static_cast<uint32_t>(buf[pos]) << 24 | static_cast<uint32_t>(buf[pos + 1]) << 16 |
-           static_cast<uint32_t>(buf[pos + 2]) << 8 | static_cast<uint32_t>(buf[pos + 3]);
-}
-
-/// Read one box header at `pos`, bounded by `limit`.
-bool read_box(const std::vector<uint8_t>& buf, size_t pos, size_t limit, Box& out) {
-    if (pos + 8 > limit) return false;
-    uint64_t size = read_u32(buf, pos);
-    out.type = read_u32(buf, pos + 4);
-    size_t header = 8;
-    if (size == 1) {
-        // 64-bit largesize.
-        if (pos + 16 > limit) return false;
-        size = 0;
-        for (int i = 0; i < 8; ++i) size = size << 8 | buf[pos + 8 + static_cast<size_t>(i)];
-        header = 16;
-    } else if (size == 0) {
-        // Extends to the end of the enclosing box.
-        size = limit - pos;
-    }
-    // size - header - limit are all size_t; `pos + size > limit` can wrap for
-    // a hostile 64-bit largesize near UINT64_MAX. `size > limit - pos` cannot:
-    // pos <= limit is already guaranteed above (the pos+8/pos+16 > limit
-    // checks), so limit - pos never underflows.
-    if (size < header || size > limit - pos) return false;
-    out.body_begin = pos + header;
-    out.body_end = pos + static_cast<size_t>(size);
-    return true;
-}
-
 /// Extract the string from an ilst entry.
 ///
 /// An entry is `<key>` containing a `data` box: 4 bytes of version/type, 4 of
 /// locale, then the payload. Some writers put the string straight in the key
 /// box instead, so both shapes are accepted.
-std::optional<std::string> entry_text(const std::vector<uint8_t>& buf, const Box& entry) {
-    Box data;
-    if (read_box(buf, entry.body_begin, entry.body_end, data) &&
+std::optional<std::string> entry_text(const std::vector<uint8_t>& buf, const Mp4Box& entry) {
+    Mp4Box data;
+    if (read_mp4_box(buf, entry.body_begin, entry.body_end, data) &&
         data.type == fourcc("data") && data.body_begin + 8 <= data.body_end) {
         const size_t begin = data.body_begin + 8;
         return std::string(reinterpret_cast<const char*>(buf.data() + begin),
@@ -89,7 +52,7 @@ std::optional<std::string> entry_text(const std::vector<uint8_t>& buf, const Box
 
 /// A '©xyz' geotag is a plain box (not an ilst entry): size(2) language(2)
 /// then the ISO 6709 string.
-std::optional<std::string> geotag_text(const std::vector<uint8_t>& buf, const Box& box) {
+std::optional<std::string> geotag_text(const std::vector<uint8_t>& buf, const Mp4Box& box) {
     const size_t begin = box.body_begin + 4;
     if (begin >= box.body_end) return std::nullopt;
     return std::string(reinterpret_cast<const char*>(buf.data() + begin), box.body_end - begin);
@@ -237,8 +200,8 @@ SessionMetadata parse_session_metadata(FILE* file) {
     const auto walk = [&](auto&& self, size_t begin, size_t end, int depth) -> void {
         if (depth > 6) return;
         size_t pos = begin;
-        Box box;
-        while (read_box(buf, pos, end, box)) {
+        Mp4Box box;
+        while (read_mp4_box(buf, pos, end, box)) {
             switch (box.type) {
                 case kKeyXyz: store(session.geotag, geotag_text(buf, box)); break;
                 case kKeyArtist: store(session.friendly_name, entry_text(buf, box)); break;

@@ -25,6 +25,19 @@ inline constexpr uint32_t kHandlerMeta = fourcc("meta");
 inline constexpr uint32_t kHandlerVide = fourcc("vide");
 inline constexpr uint32_t kSampleEntryMett = fourcc("mett");
 
+/// One box header located inside an in-memory buffer.
+struct Mp4Box {
+    uint32_t type = 0;
+    size_t body_begin = 0;
+    size_t body_end = 0;
+};
+
+/// Read one box header at `pos`, bounded by `limit`. False if it does not fit.
+///
+/// Handles both the 32-bit size and the `size == 1` 64-bit largesize form, and
+/// `size == 0` meaning "extends to the end of the enclosing box".
+bool read_mp4_box(const std::vector<uint8_t>& buf, size_t pos, size_t limit, Mp4Box& out);
+
 /// Per-track facts recovered by walking the MP4 box tree.
 ///
 /// minimp4 keeps only what it needs to demux audio and video: `MP4D_track_t`'s

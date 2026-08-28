@@ -303,4 +303,32 @@ std::vector<Mp4TrackDescription> scan_mp4_tracks(FILE* file) {
     return tracks;
 }
 
+bool read_mp4_box(const std::vector<uint8_t>& buf, size_t pos, size_t limit, Mp4Box& out) {
+    auto be32 = [&buf](size_t at) {
+        return static_cast<uint32_t>(buf[at]) << 24 | static_cast<uint32_t>(buf[at + 1]) << 16 |
+               static_cast<uint32_t>(buf[at + 2]) << 8 | static_cast<uint32_t>(buf[at + 3]);
+    };
+    if (pos + 8 > limit) return false;
+    uint64_t size = be32(pos);
+    out.type = be32(pos + 4);
+    size_t header = 8;
+    if (size == 1) {
+        // 64-bit largesize.
+        if (pos + 16 > limit) return false;
+        size = static_cast<uint64_t>(be32(pos + 8)) << 32 | be32(pos + 12);
+        header = 16;
+    } else if (size == 0) {
+        // Extends to the end of the enclosing box.
+        size = limit - pos;
+    }
+    // `pos + size > limit` can wrap for a hostile 64-bit largesize near
+    // UINT64_MAX. `size > limit - pos` cannot: pos <= limit is already
+    // guaranteed above (the pos+8/pos+16 > limit checks), so limit - pos
+    // never underflows.
+    if (size < header || size > limit - pos) return false;
+    out.body_begin = pos + header;
+    out.body_end = pos + static_cast<size_t>(size);
+    return true;
+}
+
 }  // namespace parrot_to_klv
