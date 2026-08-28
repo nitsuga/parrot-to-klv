@@ -212,7 +212,7 @@ std::string to_string(OmissionReason reason) {
         case OmissionReason::EncodeRejected: return "value is not encodable as this item";
         case OmissionReason::UndefinedForFrame: return "undefined for this frame";
         case OmissionReason::NeedsDerivation: return "needs terrain intersection (not implemented)";
-        case OmissionReason::NeedsSessionData: return "needs MP4 session metadata (not parsed)";
+        case OmissionReason::NeedsSessionData: return "needs MP4 session metadata";
         case OmissionReason::Unresolved: return "mapping is an open question";
     }
     return "unknown";
@@ -378,9 +378,13 @@ Klv0601Frame to_0601(const TelemetrySnapshot& s, const SessionMetadata* session,
     if (s.utc_timestamp_us) {
         staging.put_uint(2, *s.utc_timestamp_us);
     } else {
-        // v3 has only a monotonic clock, and proto says "invalid" through a zero
-        // accuracy. Anchoring needs session media_date, which nothing parses.
-        coverage.omitted[2] = OmissionReason::NeedsSessionData;
+        // A v3 frame without its optional timestamp extension has no source
+        // for Item 2. Other unanchored frames need session media_date to turn
+        // their monotonic clock into an absolute timestamp; proto says
+        // "invalid" through a zero accuracy.
+        coverage.omitted[2] = s.source_format == ParrotFormat::V3 && !s.monotonic_us
+                                  ? OmissionReason::SourceAbsent
+                                  : OmissionReason::NeedsSessionData;
     }
 
     // --- platform attitude (Items 5/6/7, and the trustworthy 90/91) ---

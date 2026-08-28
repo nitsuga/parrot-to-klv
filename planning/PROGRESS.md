@@ -10,7 +10,9 @@ chronological history (what landed when, decision detail) lives in
 
 **Absent v3 data remains absent (#84):** zero-sentinel automation targets and
 missing per-frame timestamps are omitted rather than turned into target or
-session-start measurements; a synthetic fixture covers both paths.
+session-start measurements; coverage distinguishes absent frame data from
+missing session metadata, and a mixed first-frame fixture pins the no-origin
+behavior.
 
 **Default v3 scrubbing fails closed on malformed extensions (#83):** short and
 oversized automation payloads plus truncated extension tails are reported and

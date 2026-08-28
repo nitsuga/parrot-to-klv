@@ -80,8 +80,8 @@ values are checked as a consumer sees them rather than as we staged them.
 - **Item 112 is undefined at rest.** Course over ground is `atan2` of two
   numbers that are pure noise when the aircraft is stationary, so it is omitted
   below 0.5 m/s rather than reporting a direction of travel that does not exist.
-- **Zero is not a value in proto, or a v3 automation target.** Proto3 gives
-  scalars no presence bit, so
+- **Zero is not a value in proto, or a v3 automation target.** Proto3 has no
+  presence bit for scalars, so
   Parrot signals "unknown" in band: a zero altitude means no fix,
   `utc_timestamp_accuracy == 0` means the UTC stamp is invalid, and zero
   lat/lon (camera and drone both) means no position fix at all — the camera

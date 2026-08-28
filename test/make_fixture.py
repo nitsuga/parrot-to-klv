@@ -1010,6 +1010,13 @@ def main() -> int:
             MIME_PREFIX + "com.parrot.videometadata3",
             [v3_sample(i, automation_without_target_ext()) for i in range(8)],
             video),
+        # A missing timestamp on the origin sample leaves the whole recording
+        # unanchored, even when later samples carry their own timestamps.
+        "parrot_v3_first_timestamp_absent.mp4": build(
+            MIME_PREFIX + "com.parrot.videometadata3",
+            [v3_sample(0)] + [v3_sample(i, timestamp_ext(33333 * i))
+                             for i in range(1, 8)],
+            video),
         # Real serialized TimedMetadata, not v3 bytes under a proto MIME type.
         "parrot_proto.mp4": build(MIME_PREFIX + "com.parrot.videometadataproto",
                                   [proto_sample(i) for i in range(8)], video),

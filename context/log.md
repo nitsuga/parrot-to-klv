@@ -8,6 +8,11 @@
   while an explicitly present zero timestamp remains valid. A synthetic MP4
   fixture exercises the parser, normalization, anchoring, and coverage path.
 
+* **Corrected #84's coverage reason:** a v3 frame without its timestamp now
+  reports Item 2 as `SourceAbsent`, while a timestamped frame that cannot be
+  anchored still reports `NeedsSessionData`. A mixed synthetic recording pins
+  the deliberate all-or-nothing behavior when the first frame has no clock.
+
 * **Closed the oversized automation tail found in review of issue #83:** v3
   automation extensions still rewrite their known 28-byte prefix, but any
   surplus fields now go through the same unknown-extension reporting and

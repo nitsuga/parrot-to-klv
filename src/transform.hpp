@@ -51,7 +51,7 @@ enum class OmissionReason {
     EncodeRejected,     ///< a present finite value is not encodable as this item
     UndefinedForFrame,  ///< the item has no meaningful value for this frame
     NeedsDerivation,    ///< Tier 2 geometry — not implemented (open fork)
-    NeedsSessionData,   ///< MP4 session metadata, which nothing parses yet
+    NeedsSessionData,   ///< required MP4 session metadata was not available
     Unresolved,         ///< the mapping itself is an open question
 };
 

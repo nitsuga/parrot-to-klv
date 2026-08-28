@@ -261,8 +261,8 @@ void check_v3_absent_data(const std::string& fixture_dir) {
     const auto klv = to_0601(snapshot, &session);
     check(klv.coverage.emitted.count(2) == 0, "missing timestamp emits no Item 2");
     const auto item2 = klv.coverage.omitted.find(2);
-    check(item2 != klv.coverage.omitted.end() && item2->second == OmissionReason::NeedsSessionData,
-          "missing timestamp reports Item 2 as needing session data");
+    check(item2 != klv.coverage.omitted.end() && item2->second == OmissionReason::SourceAbsent,
+          "missing timestamp reports Item 2 as absent source data");
     for (uint16_t tag : {40, 41, 42}) {
         check(klv.coverage.emitted.count(tag) == 0,
               "zero framing target emits no target item");
@@ -270,6 +270,43 @@ void check_v3_absent_data(const std::string& fixture_dir) {
         check(omitted != klv.coverage.omitted.end() &&
                   omitted->second == OmissionReason::SourceAbsent,
               "zero framing target reports its item absent");
+    }
+
+    auto mixed_extractor = Mp4MetadataExtractor::open(
+        fixture_dir + "/parrot_v3_first_timestamp_absent.mp4");
+    check(mixed_extractor.has_value(), "mixed timestamp fixture opens");
+    if (mixed_extractor) {
+        const auto mixed_samples = mixed_extractor->extract_all_samples();
+        check_eq(mixed_samples.size(), size_t{8}, "mixed timestamp fixture sample count");
+        if (mixed_samples.size() >= 2) {
+            const auto mixed_first = parse_v3(mixed_samples[0].data);
+            const auto mixed_later = parse_v3(mixed_samples[1].data);
+            check(mixed_first.has_value() && mixed_later.has_value(),
+                  "mixed timestamp samples parse");
+            if (mixed_first && mixed_later) {
+                auto first_snapshot = from_v3(*mixed_first);
+                auto later_snapshot = from_v3(*mixed_later);
+                check(!first_snapshot.monotonic_us.has_value(),
+                      "mixed fixture's first timestamp is absent");
+                check(later_snapshot.monotonic_us.has_value() &&
+                          *later_snapshot.monotonic_us == uint64_t{33333},
+                      "mixed fixture's later timestamp is present");
+
+                const auto mixed_origin = first_snapshot.monotonic_us;
+                anchor_to_session(first_snapshot, session, mixed_origin);
+                anchor_to_session(later_snapshot, session, mixed_origin);
+                check(!first_snapshot.utc_timestamp_us.has_value(),
+                      "mixed fixture's first frame stays unanchored");
+                check(!later_snapshot.utc_timestamp_us.has_value(),
+                      "later frames stay unanchored without an origin clock");
+
+                const auto later_klv = to_0601(later_snapshot, &session);
+                const auto later_item2 = later_klv.coverage.omitted.find(2);
+                check(later_item2 != later_klv.coverage.omitted.end() &&
+                          later_item2->second == OmissionReason::NeedsSessionData,
+                      "a clocked frame without an origin reports missing session data");
+            }
+        }
     }
 
     // Presence, not the value, distinguishes a genuine zero clock reading
