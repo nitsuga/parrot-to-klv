@@ -82,6 +82,15 @@ SampleScrubResult scrub_v3_sample(std::vector<uint8_t>& s, const ScrubValues& v,
 
     // The automation extension carries two more coordinate triples.
     SampleScrubResult result;
+    const auto record_unknown = [&](uint16_t id, size_t begin, size_t bytes) {
+        result.unknown_ids.push_back(id);
+        if (zero_unknown && bytes > 0) {
+            // Blank the bytes that are actually present but keep id and length,
+            // so the extension remains structurally visible and skippable.
+            std::fill_n(s.begin() + static_cast<long>(begin), bytes, uint8_t{0});
+            ++result.unknown_payloads_zeroed;
+        }
+    };
     const size_t declared = 4 + static_cast<size_t>(load_be16(s, 2)) * 4;
     size_t off = kParrotV3BaseSize;
     while (off + 4 <= declared && off + 4 <= s.size()) {
@@ -89,9 +98,10 @@ SampleScrubResult scrub_v3_sample(std::vector<uint8_t>& s, const ScrubValues& v,
         const size_t payload_bytes = static_cast<size_t>(load_be16(s, off + 2)) * 4;
         const size_t body = off + 4;
         if (body + payload_bytes > s.size()) {
+            record_unknown(id, body, s.size() - body);
             break;
         }
-        if (id == kExtAutomation && payload_bytes >= 24) {
+        if (id == kExtAutomation && payload_bytes >= kParrotV3AutomationPayloadSize) {
             const int32_t alt_q16_16 =
                 static_cast<int32_t>(std::lround(v.altitude_amsl_m * kQ16_16));
             for (size_t base : {body, body + 12}) {  // framing target, flight destination
@@ -100,14 +110,14 @@ SampleScrubResult scrub_v3_sample(std::vector<uint8_t>& s, const ScrubValues& v,
                 store_be32(s, base + 8, static_cast<uint32_t>(alt_q16_16));
             }
             result.rewrote_automation = true;
-        } else if (id != kExtAutomation && !is_known_safe_extension(id)) {
-            result.unknown_ids.push_back(id);
-            if (zero_unknown && payload_bytes > 0) {
-                // Blank the payload but keep id and length, so the extension is
-                // still well-formed and still skipped the same way.
-                std::fill_n(s.begin() + static_cast<long>(body), payload_bytes, uint8_t{0});
-                ++result.unknown_payloads_zeroed;
+            if (payload_bytes > kParrotV3AutomationPayloadSize) {
+                // Keep the known prefix, but fail closed on any newer fields
+                // this scrubber does not understand.
+                record_unknown(id, body + kParrotV3AutomationPayloadSize,
+                               payload_bytes - kParrotV3AutomationPayloadSize);
             }
+        } else if (!is_known_safe_extension(id)) {
+            record_unknown(id, body, payload_bytes);
         }
         off = body + payload_bytes;
     }

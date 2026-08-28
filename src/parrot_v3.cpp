@@ -63,7 +63,7 @@ ThermalSpot read_spot(std::span<const uint8_t> b, size_t off, bool valid) {
 
 bool parse_automation(std::span<const uint8_t> payload, ParrotV3Frame& frame) {
     // 6 x int32 + 2 x uint8 + uint16 reserved.
-    if (payload.size() < 28) {
+    if (payload.size() < kParrotV3AutomationPayloadSize) {
         return false;
     }
     AutomationExt ext;

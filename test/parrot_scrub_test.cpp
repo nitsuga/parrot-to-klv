@@ -72,6 +72,32 @@ std::string g_tmp;
 std::string fixture(const char* name) { return g_dir + "/" + name; }
 std::string temp(const char* name) { return g_tmp + "/" + name; }
 
+/// The coordinates make_fixture.py encodes, which must not survive a scrub.
+constexpr double kOriginalLat = 48.858370;
+constexpr double kOriginalLon = 2.294481;
+
+std::vector<uint8_t> encode_q10_22(double deg) {
+    const auto v = static_cast<uint32_t>(std::lround(deg * 4194304.0));
+    return {
+        static_cast<uint8_t>(v >> 24), static_cast<uint8_t>(v >> 16),
+        static_cast<uint8_t>(v >> 8), static_cast<uint8_t>(v)};
+}
+
+std::vector<uint8_t> original_coordinate_pair() {
+    auto bytes = encode_q10_22(kOriginalLat);
+    const auto longitude = encode_q10_22(kOriginalLon);
+    bytes.insert(bytes.end(), longitude.begin(), longitude.end());
+    return bytes;
+}
+
+void check_original_coordinate_pair_absent(const std::string& path,
+                                           const std::string& label) {
+    const auto data = read_file(path);
+    const auto needle = original_coordinate_pair();
+    check(std::search(data.begin(), data.end(), needle.begin(), needle.end()) == data.end(),
+          label + ": original coordinate pair is gone");
+}
+
 /// `scrub_file` must refuse aliases before it can overwrite the recording.
 /// All inputs here are disposable copies: a regression must not modify a
 /// committed fixture while demonstrating the safety property.
@@ -160,10 +186,6 @@ void test_refuses_input_output_aliases() {
     }
 }
 
-/// The coordinates make_fixture.py encodes, which must not survive a scrub.
-constexpr double kOriginalLat = 48.858370;
-constexpr double kOriginalLon = 2.294481;
-
 void test_scrub_replaces_location() {
     const std::string out = temp("scrubbed.mp4");
     ScrubOptions opts;
@@ -235,12 +257,6 @@ void test_original_coordinates_absent() {
     if (!report.ok) return;
 
     const auto data = read_file(out);
-    const auto encode_q10_22 = [](double deg) {
-        const auto v = static_cast<uint32_t>(std::lround(deg * 4194304.0));
-        return std::vector<uint8_t>{
-            static_cast<uint8_t>(v >> 24), static_cast<uint8_t>(v >> 16),
-            static_cast<uint8_t>(v >> 8), static_cast<uint8_t>(v)};
-    };
     for (const auto& [label, deg] : {std::pair<const char*, double>{"latitude", kOriginalLat},
                                      {"longitude", kOriginalLon}}) {
         const auto needle = encode_q10_22(deg);
@@ -403,6 +419,67 @@ void test_unknown_extension_payload_is_cleared() {
     check(warned, "opt-out warns the output is not scrubbed");
 }
 
+void test_malformed_extensions_are_cleared() {
+    struct Case {
+        const char* label;
+        const char* fixture_name;
+        const char* output_name;
+        uint16_t id;
+        uint32_t expected_automation_rewritten;
+    };
+    const Case cases[] = {
+        {"short automation", "parrot_v3_short_automation.mp4", "short_automation_scrubbed.mp4",
+         kExtAutomation, 0},
+        {"oversized automation", "parrot_v3_oversized_automation.mp4",
+         "oversized_automation_scrubbed.mp4", kExtAutomation, 8},
+        {"truncated extension", "parrot_v3_truncated_ext.mp4", "truncated_ext_scrubbed.mp4",
+         0x4536, 0},
+    };
+
+    for (const auto& c : cases) {
+        const std::string label = std::string("malformed ") + c.label;
+        ScrubOptions opts;
+        opts.values.latitude_deg = 1.0;
+        opts.values.longitude_deg = 2.0;
+        opts.values.altitude_amsl_m = 100.0;
+
+        const auto report = scrub_file(fixture(c.fixture_name), temp(c.output_name), opts);
+        check(report.ok, label + ": scrub succeeds");
+        if (!report.ok) continue;
+
+        check_eq(report.samples_rewritten, uint32_t{8}, label + ": every sample rewritten");
+        check_eq(report.automation_extensions_rewritten, c.expected_automation_rewritten,
+                 label + ": automation rewrite count");
+        check_eq(report.unknown_extension_payloads_zeroed, uint32_t{8},
+                 label + ": every present malformed payload is zeroed");
+        check(report.unknown_extension_ids.size() == 1 &&
+                  report.unknown_extension_ids[0] == c.id,
+              label + ": malformed extension id is reported");
+        check_original_coordinate_pair_absent(temp(c.output_name), label);
+
+        auto extractor = Mp4MetadataExtractor::open(temp(c.output_name));
+        check(extractor.has_value(), label + ": output still opens");
+        if (!extractor) continue;
+        const auto samples = extractor->extract_all_samples();
+        check_eq(samples.size(), size_t{8}, label + ": all samples remain");
+        if (samples.empty()) continue;
+        const auto frame = parse_v3(samples.front().data);
+        check(frame.has_value(), label + ": scrubbed sample still parses");
+        if (frame) {
+            if (c.expected_automation_rewritten > 0) {
+                check(frame->automation.has_value(), label + ": known automation prefix survives");
+                check(frame->skipped_extension_ids.empty(),
+                      label + ": oversized automation remains structurally valid");
+            } else {
+                check(std::find(frame->skipped_extension_ids.begin(),
+                                frame->skipped_extension_ids.end(), c.id) !=
+                          frame->skipped_extension_ids.end(),
+                      label + ": malformed extension remains structurally visible");
+            }
+        }
+    }
+}
+
 void test_warns_about_imagery() {
     const auto report = scrub_file(fixture("parrot_v3.mp4"), temp("warn.mp4"), ScrubOptions{});
     check(report.ok, "scrub succeeds");
@@ -433,6 +510,7 @@ int main(int argc, char* argv[]) {
     test_zero_media();
     test_refuses_what_it_cannot_scrub();
     test_unknown_extension_payload_is_cleared();
+    test_malformed_extensions_are_cleared();
     test_warns_about_imagery();
 
     if (g_failures > 0) {
