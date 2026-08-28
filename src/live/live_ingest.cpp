@@ -78,15 +78,17 @@ misbklv::Result<std::monostate> emit_dummy_batch(misbklv::KlvSink& sink,
     return misbklv::Result<std::monostate>::ok(std::monostate{});
 }
 
-// Try to decode one captured extension and emit KLV. Returns true if emitted.
+// Try to decode one captured extension and emit KLV. The bool is true if
+// emitted; an error is returned when the sink rejects the packet.
 // Handles v3 first, then proto with coalescing across packets.
-bool try_decode_and_emit(const CapturedExtension& cap, misbklv::KlvSink& sink,
-                         const SessionMetadata* session, const TransformOptions& opts,
-                         size_t emitted_index,
-                         std::vector<std::byte>& proto_coalesce, uint64_t& proto_coalesce_pts) {
+misbklv::Result<bool> try_decode_and_emit(
+    const CapturedExtension& cap, misbklv::KlvSink& sink,
+    const SessionMetadata* session, const TransformOptions& opts,
+    size_t emitted_index, std::vector<std::byte>& proto_coalesce,
+    uint64_t& proto_coalesce_pts) {
     std::span<const uint8_t> payload_u8(reinterpret_cast<const uint8_t*>(cap.payload.data()),
                                         cap.payload.size());
-    if (payload_u8.empty()) return false;
+    if (payload_u8.empty()) return misbklv::Result<bool>::ok(false);
 
     // Try v3 first — payload for v3 starts with 0x5033 and declared length matches.
     {
@@ -99,10 +101,10 @@ bool try_decode_and_emit(const CapturedExtension& cap, misbklv::KlvSink& sink,
 
             TelemetrySnapshot snap = from_v3(*v3_frame);
             auto klv = to_0601(snap, session, opts);
-            if (klv.packet.empty()) return false;
+            if (klv.packet.empty()) return misbklv::Result<bool>::ok(false);
             auto msg_res = misbklv::Message::parse(
                 std::as_bytes(std::span<const uint8_t>(klv.packet)));
-            if (!msg_res) return false;
+            if (!msg_res) return misbklv::Result<bool>::ok(false);
             // Assumption: RTP buffer PTS at header-extension read equals reception
             // running_time per ADR 0013/ADR 0021; if rtspsrc buffering or
             // RTP-timestamp mode diverges, live KLV will drift from video. Hermetic
@@ -116,7 +118,8 @@ bool try_decode_and_emit(const CapturedExtension& cap, misbklv::KlvSink& sink,
             }
             msg_res->set_pts(pts_ns);
             auto emit_res = sink.emit(*msg_res);
-            return static_cast<bool>(emit_res);
+            if (!emit_res) return misbklv::Result<bool>::err(emit_res.error());
+            return misbklv::Result<bool>::ok(true);
         }
     }
 
@@ -130,7 +133,7 @@ bool try_decode_and_emit(const CapturedExtension& cap, misbklv::KlvSink& sink,
     if (proto_coalesce.size() > 1024 * 1024) {
         proto_coalesce.clear();
         proto_coalesce_pts = GST_CLOCK_TIME_NONE;
-        return false;
+        return misbklv::Result<bool>::ok(false);
     }
     std::span<const uint8_t> coalesced_u8(reinterpret_cast<const uint8_t*>(proto_coalesce.data()),
                                           proto_coalesce.size());
@@ -142,14 +145,14 @@ bool try_decode_and_emit(const CapturedExtension& cap, misbklv::KlvSink& sink,
         if (klv.packet.empty()) {
             proto_coalesce.clear();
             proto_coalesce_pts = GST_CLOCK_TIME_NONE;
-            return false;
+            return misbklv::Result<bool>::ok(false);
         }
         auto msg_res = misbklv::Message::parse(
             std::as_bytes(std::span<const uint8_t>(klv.packet)));
         if (!msg_res) {
             proto_coalesce.clear();
             proto_coalesce_pts = GST_CLOCK_TIME_NONE;
-            return false;
+            return misbklv::Result<bool>::ok(false);
         }
         // Assumption: RTP buffer PTS at header-extension read equals reception
         // running_time per ADR 0013/ADR 0021; if rtspsrc buffering or
@@ -166,14 +169,15 @@ bool try_decode_and_emit(const CapturedExtension& cap, misbklv::KlvSink& sink,
         auto emit_res = sink.emit(*msg_res);
         proto_coalesce.clear();
         proto_coalesce_pts = GST_CLOCK_TIME_NONE;
-        return static_cast<bool>(emit_res);
+        if (!emit_res) return misbklv::Result<bool>::err(emit_res.error());
+        return misbklv::Result<bool>::ok(true);
     }
     // If not truncated, discard coalesce to recover from bad data; truncated keeps buffering.
     if (proto_err != ParrotProtoError::Truncated) {
         proto_coalesce.clear();
         proto_coalesce_pts = GST_CLOCK_TIME_NONE;
     }
-    return false;
+    return misbklv::Result<bool>::ok(false);
 }
 
 }  // namespace
@@ -240,9 +244,9 @@ misbklv::Result<std::monostate> live_ingest(const LiveIngestConfig& cfg) {
     // Drive mode (ADR 0013):
     // run_duration == nullopt -> indefinite live-unbounded (drive until
     // is_mux_interrupted()/SIGINT — finite live sources must be stopped
-    // manually (EOS/ERROR from the live pipeline is not observed here; it
-    // will be surfaced via next emit() or close() if the mux fails, but the
-    // loop itself only exits on SIGINT or run_duration deadline)).
+    // manually. Emission failures return immediately; EOS/ERROR from the live
+    // pipeline itself is not independently observed and may otherwise surface
+    // through a later emit() or close().
     // run_duration has value -> timed live loop while
     // (!is_mux_interrupted() && now < deadline) with 10 ms idle sleep;
     // used for hermetic tests (e.g., 2s). If caller wants one-shot
@@ -260,19 +264,17 @@ misbklv::Result<std::monostate> live_ingest(const LiveIngestConfig& cfg) {
 
     while (!is_mux_interrupted()) {
         if (deadline && std::chrono::steady_clock::now() >= *deadline) break;
-        // Note: sink.error() is only open_error_; runtime bus EOS/ERROR not observed here — see header doc.
-        if (sink.error()) break;
 
         bool had = false;
         while (auto cap = parrot_extension_pop_next()) {
             had = true;
-            if (try_decode_and_emit(*cap, sink, session_ptr, cfg.transform_options,
-                                    emitted_real, proto_coalesce, proto_coalesce_pts)) {
+            auto emitted = try_decode_and_emit(*cap, sink, session_ptr, cfg.transform_options,
+                                                emitted_real, proto_coalesce, proto_coalesce_pts);
+            if (!emitted) return misbklv::Result<std::monostate>::err(emitted.error());
+            if (*emitted) {
                 ++emitted_real;
             }
-            if (sink.error()) break;
         }
-        if (sink.error()) break;
         if (is_mux_interrupted()) break;
 
         // For pipeline: hermetic without real telemetry, emit dummy once,
@@ -285,8 +287,11 @@ misbklv::Result<std::monostate> live_ingest(const LiveIngestConfig& cfg) {
                 bool late_arrival = false;
                 while (auto cap = parrot_extension_pop_next()) {
                     late_arrival = true;
-                    if (try_decode_and_emit(*cap, sink, session_ptr, cfg.transform_options,
-                                            emitted_real, proto_coalesce, proto_coalesce_pts)) {
+                    auto emitted = try_decode_and_emit(*cap, sink, session_ptr,
+                                                        cfg.transform_options, emitted_real,
+                                                        proto_coalesce, proto_coalesce_pts);
+                    if (!emitted) return misbklv::Result<std::monostate>::err(emitted.error());
+                    if (*emitted) {
                         ++emitted_real;
                     }
                 }
@@ -294,7 +299,6 @@ misbklv::Result<std::monostate> live_ingest(const LiveIngestConfig& cfg) {
                     if (auto r = emit_dummy_batch(sink, session_ptr, cfg.transform_options); !r) return r;
                 }
                 dummy_emitted = true;
-                if (sink.error()) break;
                 continue;
             }
         }
@@ -311,7 +315,7 @@ misbklv::Result<std::monostate> live_ingest(const LiveIngestConfig& cfg) {
     }
 
     // For RTSP with no metadata, no dummy is emitted — just close (video
-    // only). Loop reached SIGINT, deadline, or open ERROR.
+    // only). Loop reached SIGINT or its deadline.
     return sink.close();
 }
 
