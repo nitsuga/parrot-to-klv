@@ -2,6 +2,12 @@
 
 ## 2026-08-28
 
+* **Made absent v3 values explicit for issue #84:** normalization now leaves
+  zero-sentinel automation targets and missing per-frame timestamps absent;
+  session anchoring refuses to invent Item 2 for a frame without its clock,
+  while an explicitly present zero timestamp remains valid. A synthetic MP4
+  fixture exercises the parser, normalization, anchoring, and coverage path.
+
 * **Closed the oversized automation tail found in review of issue #83:** v3
   automation extensions still rewrite their known 28-byte prefix, but any
   surplus fields now go through the same unknown-extension reporting and

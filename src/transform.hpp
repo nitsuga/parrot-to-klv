@@ -194,17 +194,18 @@ Klv0601Frame to_0601(const TelemetrySnapshot& snapshot,
 /// `first_monotonic_us` is the first frame's clock reading, which becomes the
 /// zero point: the media date is when the recording started, so frame *n* is
 /// `media_date + (clock_n - clock_0)`. Pass `std::nullopt` when that origin
-/// sample's own extraction or parse failed — an unknown origin must not
-/// silently become zero, which would carry a wrong clock base into every
-/// later frame's anchor instead of just leaving Item 2 absent.
+/// sample's own extraction, parse, or timestamp presence failed — an unknown
+/// origin must not silently become zero, which would carry a wrong clock base
+/// into every later frame's anchor instead of just leaving Item 2 absent.
 ///
 /// **The anchor is only as good as its second-granularity source** — the media
 /// date is an ISO 8601 string with no sub-second part — so the result is
 /// accurate to within a second in absolute terms, while frame-to-frame spacing
 /// stays exact. Does nothing if the snapshot already has a trustworthy absolute
 /// time, if the session has no parsable media date, if `first_monotonic_us` is
-/// absent, or if the snapshot is proto-sourced: a proto frame reaches here
-/// with no UTC stamp only because it declared its own invalid (zero
+/// absent, if the snapshot has no monotonic clock, or if the snapshot is
+/// proto-sourced: a proto frame reaches here with no UTC stamp only because it
+/// declared its own invalid (zero
 /// `utc_timestamp_accuracy`, see `from_proto`), and this anchor's assumptions
 /// (monotonic clock zeroed at recording start, media date == first frame's
 /// wall time) are validated for v3 only.

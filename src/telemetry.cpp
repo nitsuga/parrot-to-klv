@@ -190,9 +190,12 @@ TelemetrySnapshot from_v3(const ParrotV3Frame& f) {
         s.dropped_fields.push_back("undecoded extension " + std::string(hex));
     }
 
-    // v3's target comes from the automation extension's framing target. It
-    // carries no accuracy estimates, so Items 45/46 have no source here.
-    if (f.automation) {
+    // v3's target comes from the automation extension's framing target. Its
+    // all-zero latitude/longitude pair is the no-target sentinel, just as in
+    // proto; altitude zero alone is not enough to discard a real target.
+    if (f.automation &&
+        (f.automation->framing_target_latitude_deg != 0.0 ||
+         f.automation->framing_target_longitude_deg != 0.0)) {
         TargetLocation target;
         target.latitude_deg = f.automation->framing_target_latitude_deg;
         target.longitude_deg = f.automation->framing_target_longitude_deg;

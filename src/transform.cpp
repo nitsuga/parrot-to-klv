@@ -353,10 +353,11 @@ void anchor_to_session(TelemetrySnapshot& snapshot, const SessionMetadata& sessi
     if (snapshot.source_format != ParrotFormat::V3) return;
     if (!session.media_date_epoch_s) return;
     if (!first_monotonic_us) return;  // origin sample's extraction/parse failed
+    if (!snapshot.monotonic_us) return;  // this frame has no timestamp extension
     // The monotonic clock can run backwards relative to the first sample only
     // if the caller passed a later frame as the origin; guard rather than wrap.
-    const uint64_t elapsed_us = snapshot.monotonic_us > *first_monotonic_us
-                                     ? snapshot.monotonic_us - *first_monotonic_us
+    const uint64_t elapsed_us = *snapshot.monotonic_us > *first_monotonic_us
+                                     ? *snapshot.monotonic_us - *first_monotonic_us
                                      : 0;
     snapshot.utc_timestamp_us =
         static_cast<uint64_t>(*session.media_date_epoch_s) * 1000000ULL + elapsed_us;
