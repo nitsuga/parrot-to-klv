@@ -11,7 +11,8 @@ chronological history (what landed when, decision detail) lives in
 **Live KLV emission failures are returned (#86):** a runtime `KlvSink::emit`
 failure now terminates `live_ingest` with the original backend error instead of
 being treated as a skipped packet and leaving the drive loop to spin until its
-deadline or SIGINT. Pipeline EOS/ERROR is still not independently observed.
+deadline or SIGINT. Pipeline EOS/ERROR is still not independently observed;
+the no-telemetry failure path is tracked in #94.
 
 **Absent v3 data remains absent (#84):** zero-sentinel automation targets and
 missing per-frame timestamps are omitted rather than turned into target or
