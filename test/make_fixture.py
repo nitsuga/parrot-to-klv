@@ -962,6 +962,36 @@ def build_tkhd_version_2() -> bytes:
     return ftyp + mdat + moov
 
 
+def build_track_index_mismatch() -> bytes:
+    """A real metadata/video movie preceded by a foreign top-level 'trak'.
+
+    The box scan intentionally reads the first 'moov', so it sees the real
+    metadata track at index 0 and the video at index 1. minimp4 treats any
+    'trak' envelope as a track, including this malformed top-level one, so its
+    index 0 is the foreign metadata track. Both handlers are 'meta', which
+    lets the old handler-only check accept the wrong track. open() must reject
+    the file when the two track counts disagree rather than let --zero-media
+    act on minimp4's shifted indices.
+    """
+    ftyp = box(b"ftyp", b"isom" + struct.pack(">I", 512) + b"isomiso2avc1mp41")
+    stray_sample = v3_sample(0, timestamp_ext(999999))
+    metadata_sample = v3_sample(0, timestamp_ext(0))
+    video_sample = b"\xde\xad\xbe\xef"
+    mdat_payload = stray_sample + metadata_sample + video_sample
+    mdat = box(b"mdat", mdat_payload)
+    first_chunk = len(ftyp) + 8
+    metadata_chunk = first_chunk + len(stray_sample)
+    video_chunk = metadata_chunk + len(metadata_sample)
+
+    stray = meta_trak(99, 1, 30000, [len(stray_sample)], 1000, first_chunk,
+                      "application/octet-stream;type=com.example.telemetry")
+    real_metadata = meta_trak(2, 1, 30000, [len(metadata_sample)], 1000,
+                              metadata_chunk, MIME_PREFIX + "com.parrot.videometadata3")
+    real_video = video_trak(1, 30000, [len(video_sample)], 1000, video_chunk)
+    moov = box(b"moov", mvhd(30000, 1000, 3) + real_metadata + real_video)
+    return ftyp + mdat + stray + moov
+
+
 def build_hostile_read_box_largesize() -> bytes:
     """moov/udta/meta/ilst carrying one real tag ('©day'), followed by a
     hostile '©ART' box whose 64-bit largesize is set near UINT64_MAX -- a
@@ -1102,6 +1132,9 @@ def main() -> int:
         # 'tkhd' declares version 2, which this project's box scan does not
         # know the layout of -- the regression test for issue #4.
         "parrot_tkhd_version_2.mp4": build_tkhd_version_2(),
+        # A foreign top-level 'trak' shifts minimp4's indices away from the
+        # first-moov box scan -- the track-pairing regression test for issue #87.
+        "parrot_track_index_mismatch.mp4": build_track_index_mismatch(),
         # A '©ART' box declares a 64-bit largesize near UINT64_MAX -- the
         # size_t-wrap regression test for issue #4.
         "hostile_read_box_largesize.mp4": build_hostile_read_box_largesize(),

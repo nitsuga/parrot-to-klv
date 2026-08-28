@@ -261,6 +261,18 @@ void test_tkhd_version_2_track_id_not_misread(const char* dir) {
              "a tkhd version this code does not know is rejected, not guessed at");
 }
 
+void test_track_index_mismatch_is_rejected(const char* dir) {
+    // A foreign top-level 'trak' precedes the real moov. The box scan sees the
+    // real metadata track at index 0, while minimp4 sees the foreign metadata
+    // track there. Both handlers are 'meta', so the old handler-only check
+    // accepted the wrong track. The extractor must fail closed on the count
+    // mismatch before any caller can use the shifted index.
+    auto extractor =
+        Mp4MetadataExtractor::open(fixture(dir, "parrot_track_index_mismatch.mp4"));
+    check(!extractor.has_value(),
+          "a top-level track that shifts minimp4 indices is rejected");
+}
+
 void test_mime_parsing() {
     // Valid standard MIME strings
     auto v1 = format_from_mime("application/octet-stream;type=com.parrot.videometadata1");
@@ -412,6 +424,7 @@ int main(int argc, char* argv[]) {
     test_stsz_count_overflow_is_rejected(dir);
     test_hostile_mdhd_duration_is_bounded(dir);
     test_tkhd_version_2_track_id_not_misread(dir);
+    test_track_index_mismatch_is_rejected(dir);
     test_malformed_and_truncated_inputs(dir);
 
     if (g_failures > 0) {

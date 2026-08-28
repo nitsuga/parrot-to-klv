@@ -267,20 +267,34 @@ std::optional<Mp4MetadataExtractor> Mp4MetadataExtractor::open(const std::string
     }
     extractor.impl_->demux_open = true;
 
-    // Both enumerations follow 'trak' order, so the indices line up. Check that
-    // rather than trust it — a mismatch would silently read the wrong track.
+    // The box scan only walks the first 'moov', while minimp4 creates a track
+    // for every 'trak' envelope it encounters. Require the same sequence shape
+    // before trusting the scanner's metadata index; otherwise a shifted index
+    // could silently read or rewrite the wrong track.
+    if (tracks.size() != extractor.impl_->demux.track_count) {
+        std::cerr << "Track count differs between box scan (" << tracks.size()
+                  << ") and minimp4 (" << extractor.impl_->demux.track_count
+                  << ") -- refusing to trust track indices" << std::endl;
+        return std::nullopt;
+    }
+
+    for (size_t i = 0; i < tracks.size(); ++i) {
+        const auto& scanned = tracks[i];
+        const auto& demuxed = extractor.impl_->demux.track[i];
+        if (demuxed.handler_type != scanned.handler_type) {
+            std::cerr << "Track " << i << " disagrees between scanners: box scan says '"
+                      << fourcc_to_string(scanned.handler_type) << "', minimp4 says '"
+                      << fourcc_to_string(demuxed.handler_type) << "'" << std::endl;
+            return std::nullopt;
+        }
+    }
+
     if (static_cast<size_t>(track_idx) >= extractor.impl_->demux.track_count) {
         std::cerr << "Track index " << track_idx << " beyond minimp4's "
                   << extractor.impl_->demux.track_count << " track(s)" << std::endl;
         return std::nullopt;
     }
     const auto& track = extractor.impl_->demux.track[track_idx];
-    if (track.handler_type != described.handler_type) {
-        std::cerr << "Track " << track_idx << " disagrees between scanners: box scan says '"
-                  << fourcc_to_string(described.handler_type) << "', minimp4 says '"
-                  << fourcc_to_string(track.handler_type) << "'" << std::endl;
-        return std::nullopt;
-    }
     if (!track_sample_tables_valid(track)) {
         std::cerr << "Track " << track_idx << " is missing or has an implausible "
                      "sample-index table ('stco'/'co64', 'stsc', 'stts', or a sample "

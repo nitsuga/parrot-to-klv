@@ -52,12 +52,13 @@ struct Mp4TrackDescription {
     std::vector<uint32_t> cdsc_track_ids;  ///< tref/cdsc — tracks this one describes
 };
 
-/// Walk `file`'s box tree and describe every 'trak', in file order.
+/// Walk the first 'moov' in `file` and describe every nested 'trak', in file
+/// order.
 ///
-/// File order is what lets a description be lined up with the corresponding
-/// minimp4 track index; minimp4 appends a track per 'trak' box as it meets them.
-/// Leaves the file position undefined. Returns empty if there is no readable
-/// 'moov'.
+/// The result must be checked against minimp4's track count and handler order
+/// before the indices are paired: minimp4 also appends a track for 'trak'
+/// envelopes outside the first 'moov'. Leaves the file position undefined.
+/// Returns empty if there is no readable 'moov'.
 std::vector<Mp4TrackDescription> scan_mp4_tracks(FILE* file);
 
 }  // namespace parrot_to_klv

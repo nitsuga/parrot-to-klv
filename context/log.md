@@ -2,6 +2,13 @@
 
 ## 2026-08-28
 
+* **Made MP4 track pairing fail closed for issue #87:** `Mp4MetadataExtractor::open()`
+  now rejects disagreement between the first-`moov` box scan and minimp4's
+  track count, then checks every indexed handler type before trusting the
+  metadata index. A synthetic fixture with a foreign top-level `trak`
+  reproduces the old selected-`meta`/`meta` false match and proves the file is
+  refused before extraction or `--zero-media` can use shifted indices.
+
 * **Returned live KLV emission failures for issue #86:** `try_decode_and_emit`
   now carries `KlvSink::emit()`'s Result to both continuous-drive call sites,
   so a runtime sink rejection exits `live_ingest` with the original error
