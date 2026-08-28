@@ -228,6 +228,100 @@ void check_anchoring() {
              "a real UTC timestamp is not replaced by the anchor");
 }
 
+void check_v3_absent_data(const std::string& fixture_dir) {
+    auto extractor = Mp4MetadataExtractor::open(fixture_dir + "/parrot_v3_absent_data.mp4");
+    check(extractor.has_value(), "v3 absent-data fixture opens");
+    if (!extractor) return;
+
+    const auto samples = extractor->extract_all_samples();
+    check_eq(samples.size(), size_t{8}, "v3 absent-data fixture sample count");
+    if (samples.empty()) return;
+
+    const auto frame = parse_v3(samples.front().data);
+    check(frame.has_value(), "v3 absent-data sample parses");
+    if (!frame) return;
+    check(frame->automation.has_value(), "absent-data sample keeps its automation extension");
+    if (frame->automation) {
+        check(frame->automation->framing_target_latitude_deg == 0.0,
+              "absent-data framing latitude is the zero sentinel");
+        check(frame->automation->framing_target_longitude_deg == 0.0,
+              "absent-data framing longitude is the zero sentinel");
+    }
+
+    auto snapshot = from_v3(*frame);
+    check(!snapshot.target.has_value(), "zero framing target stays absent");
+    check(!snapshot.monotonic_us.has_value(), "missing timestamp stays absent");
+
+    SessionMetadata session;
+    session.media_date_epoch_s = 1538842372;
+    anchor_to_session(snapshot, session, uint64_t{0});
+    check(!snapshot.utc_timestamp_us.has_value(),
+          "a frame without a timestamp is not anchored at session start");
+
+    const auto klv = to_0601(snapshot, &session);
+    check(klv.coverage.emitted.count(2) == 0, "missing timestamp emits no Item 2");
+    const auto item2 = klv.coverage.omitted.find(2);
+    check(item2 != klv.coverage.omitted.end() && item2->second == OmissionReason::SourceAbsent,
+          "missing timestamp reports Item 2 as absent source data");
+    for (uint16_t tag : {40, 41, 42}) {
+        check(klv.coverage.emitted.count(tag) == 0,
+              "zero framing target emits no target item");
+        const auto omitted = klv.coverage.omitted.find(tag);
+        check(omitted != klv.coverage.omitted.end() &&
+                  omitted->second == OmissionReason::SourceAbsent,
+              "zero framing target reports its item absent");
+    }
+
+    auto mixed_extractor = Mp4MetadataExtractor::open(
+        fixture_dir + "/parrot_v3_first_timestamp_absent.mp4");
+    check(mixed_extractor.has_value(), "mixed timestamp fixture opens");
+    if (mixed_extractor) {
+        const auto mixed_samples = mixed_extractor->extract_all_samples();
+        check_eq(mixed_samples.size(), size_t{8}, "mixed timestamp fixture sample count");
+        if (mixed_samples.size() >= 2) {
+            const auto mixed_first = parse_v3(mixed_samples[0].data);
+            const auto mixed_later = parse_v3(mixed_samples[1].data);
+            check(mixed_first.has_value() && mixed_later.has_value(),
+                  "mixed timestamp samples parse");
+            if (mixed_first && mixed_later) {
+                auto first_snapshot = from_v3(*mixed_first);
+                auto later_snapshot = from_v3(*mixed_later);
+                check(!first_snapshot.monotonic_us.has_value(),
+                      "mixed fixture's first timestamp is absent");
+                check(later_snapshot.monotonic_us.has_value() &&
+                          *later_snapshot.monotonic_us == uint64_t{33333},
+                      "mixed fixture's later timestamp is present");
+
+                const auto mixed_origin = first_snapshot.monotonic_us;
+                anchor_to_session(first_snapshot, session, mixed_origin);
+                anchor_to_session(later_snapshot, session, mixed_origin);
+                check(!first_snapshot.utc_timestamp_us.has_value(),
+                      "mixed fixture's first frame stays unanchored");
+                check(!later_snapshot.utc_timestamp_us.has_value(),
+                      "later frames stay unanchored without an origin clock");
+
+                const auto later_klv = to_0601(later_snapshot, &session);
+                const auto later_item2 = later_klv.coverage.omitted.find(2);
+                check(later_item2 != later_klv.coverage.omitted.end() &&
+                          later_item2->second == OmissionReason::NoAnchorOrigin,
+                      "a clocked frame without an origin reports the missing origin");
+            }
+        }
+    }
+
+    // Presence, not the value, distinguishes a genuine zero clock reading
+    // from a frame that did not carry the extension.
+    ParrotV3Frame zero_clock = *frame;
+    zero_clock.frame_timestamp_us = uint64_t{0};
+    auto zero_snapshot = from_v3(zero_clock);
+    check(zero_snapshot.monotonic_us.has_value() && *zero_snapshot.monotonic_us == 0,
+          "an engaged zero timestamp remains a real clock reading");
+    anchor_to_session(zero_snapshot, session, uint64_t{0});
+    check(zero_snapshot.utc_timestamp_us.has_value() &&
+              *zero_snapshot.utc_timestamp_us == uint64_t{1538842372} * 1000000ULL,
+          "a genuine zero timestamp anchors to the session start");
+}
+
 void check_session_items() {
     SessionMetadata session;
     session.model = "Anafi";
@@ -275,6 +369,7 @@ int main(int argc, char** argv) {
     check_iso8601();
     check_hostile_largesize_is_rejected(argv[1]);
     check_anchoring();
+    check_v3_absent_data(argv[1]);
     check_session_items();
 
     if (g_failures > 0) {

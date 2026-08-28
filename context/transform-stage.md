@@ -80,7 +80,8 @@ values are checked as a consumer sees them rather than as we staged them.
 - **Item 112 is undefined at rest.** Course over ground is `atan2` of two
   numbers that are pure noise when the aircraft is stationary, so it is omitted
   below 0.5 m/s rather than reporting a direction of travel that does not exist.
-- **Zero is not a value in proto.** Proto3 gives scalars no presence bit, so
+- **Zero is not a value in proto, or a v3 automation target.** Proto3 has no
+  presence bit for scalars, so
   Parrot signals "unknown" in band: a zero altitude means no fix,
   `utc_timestamp_accuracy == 0` means the UTC stamp is invalid, and zero
   lat/lon (camera and drone both) means no position fix at all — the camera
@@ -92,7 +93,9 @@ values are checked as a consumer sees them rather than as we staged them.
   rather than risk a fabricated ground clearance. All of these become an empty
   optional at normalization; treating any of them as a number would put the
   aircraft at sea level, 0°N 0°E, on the ground, or stamp the packet with a
-  confident wrong time.
+  confident wrong time. The same all-zero latitude/longitude pair in v3's
+  automation framing target means no target; normalization leaves Items
+  40/41/42 absent rather than emitting a confident null-island location.
 - **`asin` is clamped** before computing pitch. A v3 quaternion that is barely
   non-unit from fixed-point rounding can push the argument past 1 and yield NaN
   anyway — a NaN pitch/roll that reaches `put_narrow_angle` (Items 6/7) is
@@ -137,11 +140,12 @@ elapsed monotonic microseconds. The anchor inherits the media date's *second*
 granularity — see [[mp4-extraction]] § Session metadata — so absolute time is
 good to a second while frame spacing stays exact.
 
-Where it does not (no session tags, no parsable date, or a proto frame whose
-`utc_timestamp_accuracy` is zero), the packet is assembled **without**
-mandatory-item enforcement, Item 2 is absent, and the coverage report says why.
-Emitting a fabricated timestamp would be worse: a consumer cannot tell a wrong
-time from a right one, but it can tell a missing item from a present one.
+Where it does not (no session tags, no parsable date, a v3 recording whose first
+frame has no clock, or a proto frame whose `utc_timestamp_accuracy` is zero),
+the packet is assembled **without** mandatory-item enforcement, Item 2 is
+absent, and the coverage report says why. Emitting a fabricated timestamp would
+be worse: a consumer cannot tell a wrong time from a right one, but it can tell
+a missing item from a present one.
 
 ## The coverage report
 
@@ -157,8 +161,9 @@ per frame:
   indexes an item and how these docs refer to it
 - **omitted** — items the mapping knows about but did not emit, each with a
   reason: the format does not carry it, this frame did not, it needs terrain
-  intersection, it needs session metadata, the source value is invalid, the
-  finite value is not encodable, or the mapping itself is an open question
+  intersection, it needs session metadata or the recording's origin clock, the
+  source value is invalid, the finite value is not encodable, or the mapping
+  itself is an open question
 - **dropped** — Parrot fields with no 0601 item at all (battery, link telemetry,
   exposure, thermal), listed only when the frame actually carried them, so the
   report describes the recording rather than reciting the schema

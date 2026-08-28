@@ -208,11 +208,12 @@ std::string to_string(OmissionReason reason) {
     switch (reason) {
         case OmissionReason::NoSourceInFormat: return "format does not carry it";
         case OmissionReason::SourceAbsent: return "not present in this frame";
+        case OmissionReason::NoAnchorOrigin: return "recording origin has no timestamp";
         case OmissionReason::InvalidSourceValue: return "source value is invalid";
         case OmissionReason::EncodeRejected: return "value is not encodable as this item";
         case OmissionReason::UndefinedForFrame: return "undefined for this frame";
         case OmissionReason::NeedsDerivation: return "needs terrain intersection (not implemented)";
-        case OmissionReason::NeedsSessionData: return "needs MP4 session metadata (not parsed)";
+        case OmissionReason::NeedsSessionData: return "needs MP4 session metadata";
         case OmissionReason::Unresolved: return "mapping is an open question";
     }
     return "unknown";
@@ -353,10 +354,11 @@ void anchor_to_session(TelemetrySnapshot& snapshot, const SessionMetadata& sessi
     if (snapshot.source_format != ParrotFormat::V3) return;
     if (!session.media_date_epoch_s) return;
     if (!first_monotonic_us) return;  // origin sample's extraction/parse failed
+    if (!snapshot.monotonic_us) return;  // this frame has no timestamp extension
     // The monotonic clock can run backwards relative to the first sample only
     // if the caller passed a later frame as the origin; guard rather than wrap.
-    const uint64_t elapsed_us = snapshot.monotonic_us > *first_monotonic_us
-                                     ? snapshot.monotonic_us - *first_monotonic_us
+    const uint64_t elapsed_us = *snapshot.monotonic_us > *first_monotonic_us
+                                     ? *snapshot.monotonic_us - *first_monotonic_us
                                      : 0;
     snapshot.utc_timestamp_us =
         static_cast<uint64_t>(*session.media_date_epoch_s) * 1000000ULL + elapsed_us;
@@ -377,9 +379,19 @@ Klv0601Frame to_0601(const TelemetrySnapshot& s, const SessionMetadata* session,
     if (s.utc_timestamp_us) {
         staging.put_uint(2, *s.utc_timestamp_us);
     } else {
-        // v3 has only a monotonic clock, and proto says "invalid" through a zero
-        // accuracy. Anchoring needs session media_date, which nothing parses.
-        coverage.omitted[2] = OmissionReason::NeedsSessionData;
+        // A v3 frame without its optional timestamp extension has no source
+        // for Item 2. A present v3 clock plus parsed session media_date but no
+        // absolute timestamp means the recording's origin clock was absent.
+        // Other unanchored frames need session data; proto says "invalid"
+        // through a zero accuracy.
+        if (s.source_format == ParrotFormat::V3 && !s.monotonic_us) {
+            coverage.omitted[2] = OmissionReason::SourceAbsent;
+        } else if (s.source_format == ParrotFormat::V3 && s.monotonic_us && session &&
+                   session->media_date_epoch_s) {
+            coverage.omitted[2] = OmissionReason::NoAnchorOrigin;
+        } else {
+            coverage.omitted[2] = OmissionReason::NeedsSessionData;
+        }
     }
 
     // --- platform attitude (Items 5/6/7, and the trustworthy 90/91) ---

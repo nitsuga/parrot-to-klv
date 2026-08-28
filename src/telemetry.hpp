@@ -101,7 +101,9 @@ struct TelemetrySnapshot {
     /// trust: proto says so through `utc_timestamp_accuracy == 0`, and v3 has
     /// only a monotonic clock that needs session metadata to anchor.
     std::optional<uint64_t> utc_timestamp_us;
-    uint64_t monotonic_us = 0;
+    /// Monotonic frame clock. Absent when a v3 frame has no timestamp
+    /// extension; an engaged zero is a real clock reading.
+    std::optional<uint64_t> monotonic_us;
 
     // --- sensor position ---
     /// Empty when the frame reports no fix — proto3 gives its scalars no

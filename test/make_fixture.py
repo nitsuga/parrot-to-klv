@@ -583,6 +583,16 @@ def automation_ext() -> bytes:
     return ext(0x4533, payload)
 
 
+def automation_without_target_ext() -> bytes:
+    # The all-zero framing target is v3's no-target sentinel. Keep the flight
+    # destination populated so the extension itself is present and decodable.
+    payload = struct.pack(">iii", 0, 0, 0)
+    payload += struct.pack(">iii", round(48.87 * Q10_22), round(2.31 * Q10_22),
+                           round(150.0 * Q16_16))
+    payload += struct.pack(">BBH", 5, 0x01 | 0x04, 0)
+    return ext(0x4533, payload)
+
+
 def short_automation_ext() -> bytes:
     # A v3 automation id with only the first coordinate triple. The parser
     # cannot decode it as AutomationExt, so the scrubber must treat it as
@@ -994,6 +1004,19 @@ def main() -> int:
 
     fixtures = {
         "parrot_v3.mp4": build(MIME_PREFIX + "com.parrot.videometadata3", samples, video),
+        # A valid v3 automation extension can carry no framing target, and a
+        # frame can omit the optional monotonic timestamp extension entirely.
+        "parrot_v3_absent_data.mp4": build(
+            MIME_PREFIX + "com.parrot.videometadata3",
+            [v3_sample(i, automation_without_target_ext()) for i in range(8)],
+            video),
+        # A missing timestamp on the origin sample leaves the whole recording
+        # unanchored, even when later samples carry their own timestamps.
+        "parrot_v3_first_timestamp_absent.mp4": build(
+            MIME_PREFIX + "com.parrot.videometadata3",
+            [v3_sample(0)] + [v3_sample(i, timestamp_ext(33333 * i))
+                             for i in range(1, 8)],
+            video),
         # Real serialized TimedMetadata, not v3 bytes under a proto MIME type.
         "parrot_proto.mp4": build(MIME_PREFIX + "com.parrot.videometadataproto",
                                   [proto_sample(i) for i in range(8)], video),
