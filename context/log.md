@@ -2,6 +2,21 @@
 
 ## 2026-08-28
 
+* **Returned live KLV emission failures for issue #86:** `try_decode_and_emit`
+  now carries `KlvSink::emit()`'s Result to both continuous-drive call sites,
+  so a runtime sink rejection exits `live_ingest` with the original error
+  instead of being treated as a skipped packet and falling through to timed
+  close. `sink.error()` remains open-time only; pipeline bus EOS/ERROR
+  observation remains the documented gap. Debug and sanitizer builds pass,
+  as does the focused live RTP test.
+
+* **Scoped issue #86 after review:** PR #93 covers the runtime
+  `KlvSink::emit()` failure path. No regression test was added because
+  `live_ingest` constructs `KlvSink` directly and the available real GStreamer
+  failure path (`file:/dev/full`) is reported by `close()`, so that harness
+  passes on the unfixed code. The no-telemetry bus EOS/ERROR path is tracked in
+  #94; generated-KLV parse failures are tracked in #95.
+
 * **Made Item 2 session anchoring fail closed for issue #85:** pre-epoch media
   dates are rejected before unsigned timestamp arithmetic, and `©day` accepts
   ISO 8601 extended, basic, and hour-only UTC offsets. Synthetic coverage pins
