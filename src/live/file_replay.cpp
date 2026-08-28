@@ -257,7 +257,10 @@ misbklv::Result<std::monostate> replay_file_to_live(const FileReplayConfig& cfg)
         // latching the global interrupt; otherwise repeat until SIGINT.
         const int limit = cfg.test_repeat_limit;
         int64_t pts_base_ns = 0;
-        for (int iter = 0; (limit <= 0 || iter < limit) && !is_mux_interrupted(); ++iter) {
+        // iter only counts finite runs — in the indefinite case nothing reads
+        // it, and incrementing forever would overflow the signed counter.
+        for (int iter = 0; (limit <= 0 || iter < limit) && !is_mux_interrupted();
+             iter += (limit > 0 ? 1 : 0)) {
             std::string sink_str = limit > 0 ? sink_for_iteration(cfg.output_sink, iter, limit)
                                              : cfg.output_sink;
             misbklv::KlvSink sink(build_config(sink_str));
