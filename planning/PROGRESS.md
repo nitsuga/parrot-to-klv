@@ -100,7 +100,7 @@ The one substantive feature piece left is **fork 4, Tier 2 geometry fidelity**
 - **The live drive loops are deduplicated (#81).** `live_ingest` and
   `file_replay` each ran one loop instead of two near-identical branches, and
   the in-memory MP4 box reader `session_metadata` and `parrot_scrub` had
-  separately grown is now shared in `mp4_box_scan`. Behaviour is unchanged; the
+  separately grown is now shared in `mp4_box_scan`. Behavior is unchanged; the
   shared reader is the wrap-safe one, so the scrub path checks hostile
   largesize bounds more tightly than before.
 - The live surface is complete: file replay (`path→udp`/`srt:`) is landed and the
