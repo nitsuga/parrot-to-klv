@@ -20,6 +20,11 @@ being treated as a skipped packet and leaving the drive loop to spin until its
 deadline or SIGINT. Pipeline EOS/ERROR is still not independently observed;
 the no-telemetry failure path is tracked in #94.
 
+**Generated KLV parse failures are returned (#95):** live v3 and proto telemetry,
+as well as file-to-live replay, now terminate with the original
+`Message::parse` error when a packet produced by `to_0601` cannot be parsed.
+Ordinary decode misses and truncated proto coalescing remain skips.
+
 **Absent v3 data remains absent (#84):** zero-sentinel automation targets and
 missing per-frame timestamps are omitted rather than turned into target or
 session-start measurements; coverage distinguishes absent frame data from

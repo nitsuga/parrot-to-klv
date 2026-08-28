@@ -131,7 +131,7 @@ misbklv::Result<std::monostate> do_one_pass(
         auto klv = to_0601(snap, &session, opts);
         if (klv.packet.empty()) continue;
         auto msg_res = misbklv::Message::parse(std::as_bytes(std::span<const uint8_t>(klv.packet)));
-        if (!msg_res) continue;
+        if (!msg_res) return misbklv::Result<std::monostate>::err(msg_res.error());
         int64_t pts_ns = pts_base_ns + static_cast<int64_t>((sample.timestamp_us - origin_us) * 1000ULL);
         // Guard against underflow if origin > timestamp (out-of-order): clamp to base.
         if (sample.timestamp_us < origin_us) pts_ns = pts_base_ns;

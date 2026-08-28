@@ -79,7 +79,8 @@ misbklv::Result<std::monostate> emit_dummy_batch(misbklv::KlvSink& sink,
 }
 
 // Try to decode one captured extension and emit KLV. The bool is true if
-// emitted; an error is returned when the sink rejects the packet.
+// emitted; an error is returned when generated KLV parsing or the sink rejects
+// the packet.
 // Handles v3 first, then proto with coalescing across packets.
 misbklv::Result<bool> try_decode_and_emit(
     const CapturedExtension& cap, misbklv::KlvSink& sink,
@@ -104,7 +105,7 @@ misbklv::Result<bool> try_decode_and_emit(
             if (klv.packet.empty()) return misbklv::Result<bool>::ok(false);
             auto msg_res = misbklv::Message::parse(
                 std::as_bytes(std::span<const uint8_t>(klv.packet)));
-            if (!msg_res) return misbklv::Result<bool>::ok(false);
+            if (!msg_res) return misbklv::Result<bool>::err(msg_res.error());
             // Assumption: RTP buffer PTS at header-extension read equals reception
             // running_time per ADR 0013/ADR 0021; if rtspsrc buffering or
             // RTP-timestamp mode diverges, live KLV will drift from video. Hermetic
@@ -152,7 +153,7 @@ misbklv::Result<bool> try_decode_and_emit(
         if (!msg_res) {
             proto_coalesce.clear();
             proto_coalesce_pts = GST_CLOCK_TIME_NONE;
-            return misbklv::Result<bool>::ok(false);
+            return misbklv::Result<bool>::err(msg_res.error());
         }
         // Assumption: RTP buffer PTS at header-extension read equals reception
         // running_time per ADR 0013/ADR 0021; if rtspsrc buffering or
