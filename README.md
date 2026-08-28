@@ -12,8 +12,8 @@ every Parrot drone still in production — extracting that track, mapping its
 fields onto MISB ST 0601 tags, and remuxing video + KLV into MPEG-TS.
 
 The older v2 format (Bebop 2, Disco, Bluegrass) is a possible add-on but is not
-planned; v1 is deprecated by Parrot and out of scope, as are real-time
-streaming, a GUI, an integration API, and KLV standards beyond ST 0601 — except
+planned; v1 is deprecated by Parrot and out of scope, as are a GUI, an
+integration API, and KLV standards beyond ST 0601 — except
 ST 0604 SEI, which the output carries because we ask libmisbklv to generate it
 (its default leaves the video untouched). See
 [`planning/ROADMAP.md`](planning/ROADMAP.md).
