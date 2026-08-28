@@ -3,11 +3,11 @@
 ## 2026-08-28
 
 * **Returned generated-KLV parse failures for issue #95:** `try_decode_and_emit`
-  now returns `Message::parse` errors for KLV produced by `to_0601` on both the
-  v3 and proto paths, instead of treating an internal generated-packet
-  invariant failure as absent telemetry. Normal Parrot decode misses and
-  truncated proto coalescing remain skips; the existing callers already
-  propagate the returned error out of `live_ingest`. The debug and sanitizer
+  and file-to-live replay now return `Message::parse` errors for KLV produced by
+  `to_0601`, instead of treating an internal generated-packet invariant failure
+  as absent telemetry. Normal Parrot decode misses and truncated proto
+  coalescing remain skips; the existing callers already propagate the returned
+  error out of `live_ingest` and `replay_file_to_live`. The debug and sanitizer
   labeled suites pass, including the focused live RTP test.
 
 * **Made MP4 track pairing fail closed for issue #87:** `Mp4MetadataExtractor::open()`
