@@ -208,6 +208,7 @@ std::string to_string(OmissionReason reason) {
     switch (reason) {
         case OmissionReason::NoSourceInFormat: return "format does not carry it";
         case OmissionReason::SourceAbsent: return "not present in this frame";
+        case OmissionReason::NoAnchorOrigin: return "recording origin has no timestamp";
         case OmissionReason::InvalidSourceValue: return "source value is invalid";
         case OmissionReason::EncodeRejected: return "value is not encodable as this item";
         case OmissionReason::UndefinedForFrame: return "undefined for this frame";
@@ -379,12 +380,18 @@ Klv0601Frame to_0601(const TelemetrySnapshot& s, const SessionMetadata* session,
         staging.put_uint(2, *s.utc_timestamp_us);
     } else {
         // A v3 frame without its optional timestamp extension has no source
-        // for Item 2. Other unanchored frames need session media_date to turn
-        // their monotonic clock into an absolute timestamp; proto says
-        // "invalid" through a zero accuracy.
-        coverage.omitted[2] = s.source_format == ParrotFormat::V3 && !s.monotonic_us
-                                  ? OmissionReason::SourceAbsent
-                                  : OmissionReason::NeedsSessionData;
+        // for Item 2. A present v3 clock plus parsed session media_date but no
+        // absolute timestamp means the recording's origin clock was absent.
+        // Other unanchored frames need session data; proto says "invalid"
+        // through a zero accuracy.
+        if (s.source_format == ParrotFormat::V3 && !s.monotonic_us) {
+            coverage.omitted[2] = OmissionReason::SourceAbsent;
+        } else if (s.source_format == ParrotFormat::V3 && s.monotonic_us && session &&
+                   session->media_date_epoch_s) {
+            coverage.omitted[2] = OmissionReason::NoAnchorOrigin;
+        } else {
+            coverage.omitted[2] = OmissionReason::NeedsSessionData;
+        }
     }
 
     // --- platform attitude (Items 5/6/7, and the trustworthy 90/91) ---

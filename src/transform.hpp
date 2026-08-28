@@ -47,6 +47,7 @@ struct Disclosure {
 enum class OmissionReason {
     NoSourceInFormat,   ///< the recording's format never carries it
     SourceAbsent,       ///< the format carries it, this frame did not
+    NoAnchorOrigin,     ///< the recording's first frame carried no clock
     InvalidSourceValue, ///< the recording supplied a value that is not usable
     EncodeRejected,     ///< a present finite value is not encodable as this item
     UndefinedForFrame,  ///< the item has no meaningful value for this frame

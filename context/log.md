@@ -10,8 +10,14 @@
 
 * **Corrected #84's coverage reason:** a v3 frame without its timestamp now
   reports Item 2 as `SourceAbsent`, while a timestamped frame that cannot be
-  anchored still reports `NeedsSessionData`. A mixed synthetic recording pins
-  the deliberate all-or-nothing behavior when the first frame has no clock.
+  anchored is distinguished from a missing session date. A mixed synthetic
+  recording pins the deliberate all-or-nothing behavior when the first frame
+  has no clock.
+
+* **Named the missing v3 anchor origin in #84 coverage:** when a timestamped
+  frame has parsed session metadata but the recording's first frame had no
+  clock, Item 2 now reports `NoAnchorOrigin` instead of blaming session data.
+  The mixed fixture and coverage assertion pin the distinction.
 
 * **Closed the oversized automation tail found in review of issue #83:** v3
   automation extensions still rewrite their known 28-byte prefix, but any

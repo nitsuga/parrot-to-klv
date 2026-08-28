@@ -140,11 +140,12 @@ elapsed monotonic microseconds. The anchor inherits the media date's *second*
 granularity — see [[mp4-extraction]] § Session metadata — so absolute time is
 good to a second while frame spacing stays exact.
 
-Where it does not (no session tags, no parsable date, or a proto frame whose
-`utc_timestamp_accuracy` is zero), the packet is assembled **without**
-mandatory-item enforcement, Item 2 is absent, and the coverage report says why.
-Emitting a fabricated timestamp would be worse: a consumer cannot tell a wrong
-time from a right one, but it can tell a missing item from a present one.
+Where it does not (no session tags, no parsable date, a v3 recording whose first
+frame has no clock, or a proto frame whose `utc_timestamp_accuracy` is zero),
+the packet is assembled **without** mandatory-item enforcement, Item 2 is
+absent, and the coverage report says why. Emitting a fabricated timestamp would
+be worse: a consumer cannot tell a wrong time from a right one, but it can tell
+a missing item from a present one.
 
 ## The coverage report
 
@@ -160,8 +161,9 @@ per frame:
   indexes an item and how these docs refer to it
 - **omitted** — items the mapping knows about but did not emit, each with a
   reason: the format does not carry it, this frame did not, it needs terrain
-  intersection, it needs session metadata, the source value is invalid, the
-  finite value is not encodable, or the mapping itself is an open question
+  intersection, it needs session metadata or the recording's origin clock, the
+  source value is invalid, the finite value is not encodable, or the mapping
+  itself is an open question
 - **dropped** — Parrot fields with no 0601 item at all (battery, link telemetry,
   exposure, thermal), listed only when the frame actually carried them, so the
   report describes the recording rather than reciting the schema

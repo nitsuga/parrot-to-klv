@@ -303,8 +303,8 @@ void check_v3_absent_data(const std::string& fixture_dir) {
                 const auto later_klv = to_0601(later_snapshot, &session);
                 const auto later_item2 = later_klv.coverage.omitted.find(2);
                 check(later_item2 != later_klv.coverage.omitted.end() &&
-                          later_item2->second == OmissionReason::NeedsSessionData,
-                      "a clocked frame without an origin reports missing session data");
+                          later_item2->second == OmissionReason::NoAnchorOrigin,
+                      "a clocked frame without an origin reports the missing origin");
             }
         }
     }
