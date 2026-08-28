@@ -2,6 +2,11 @@
 
 ## 2026-08-28
 
+* **Made Item 2 session anchoring fail closed for issue #85:** pre-epoch media
+  dates are rejected before unsigned timestamp arithmetic, and `©day` accepts
+  ISO 8601 extended, basic, and hour-only UTC offsets. Synthetic coverage pins
+  both the MP4 path and the resulting non-anchor.
+
 * **Made absent v3 values explicit for issue #84:** normalization now leaves
   zero-sentinel automation targets and missing per-frame timestamps absent;
   session anchoring refuses to invent Item 2 for a frame without its clock,

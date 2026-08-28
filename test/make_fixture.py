@@ -204,7 +204,8 @@ def ilst_entry_direct(key: bytes, text: str) -> bytes:
     return box(key, text.encode())
 
 
-def session_udta(iso6709: str, direct_ilst: bool = False) -> bytes:
+def session_udta(iso6709: str, direct_ilst: bool = False,
+                 media_date: str = "2018-10-06T18:12:52+02:00") -> bytes:
     """moov/udta carrying the geotag plus Parrot's four-character session tags.
 
     Parrot writes the session metadata two ways -- these iTunes-style keys under
@@ -226,7 +227,7 @@ def session_udta(iso6709: str, direct_ilst: bool = False) -> bytes:
                + entry(b"\xa9too", "PI040416BA8G059745")  # serial -> Item 4
                + entry(b"\xa9swr", "1.3.0")             # software version
                + entry(b"\xa9nam", "Sat, 06 Oct 2018 18:12:52 +0200")
-               + entry(b"\xa9day", "2018-10-06T18:12:52+02:00"))  # media date
+               + entry(b"\xa9day", media_date))  # media date
     # 'meta' is a FullBox: version/flags precede its children.
     meta = box(b"meta", struct.pack(">I", 0) + ilst)
     return box(b"udta", geo + meta)
@@ -237,7 +238,8 @@ def build(mime: str, samples: list[bytes], video_samples: list[bytes],
           content_encoding: str = "", session: bool = True,
           direct_ilst: bool = False,
           video: "H264Track | None" = None,
-          audio: "AacTrack | None" = None) -> bytes:
+          audio: "AacTrack | None" = None,
+          media_date: str = "2018-10-06T18:12:52+02:00") -> bytes:
     """Assemble ftyp + mdat + moov. mdat first so chunk offsets are known up front.
 
     An audio track is optional and, when present, runs on its own timescale: AAC
@@ -266,7 +268,8 @@ def build(mime: str, samples: list[bytes], video_samples: list[bytes],
         traks += audio_trak(3, audio.sample_rate, [len(s) for s in audio.samples],
                             1024, audio_chunk_offset, audio.asc, audio.channels)
     moov = box(b"moov", mvhd(timescale, duration, 4 if audio else 3)
-               + (session_udta("+48.85837+002.29448+135.250/", direct_ilst=direct_ilst)
+               + (session_udta("+48.85837+002.29448+135.250/", direct_ilst=direct_ilst,
+                               media_date=media_date)
                   if session else geotag("+48.85837+002.29448+135.250/"))
                + traks)
     return ftyp + mdat + moov
@@ -1017,6 +1020,15 @@ def main() -> int:
             [v3_sample(0)] + [v3_sample(i, timestamp_ext(33333 * i))
                              for i in range(1, 8)],
             video),
+        # A pre-epoch session date cannot become an unsigned ST 0601 timestamp.
+        "parrot_v3_pre_epoch.mp4": build(
+            MIME_PREFIX + "com.parrot.videometadata3", samples, video,
+            media_date="1969-12-31T23:59:58+00:00"),
+        # Some MP4 writers NUL-terminate ilst strings inside their declared
+        # box length; the parser must keep the valid date before that padding.
+        "parrot_v3_padded_date.mp4": build(
+            MIME_PREFIX + "com.parrot.videometadata3", samples, video,
+            media_date="2018-10-06T18:12:52+02:00\x00"),
         # Real serialized TimedMetadata, not v3 bytes under a proto MIME type.
         "parrot_proto.mp4": build(MIME_PREFIX + "com.parrot.videometadataproto",
                                   [proto_sample(i) for i in range(8)], video),

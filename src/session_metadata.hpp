@@ -64,10 +64,12 @@ SessionMetadata parse_session_metadata(FILE* file);
 
 /// Parse an ISO 8601 timestamp of the form Parrot writes into '©day'
 /// ("2018-10-06T18:12:52+02:00", sometimes with a space instead of the 'T')
-/// into seconds since the Unix epoch.
+/// into non-negative seconds since the Unix epoch. Extended, basic, and
+/// hour-only UTC offsets are accepted (`+02:00`, `+0200`, and `+02`).
 ///
-/// Returns nothing rather than guessing if the string does not match — a wrong
-/// anchor would put every frame's Item 2 at the wrong wall-clock time.
+/// Returns nothing rather than guessing if the string does not match or falls
+/// before the Unix epoch — a wrong anchor would put every frame's Item 2 at the
+/// wrong wall-clock time.
 std::optional<int64_t> parse_iso8601_to_epoch(const std::string& text);
 
 }  // namespace parrot_to_klv
