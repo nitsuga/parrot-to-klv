@@ -115,12 +115,25 @@ void check_iso8601() {
     // Regression tests for issue #4: a malformed or out-of-range offset used
     // to leave offset_s at 0 and still succeed, anchoring every frame's Item 2
     // hours off instead of failing loudly.
-    check(!parse_iso8601_to_epoch("2018-10-06T18:12:52+02").has_value(),
+    check(!parse_iso8601_to_epoch("2018-10-06T18:12:52+02:").has_value(),
           "an offset missing its minutes is rejected, not silently treated as +00:00");
     check(!parse_iso8601_to_epoch("2018-10-06T18:12:52+99:99").has_value(),
           "an offset outside a real UTC range is rejected");
     check(!parse_iso8601_to_epoch("2018-10-06T18:12:52+24:00").has_value(),
           "an offset hour of exactly 24 is rejected");
+
+    auto epoch_basic = parse_iso8601_to_epoch("2018-10-06T18:12:52+0200");
+    check(epoch_basic.has_value(), "basic ISO 8601 offset parses");
+    if (epoch_basic) {
+        check_eq(*epoch_basic, int64_t{1538842372}, "basic offset is subtracted");
+    }
+    auto epoch_hour = parse_iso8601_to_epoch("2018-10-06T18:12:52+02");
+    check(epoch_hour.has_value(), "hour-only ISO 8601 offset parses");
+    if (epoch_hour) {
+        check_eq(*epoch_hour, int64_t{1538842372}, "hour-only offset is subtracted");
+    }
+    check(!parse_iso8601_to_epoch("1969-12-31T23:59:58+00:00").has_value(),
+          "a pre-epoch date is rejected before unsigned timestamp arithmetic");
 
     // Regression test for issue #4: timegm silently normalizes a
     // calendar-impossible date (glibc turns 2018-02-31 into 2018-03-03)
@@ -182,6 +195,29 @@ void check_hostile_largesize_is_rejected(const std::string& fixture_dir) {
           "the real tag before the hostile box still parses");
     check(!session.friendly_name.has_value(),
           "a box with a wrapping largesize is not read as a valid '©ART'");
+}
+
+void check_pre_epoch_date(const std::string& fixture_dir) {
+    FILE* file = std::fopen((fixture_dir + "/parrot_v3_pre_epoch.mp4").c_str(), "rb");
+    check(file != nullptr, "pre-epoch fixture opens");
+    if (!file) return;
+
+    const SessionMetadata session = parse_session_metadata(file);
+    std::fclose(file);
+    check(session.media_date && *session.media_date == "1969-12-31T23:59:58+00:00",
+          "pre-epoch media date is preserved verbatim");
+    check(!session.media_date_epoch_s.has_value(),
+          "pre-epoch media date is rejected as an Item 2 anchor");
+
+    ParrotV3Frame frame;
+    frame.frame_timestamp_us = uint64_t{33333};
+    auto snapshot = from_v3(frame);
+    anchor_to_session(snapshot, session, uint64_t{0});
+    check(!snapshot.utc_timestamp_us.has_value(),
+          "pre-epoch media date does not produce a wrapped timestamp");
+    const auto klv = to_0601(snapshot, &session);
+    check(klv.coverage.omitted.at(2) == OmissionReason::NeedsSessionData,
+          "pre-epoch media date leaves Item 2 needing usable session data");
 }
 
 void check_anchoring() {
@@ -367,6 +403,7 @@ int main(int argc, char** argv) {
     }
     check_fixture(argv[1]);
     check_iso8601();
+    check_pre_epoch_date(argv[1]);
     check_hostile_largesize_is_rejected(argv[1]);
     check_anchoring();
     check_v3_absent_data(argv[1]);

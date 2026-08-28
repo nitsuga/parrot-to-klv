@@ -140,9 +140,9 @@ TelemetrySnapshot from_v3(const ParrotV3Frame& f) {
     TelemetrySnapshot s;
     s.source_format = ParrotFormat::V3;
 
-    // v3 has no wall clock of its own; anchoring the monotonic one needs
-    // session media_date, which nothing parses yet. Left absent rather than
-    // guessed — see the open question in field-mapping-analysis.
+    // v3 has no wall clock of its own; anchoring the monotonic one needs the
+    // session media_date parsed by the MP4/session stage. Left absent rather
+    // than guessed — see the open question in field-mapping-analysis.
     if (f.frame_timestamp_us) s.monotonic_us = *f.frame_timestamp_us;
 
     s.latitude_deg = f.latitude_deg;

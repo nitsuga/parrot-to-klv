@@ -9,6 +9,7 @@
 #include <ctime>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -115,26 +116,50 @@ std::optional<int64_t> parse_iso8601_to_epoch(const std::string& text) {
     }
 
     // Apply the trailing offset, if any: "+02:00" means the wall-clock reading
-    // is two hours ahead of UTC, so UTC is two hours earlier. An offset that
-    // fails to parse or falls outside a real UTC offset's range must reject
-    // the whole timestamp rather than silently fall back to +00:00 -- that
-    // would anchor every frame's Item 2 at a confidently wrong wall time.
+    // is two hours ahead of UTC, so UTC is two hours earlier. Accept ISO 8601's
+    // extended (+HH:MM), basic (+HHMM), and hour-only (+HH) spellings. An
+    // offset that fails to parse or falls outside a real UTC offset's range
+    // must reject the whole timestamp rather than silently fall back to +00:00
+    // -- that would anchor every frame's Item 2 at a confidently wrong wall
+    // time.
     const size_t time_end = text.find(separator);
     const size_t offset_pos = text.find_first_of("+-", time_end == std::string::npos ? 0 : time_end);
     int64_t offset_s = 0;
     if (offset_pos != std::string::npos) {
-        int offset_hour = 0, offset_minute = 0;
-        if (std::sscanf(text.c_str() + offset_pos + 1, "%2d:%2d", &offset_hour, &offset_minute) !=
-            2) {
+        const std::string_view offset = std::string_view(text).substr(offset_pos);
+        const bool hour_only = offset.size() == 3;
+        const bool basic = offset.size() == 5;
+        const bool extended = offset.size() == 6 && offset[3] == ':';
+        if (!hour_only && !basic && !extended) {
             return std::nullopt;
         }
-        if (offset_hour < 0 || offset_hour > 23 || offset_minute < 0 || offset_minute > 59) {
+
+        const auto read_two = [&](size_t pos) -> std::optional<int> {
+            if (pos + 1 >= offset.size() || offset[pos] < '0' || offset[pos] > '9' ||
+                offset[pos + 1] < '0' || offset[pos + 1] > '9') {
+                return std::nullopt;
+            }
+            return (offset[pos] - '0') * 10 + (offset[pos + 1] - '0');
+        };
+        const auto offset_hour = read_two(1);
+        if (!offset_hour) return std::nullopt;
+        int offset_minute = 0;
+        if (!hour_only) {
+            const auto minute = read_two(extended ? 4 : 3);
+            if (!minute) return std::nullopt;
+            offset_minute = *minute;
+        }
+        if (*offset_hour > 23 || offset_minute > 59) {
             return std::nullopt;
         }
-        offset_s = (static_cast<int64_t>(offset_hour) * 3600) + (offset_minute * 60);
+        offset_s = (static_cast<int64_t>(*offset_hour) * 3600) + (offset_minute * 60);
         if (text[offset_pos] == '-') offset_s = -offset_s;
     }
-    return static_cast<int64_t>(utc) - offset_s;
+    const int64_t epoch_s = static_cast<int64_t>(utc) - offset_s;
+    // ST 0601 Item 2 is an unsigned epoch timestamp. Reject pre-1970 dates
+    // here, before they can wrap in anchor_to_session's unsigned arithmetic.
+    if (epoch_s < 0) return std::nullopt;
+    return epoch_s;
 }
 
 SessionMetadata parse_session_metadata(FILE* file) {

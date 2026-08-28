@@ -14,6 +14,10 @@ session-start measurements; coverage distinguishes absent frame data from
 missing anchor origin and missing session metadata, and a mixed first-frame
 fixture pins the no-origin behavior.
 
+**Item 2 session anchoring fails closed (#85):** pre-epoch dates are rejected,
+legal basic and hour-only ISO 8601 offsets are accepted, and regression coverage
+keeps malformed dates from becoming wrapped timestamps.
+
 **Default v3 scrubbing fails closed on malformed extensions (#83):** short and
 oversized automation payloads plus truncated extension tails are reported and
 cleared, with synthetic regression fixtures; valid extension behavior is
