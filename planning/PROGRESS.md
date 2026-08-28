@@ -8,6 +8,12 @@ chronological history (what landed when, decision detail) lives in
 
 ## Now
 
+**MP4 track pairing fails closed (#87):** `Mp4MetadataExtractor::open()` rejects
+disagreement between the first-`moov` box scan and minimp4's track count, then
+verifies every indexed handler type before using the metadata index. A synthetic
+foreign-top-level-`trak` fixture covers the shifted-index case that could make
+`--zero-media` clear the wrong track.
+
 **Live KLV emission failures are returned (#86):** a runtime `KlvSink::emit`
 failure now terminates `live_ingest` with the original backend error instead of
 being treated as a skipped packet and leaving the drive loop to spin until its

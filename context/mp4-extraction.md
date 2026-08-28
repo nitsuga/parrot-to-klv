@@ -50,9 +50,17 @@ so a metadata track's sample entry is parsed past and dropped. The scan recovers
 `tkhd` track IDs, `hdlr` handler types, the `stsd` sample entry (format code and
 MIME string), and `tref`/`cdsc` links.
 
-Both enumerate `trak` boxes in file order, so their track indices line up.
-`open()` verifies that the handler types agree rather than trusting it — a
-mismatch would silently read the wrong track.
+The box scan describes `trak` boxes under the first `moov`, while minimp4 creates
+a track for every `trak` envelope it encounters, including one outside that
+`moov` or in a later `moov`. `open()` therefore requires equal track counts and
+matching handler types at every index before trusting the metadata index. A
+disagreement is a hard failure rather than an opportunity to read or rewrite a
+shifted track. Pairing by track ID is not available because minimp4's public
+`MP4D_track_t` does not expose the `tkhd` ID, and the vendored parser is not
+patched for this purpose. The strict check therefore deliberately rejects an
+otherwise usable file with a divergent second `moov` (or other `trak`
+membership), accepting a compatibility loss rather than risking a wrong-track
+read or rewrite.
 
 ## Format detection is never inferred
 
