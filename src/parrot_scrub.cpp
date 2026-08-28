@@ -144,30 +144,6 @@ size_t blank_text(std::vector<uint8_t>& buf, size_t begin, size_t end) {
     return changed;
 }
 
-struct Box {
-    uint32_t type = 0;
-    size_t body_begin = 0;
-    size_t body_end = 0;
-};
-
-bool read_box(const std::vector<uint8_t>& b, size_t pos, size_t limit, Box& out) {
-    if (pos + 8 > limit) return false;
-    uint64_t size = load_be32(b, pos);
-    out.type = load_be32(b, pos + 4);
-    size_t header = 8;
-    if (size == 1) {
-        if (pos + 16 > limit) return false;
-        size = (static_cast<uint64_t>(load_be32(b, pos + 8)) << 32) | load_be32(b, pos + 12);
-        header = 16;
-    } else if (size == 0) {
-        size = limit - pos;
-    }
-    if (size < header || pos + size > limit) return false;
-    out.body_begin = pos + header;
-    out.body_end = pos + static_cast<size_t>(size);
-    return true;
-}
-
 /// Find 'moov'/'udta' and zero the geotag and identity boxes it holds.
 ///
 /// Parrot writes the recording's position into a '©xyz' box as an ISO 6709
@@ -196,8 +172,8 @@ void scrub_session_boxes(std::vector<uint8_t>& file, ScrubReport& report) {
     const auto walk = [&](auto&& self, size_t begin, size_t end, int depth) -> void {
         if (depth > 6) return;
         size_t pos = begin;
-        Box box;
-        while (read_box(file, pos, end, box)) {
+        Mp4Box box;
+        while (read_mp4_box(file, pos, end, box)) {
             if (box.type == kXyz) {
                 // Payload: size(2) language(2) then the string.
                 const size_t str = box.body_begin + 4;
@@ -211,10 +187,10 @@ void scrub_session_boxes(std::vector<uint8_t>& file, ScrubReport& report) {
                 // the key box instead. session_metadata's entry_text() accepts
                 // both shapes, so the scrubber has to as well: a file in the
                 // second shape must not look scrubbed while the value survives.
-                Box data;
+                Mp4Box data;
                 size_t str = box.body_begin;
                 size_t str_end = box.body_end;
-                if (read_box(file, box.body_begin, box.body_end, data) &&
+                if (read_mp4_box(file, box.body_begin, box.body_end, data) &&
                     data.type == kData && data.body_begin + 8 <= data.body_end) {
                     str = data.body_begin + 8;
                     str_end = data.body_end;

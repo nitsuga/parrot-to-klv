@@ -97,6 +97,12 @@ The one substantive feature piece left is **fork 4, Tier 2 geometry fidelity**
   clear**: GitHub's `refs/pull/*` refs still resolve to pre-rewrite commits, and
   only GitHub Support can purge them along with the cached objects and the
   generated tag archives. The flip waits on that purge being confirmed.
+- **The live drive loops are deduplicated (#81).** `live_ingest` and
+  `file_replay` each ran one loop instead of two near-identical branches, and
+  the in-memory MP4 box reader `session_metadata` and `parrot_scrub` had
+  separately grown is now shared in `mp4_box_scan`. Behavior is unchanged; the
+  shared reader is the wrap-safe one, so the scrub path checks hostile
+  largesize bounds more tightly than before.
 - The live surface is complete: file replay (`path→udp`/`srt:`) is landed and the
   unified CLI covers all four `input × output` cells.
 

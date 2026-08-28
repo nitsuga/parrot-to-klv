@@ -8,6 +8,7 @@
 
 #include <chrono>
 #include <cstdint>
+#include <optional>
 #include <span>
 #include <string>
 #include <thread>
@@ -253,123 +254,69 @@ misbklv::Result<std::monostate> live_ingest(const LiveIngestConfig& cfg) {
     // 600ms. The one-shot drain + 600ms poll when rtsp and
     // emitted==0 is now subsumed by the continuous loop's first
     // iteration (drains within 10ms) and is removed as a whole run.
-    if (!cfg.run_duration.has_value()) {
-        // Indefinite live-unbounded: drive until SIGINT
-        // If source is file/pipeline with num-buffers, it will EOS
-        // naturally but the loop does not observe it — caller must use
-        // timed mode or SIGINT for finite sources.
-        bool dummy_emitted = false;
-        while (!is_mux_interrupted()) {
-            // Note: sink.error() is only open_error_; runtime bus EOS/ERROR not observed here — see header doc.
-            if (sink.error()) break;
-
-            bool had = false;
-            while (auto cap = parrot_extension_pop_next()) {
-                had = true;
-                if (try_decode_and_emit(*cap, sink, session_ptr, cfg.transform_options,
-                                        emitted_real, proto_coalesce, proto_coalesce_pts)) {
-                    ++emitted_real;
-                }
-                if (sink.error()) break;
-            }
-            if (sink.error()) break;
-            if (is_mux_interrupted()) break;
-
-            // For pipeline: hermetic without real telemetry, emit dummy
-            // once. The 600ms startup poll is subsumed by this loop's
-            // first iteration; we keep a short 50ms grace before
-            // committing to dummy so injected real telemetry is not
-            // shadowed. Only for timed runs — indefinite production path
-            // does not emit dummy (pipeline: is test-only).
-            if (emitted_real == 0 && !dummy_emitted && is_pipeline && cfg.run_duration.has_value()) {
-                if (!had) {
-                    std::this_thread::sleep_for(std::chrono::milliseconds(50));
-                    bool late_arrival = false;
-                    while (auto cap = parrot_extension_pop_next()) {
-                        late_arrival = true;
-                        if (try_decode_and_emit(*cap, sink, session_ptr, cfg.transform_options,
-                                                emitted_real, proto_coalesce, proto_coalesce_pts)) {
-                            ++emitted_real;
-                        }
-                    }
-                    if (emitted_real == 0 && !late_arrival) {
-                        if (auto r = emit_dummy_batch(sink, session_ptr, cfg.transform_options); !r) return r;
-                    }
-                    dummy_emitted = true;
-                    if (sink.error()) break;
-                    continue;
-                }
-            }
-
-            if (!had) {
-                std::this_thread::sleep_for(std::chrono::milliseconds(10));
-            }
-            // Note: sink.error() is only open_error_; runtime bus EOS/ERROR not observed here — see header doc.
-            // For unbounded live sources EOS never arrives; finite sources must be stopped via SIGINT or timed mode.
-        }
-
-        if (emitted_real == 0 && !dummy_emitted && is_pipeline && cfg.run_duration.has_value()) {
-            if (auto r = emit_dummy_batch(sink, session_ptr, cfg.transform_options); !r) return r;
-        }
-
-        // For RTSP with no metadata, no dummy is emitted — just close
-        // (video only). Indefinite loop reached SIGINT or open ERROR.
-        return sink.close();
-    } else {
-        // Timed live loop: deadline = now + run_duration, while
-        // (!is_mux_interrupted && now<deadline) { drain; sleep 10ms }
-        auto deadline = std::chrono::steady_clock::now() + *cfg.run_duration;
-        bool dummy_emitted = false;
-
-        while (true) {
-            if (is_mux_interrupted()) break;
-            if (std::chrono::steady_clock::now() >= deadline) break;
-            // Note: sink.error() is only open_error_; runtime bus EOS/ERROR not observed here — see header doc.
-            if (sink.error()) break;
-
-            bool had = false;
-            while (auto cap = parrot_extension_pop_next()) {
-                had = true;
-                if (try_decode_and_emit(*cap, sink, session_ptr, cfg.transform_options,
-                                        emitted_real, proto_coalesce, proto_coalesce_pts)) {
-                    ++emitted_real;
-                }
-                if (sink.error()) break;
-            }
-            if (sink.error()) break;
-            if (is_mux_interrupted()) break;
-
-            if (emitted_real == 0 && !dummy_emitted && is_pipeline && cfg.run_duration.has_value()) {
-                if (!had) {
-                    std::this_thread::sleep_for(std::chrono::milliseconds(50));
-                    bool late_arrival = false;
-                    while (auto cap = parrot_extension_pop_next()) {
-                        late_arrival = true;
-                        if (try_decode_and_emit(*cap, sink, session_ptr, cfg.transform_options,
-                                                emitted_real, proto_coalesce, proto_coalesce_pts)) {
-                            ++emitted_real;
-                        }
-                    }
-                    if (emitted_real == 0 && !late_arrival) {
-                        if (auto r = emit_dummy_batch(sink, session_ptr, cfg.transform_options); !r) return r;
-                    }
-                    dummy_emitted = true;
-                    if (sink.error()) break;
-                    continue;
-                }
-            }
-
-            if (!had) {
-                std::this_thread::sleep_for(std::chrono::milliseconds(10));
-            }
-        }
-
-        if (emitted_real == 0 && !dummy_emitted && is_pipeline && cfg.run_duration.has_value()) {
-            if (auto r = emit_dummy_batch(sink, session_ptr, cfg.transform_options); !r) return r;
-        }
-
-        return sink.close();
+    // One loop serves both: timed mode sets a deadline, indefinite mode
+    // leaves it empty and runs until SIGINT.
+    std::optional<std::chrono::steady_clock::time_point> deadline;
+    if (cfg.run_duration.has_value()) {
+        deadline = std::chrono::steady_clock::now() + *cfg.run_duration;
     }
+    bool dummy_emitted = false;
+
+    while (!is_mux_interrupted()) {
+        if (deadline && std::chrono::steady_clock::now() >= *deadline) break;
+        // Note: sink.error() is only open_error_; runtime bus EOS/ERROR not observed here — see header doc.
+        if (sink.error()) break;
+
+        bool had = false;
+        while (auto cap = parrot_extension_pop_next()) {
+            had = true;
+            if (try_decode_and_emit(*cap, sink, session_ptr, cfg.transform_options,
+                                    emitted_real, proto_coalesce, proto_coalesce_pts)) {
+                ++emitted_real;
+            }
+            if (sink.error()) break;
+        }
+        if (sink.error()) break;
+        if (is_mux_interrupted()) break;
+
+        // For pipeline: hermetic without real telemetry, emit dummy once,
+        // after a 50ms grace so injected real telemetry is not shadowed.
+        // Timed runs only — the indefinite production path never emits a
+        // dummy (pipeline: is test-only).
+        if (emitted_real == 0 && !dummy_emitted && is_pipeline && cfg.run_duration.has_value()) {
+            if (!had) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                bool late_arrival = false;
+                while (auto cap = parrot_extension_pop_next()) {
+                    late_arrival = true;
+                    if (try_decode_and_emit(*cap, sink, session_ptr, cfg.transform_options,
+                                            emitted_real, proto_coalesce, proto_coalesce_pts)) {
+                        ++emitted_real;
+                    }
+                }
+                if (emitted_real == 0 && !late_arrival) {
+                    if (auto r = emit_dummy_batch(sink, session_ptr, cfg.transform_options); !r) return r;
+                }
+                dummy_emitted = true;
+                if (sink.error()) break;
+                continue;
+            }
+        }
+
+        if (!had) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+        // For unbounded live sources EOS never arrives; finite sources must be
+        // stopped via SIGINT or timed mode.
+    }
+
+    if (emitted_real == 0 && !dummy_emitted && is_pipeline && cfg.run_duration.has_value()) {
+        if (auto r = emit_dummy_batch(sink, session_ptr, cfg.transform_options); !r) return r;
+    }
+
+    // For RTSP with no metadata, no dummy is emitted — just close (video
+    // only). Loop reached SIGINT, deadline, or open ERROR.
+    return sink.close();
 }
 
 }  // namespace parrot_to_klv

@@ -252,39 +252,18 @@ misbklv::Result<std::monostate> replay_file_to_live(const FileReplayConfig& cfg)
         }
         return sink.close(interrupt.token());
     } else {
-        // Finite test mode: run exactly test_repeat_limit passes then return,
-        // without requiring SIGINT. This keeps pre-interrupt tests hermetic
-        // and avoids latching the global interrupt.
-        if (cfg.test_repeat_limit > 0) {
-            int64_t pts_base_ns = 0;
-            for (int iter = 0; iter < cfg.test_repeat_limit; ++iter) {
-                if (is_mux_interrupted()) break;
-                std::string sink_str = sink_for_iteration(cfg.output_sink, iter, cfg.test_repeat_limit);
-                misbklv::KlvSink sink(build_config(sink_str));
-                if (sink.error()) return misbklv::Result<std::monostate>::err(*sink.error());
-                auto r = do_one_pass(samples, session, first_monotonic_us, origin_us, pts_base_ns, sink, cfg.transform_options, info.format, cfg.test_disable_pacing);
-                if (!r) {
-                    (void)sink.close(interrupt.token());
-                    return r;
-                }
-                if (is_mux_interrupted()) {
-                    (void)sink.close(interrupt.token());
-                    break;
-                }
-                auto close_res = sink.close(interrupt.token());
-                if (!close_res) return close_res;
-                if (is_mux_interrupted()) break;
-                if (cfg.repeat_pts_continue) {
-                    pts_base_ns += duration_ns;
-                } else {
-                    pts_base_ns = 0;
-                }
-            }
-            return misbklv::Result<std::monostate>::ok(std::monostate{});
-        }
+        // test_repeat_limit > 0 runs exactly that many passes without
+        // requiring SIGINT, keeping pre-interrupt tests hermetic and avoiding
+        // latching the global interrupt; otherwise repeat until SIGINT.
+        const int limit = cfg.test_repeat_limit;
         int64_t pts_base_ns = 0;
-        while (!is_mux_interrupted()) {
-            misbklv::KlvSink sink(build_config(cfg.output_sink));
+        // iter only counts finite runs — in the indefinite case nothing reads
+        // it, and incrementing forever would overflow the signed counter.
+        for (int iter = 0; (limit <= 0 || iter < limit) && !is_mux_interrupted();
+             iter += (limit > 0 ? 1 : 0)) {
+            std::string sink_str = limit > 0 ? sink_for_iteration(cfg.output_sink, iter, limit)
+                                             : cfg.output_sink;
+            misbklv::KlvSink sink(build_config(sink_str));
             if (sink.error()) return misbklv::Result<std::monostate>::err(*sink.error());
             auto r = do_one_pass(samples, session, first_monotonic_us, origin_us, pts_base_ns, sink, cfg.transform_options, info.format, cfg.test_disable_pacing);
             if (!r) {
@@ -297,7 +276,6 @@ misbklv::Result<std::monostate> replay_file_to_live(const FileReplayConfig& cfg)
             }
             auto close_res = sink.close(interrupt.token());
             if (!close_res) return close_res;
-            if (is_mux_interrupted()) break;
             if (cfg.repeat_pts_continue) {
                 pts_base_ns += duration_ns;
             } else {
