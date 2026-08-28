@@ -2,6 +2,12 @@
 
 ## 2026-08-28
 
+* **Closed the oversized automation tail found in review of issue #83:** v3
+  automation extensions still rewrite their known 28-byte prefix, but any
+  surplus fields now go through the same unknown-extension reporting and
+  clearing path. A synthetic 40-byte automation fixture covers the third
+  pass-through shape; no real footage values were used.
+
 * **Closed scrubber pass-through paths in issue #83:** `parrot-scrub` now
   records and clears short automation payloads and the present bytes of
   truncated extension tails, using one named automation payload-size constant

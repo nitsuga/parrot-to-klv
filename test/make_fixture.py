@@ -592,6 +592,19 @@ def short_automation_ext() -> bytes:
     return ext(0x4533, payload)
 
 
+def oversized_automation_ext() -> bytes:
+    # A valid automation payload followed by a third coordinate triple. The
+    # parser understands the prefix but the scrubber must clear the tail.
+    payload = struct.pack(">iii", round(48.86 * Q10_22), round(2.30 * Q10_22),
+                          round(140.0 * Q16_16))
+    payload += struct.pack(">iii", round(48.87 * Q10_22), round(2.31 * Q10_22),
+                           round(150.0 * Q16_16))
+    payload += struct.pack(">BBH", 5, 0x01 | 0x04, 0)
+    payload += struct.pack(">iii", round(48.858370 * Q10_22),
+                           round(2.294481 * Q10_22), round(135.25 * Q16_16))
+    return ext(0x4533, payload)
+
+
 def truncated_unknown_ext() -> bytes:
     # Declares 40 payload bytes but provides only 8. The parser records the id
     # and stops; the scrubber must still clear the bytes that are present.
@@ -1011,6 +1024,13 @@ def main() -> int:
         "parrot_v3_short_automation.mp4": build(
             MIME_PREFIX + "com.parrot.videometadata3",
             [v3_sample(i, timestamp_ext(33333 * i) + short_automation_ext())
+             for i in range(8)],
+            video),
+        # A valid automation prefix followed by an undecoded coordinate triple
+        # must not let the extension's surplus bytes pass through.
+        "parrot_v3_oversized_automation.mp4": build(
+            MIME_PREFIX + "com.parrot.videometadata3",
+            [v3_sample(i, timestamp_ext(33333 * i) + oversized_automation_ext())
              for i in range(8)],
             video),
         # A trailing extension can declare more bytes than remain in the

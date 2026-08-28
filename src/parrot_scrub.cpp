@@ -110,6 +110,12 @@ SampleScrubResult scrub_v3_sample(std::vector<uint8_t>& s, const ScrubValues& v,
                 store_be32(s, base + 8, static_cast<uint32_t>(alt_q16_16));
             }
             result.rewrote_automation = true;
+            if (payload_bytes > kParrotV3AutomationPayloadSize) {
+                // Keep the known prefix, but fail closed on any newer fields
+                // this scrubber does not understand.
+                record_unknown(id, body + kParrotV3AutomationPayloadSize,
+                               payload_bytes - kParrotV3AutomationPayloadSize);
+            }
         } else if (!is_known_safe_extension(id)) {
             record_unknown(id, body, payload_bytes);
         }

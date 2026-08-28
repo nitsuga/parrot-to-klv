@@ -425,12 +425,15 @@ void test_malformed_extensions_are_cleared() {
         const char* fixture_name;
         const char* output_name;
         uint16_t id;
+        uint32_t expected_automation_rewritten;
     };
     const Case cases[] = {
         {"short automation", "parrot_v3_short_automation.mp4", "short_automation_scrubbed.mp4",
-         kExtAutomation},
+         kExtAutomation, 0},
+        {"oversized automation", "parrot_v3_oversized_automation.mp4",
+         "oversized_automation_scrubbed.mp4", kExtAutomation, 8},
         {"truncated extension", "parrot_v3_truncated_ext.mp4", "truncated_ext_scrubbed.mp4",
-         0x4536},
+         0x4536, 0},
     };
 
     for (const auto& c : cases) {
@@ -445,8 +448,8 @@ void test_malformed_extensions_are_cleared() {
         if (!report.ok) continue;
 
         check_eq(report.samples_rewritten, uint32_t{8}, label + ": every sample rewritten");
-        check_eq(report.automation_extensions_rewritten, uint32_t{0},
-                 label + ": malformed automation is not rewritten as valid");
+        check_eq(report.automation_extensions_rewritten, c.expected_automation_rewritten,
+                 label + ": automation rewrite count");
         check_eq(report.unknown_extension_payloads_zeroed, uint32_t{8},
                  label + ": every present malformed payload is zeroed");
         check(report.unknown_extension_ids.size() == 1 &&
@@ -463,10 +466,16 @@ void test_malformed_extensions_are_cleared() {
         const auto frame = parse_v3(samples.front().data);
         check(frame.has_value(), label + ": scrubbed sample still parses");
         if (frame) {
-            check(std::find(frame->skipped_extension_ids.begin(),
-                            frame->skipped_extension_ids.end(), c.id) !=
-                      frame->skipped_extension_ids.end(),
-                  label + ": malformed extension remains structurally visible");
+            if (c.expected_automation_rewritten > 0) {
+                check(frame->automation.has_value(), label + ": known automation prefix survives");
+                check(frame->skipped_extension_ids.empty(),
+                      label + ": oversized automation remains structurally valid");
+            } else {
+                check(std::find(frame->skipped_extension_ids.begin(),
+                                frame->skipped_extension_ids.end(), c.id) !=
+                          frame->skipped_extension_ids.end(),
+                      label + ": malformed extension remains structurally visible");
+            }
         }
     }
 }

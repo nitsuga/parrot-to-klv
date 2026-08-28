@@ -8,9 +8,10 @@ chronological history (what landed when, decision detail) lives in
 
 ## Now
 
-**Default v3 scrubbing fails closed on malformed extensions (#83):** short
-automation payloads and truncated extension tails are reported and cleared,
-with synthetic regression fixtures; valid extension behavior is unchanged.
+**Default v3 scrubbing fails closed on malformed extensions (#83):** short and
+oversized automation payloads plus truncated extension tails are reported and
+cleared, with synthetic regression fixtures; valid extension behavior is
+unchanged.
 
 **Ctrl-C now cuts the file→live replay drain short (#63):** `replay_file_to_live` bridges the SIGINT flag to a `stop_source` and passes its token to every `KlvSink::close()`; the libmisbklv pin carries the cancellable `close()` (upstream ADR 0032), the Generate encoder-shift fix (ADR 0033), and both halves of the live-RTSP Generate teardown use-after-free (this repo's #57): the SEI-probe fix (upstream #38) and the request-pad drain that closed the residual (upstream #40). The pipeline runs end to end — `parrot-to-klv in.mp4 -o out.ts` writes an MPEG-TS carrying the recording's own video plus a synchronous ST 0601 KLV stream. What remains is depth, not plumbing.
 
