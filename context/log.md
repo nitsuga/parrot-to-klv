@@ -7,7 +7,12 @@
   track count, then checks every indexed handler type before trusting the
   metadata index. A synthetic fixture with a foreign top-level `trak`
   reproduces the old selected-`meta`/`meta` false match and proves the file is
-  refused before extraction or `--zero-media` can use shifted indices.
+  refused before extraction or `--zero-media` can use shifted indices. Pairing
+  by track ID is unavailable because minimp4's public `MP4D_track_t` does not
+  expose `tkhd` IDs and the vendored parser is not patched for this purpose;
+  count plus full handler order is the available fail-closed invariant. The
+  resulting rejection of otherwise usable files with a divergent second
+  `moov` is deliberate and documented as the security trade-off.
 
 * **Returned live KLV emission failures for issue #86:** `try_decode_and_emit`
   now carries `KlvSink::emit()`'s Result to both continuous-drive call sites,

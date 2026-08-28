@@ -357,6 +357,17 @@ void test_refuses_what_it_cannot_scrub() {
     const auto foreign = scrub_file(fixture("foreign_meta.mp4"), temp("foreign_out.mp4"),
                                     ScrubOptions{});
     check(!foreign.ok, "non-Parrot file is refused");
+
+    // A track-pairing failure is not the same as an absent metadata track: the
+    // extractor found one, but refuses to trust its index after the scanners
+    // disagree. Keep the scrubber's report aligned with that decision.
+    const auto pairing = scrub_file(fixture("parrot_track_index_mismatch.mp4"),
+                                    temp("pairing_out.mp4"), ScrubOptions{});
+    check(!pairing.ok, "track-pairing mismatch is refused");
+    check(pairing.error.find("no Parrot metadata track") == std::string::npos,
+          "track-pairing mismatch is not reported as missing metadata");
+    check(pairing.error.find("refusing to scrub") != std::string::npos,
+          "track-pairing mismatch explains that scrubbing was refused");
 }
 
 void test_unknown_extension_payload_is_cleared() {

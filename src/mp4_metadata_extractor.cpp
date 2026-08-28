@@ -289,11 +289,6 @@ std::optional<Mp4MetadataExtractor> Mp4MetadataExtractor::open(const std::string
         }
     }
 
-    if (static_cast<size_t>(track_idx) >= extractor.impl_->demux.track_count) {
-        std::cerr << "Track index " << track_idx << " beyond minimp4's "
-                  << extractor.impl_->demux.track_count << " track(s)" << std::endl;
-        return std::nullopt;
-    }
     const auto& track = extractor.impl_->demux.track[track_idx];
     if (!track_sample_tables_valid(track)) {
         std::cerr << "Track " << track_idx << " is missing or has an implausible "

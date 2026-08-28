@@ -55,7 +55,12 @@ a track for every `trak` envelope it encounters, including one outside that
 `moov` or in a later `moov`. `open()` therefore requires equal track counts and
 matching handler types at every index before trusting the metadata index. A
 disagreement is a hard failure rather than an opportunity to read or rewrite a
-shifted track.
+shifted track. Pairing by track ID is not available because minimp4's public
+`MP4D_track_t` does not expose the `tkhd` ID, and the vendored parser is not
+patched for this purpose. The strict check therefore deliberately rejects an
+otherwise usable file with a divergent second `moov` (or other `trak`
+membership), accepting a compatibility loss rather than risking a wrong-track
+read or rewrite.
 
 ## Format detection is never inferred
 

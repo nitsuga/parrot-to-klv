@@ -238,7 +238,7 @@ ScrubReport scrub_file(const std::string& input, const std::string& output,
     // Identify the track and format before touching anything.
     auto extractor = Mp4MetadataExtractor::open(input);
     if (!extractor) {
-        report.error = "no Parrot metadata track found (nothing to scrub)";
+        report.error = "could not identify a usable Parrot metadata track; refusing to scrub";
         return report;
     }
     const auto& info = extractor->track_info();
