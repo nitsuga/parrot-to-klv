@@ -145,7 +145,10 @@ The one substantive feature piece left is **fork 4, Tier 2 geometry fidelity**
 
 ## Next
 
-1. Fork 4, Tier 2 geometry fidelity, in [ROADMAP](./ROADMAP.md).
+1. Implement [ADR 0018](../context/decisions/0018-live-eos-modes.md)'s idle
+   timeout and end-and-exit default, then its opt-in reconnect mode. Tracked as
+   issues.
+2. Fork 4, Tier 2 geometry fidelity, in [ROADMAP](./ROADMAP.md).
 
 ## Known gaps
 - **Non-H.264 output carries no ST 0604.** Generation is H.264-only upstream, so

@@ -96,6 +96,10 @@ native architectures. It has left this list for the
 [register](../context/decisions/index.md) (ADR 0017), which also resolved where
 the glibc floor rests once `ubuntu-22.04` is retired.
 
+Fork 16 (live end-of-source and reconnect modes) is decided and has left this
+list for the [register](../context/decisions/index.md) (ADR 0018). Implementation
+is tracked as issues, not here.
+
 Genuinely open (undeliberated) forks get a line here until they have an ADR;
 once decided they move to the [register](../context/decisions/index.md) and leave
 this list. Candidate future forks (not yet opened) can be listed here too — the
