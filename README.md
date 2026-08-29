@@ -129,6 +129,16 @@ exits, so an unattended capture terminates on its own when a sortie ends rather
 than idling against a dead pipeline. `--idle-timeout 0` disables that and runs
 until `SIGINT` (Ctrl-C). The timeout is only valid with a live input.
 
+`--reconnect` keeps one invocation running across a flying day: when the source
+stops, the capture is finalized, then the source is polled every
+`--reconnect-interval` seconds (default 3) until it returns and a fresh capture
+begins. Only `SIGINT` ends it. A file output numbers every session —
+`flight.ts` becomes `flight_0000.ts`, `flight_0001.ts`, … so one glob catches
+the run — and skips forward past any captures already on disk rather than
+overwriting them. A `udp:`/`srt:` output reuses its address. A session that
+connects but receives no telemetry leaves no file behind and does not consume a
+number.
+
 Without `-o` the tool only reads a file input and reports; location and
 airframe identity are withheld from that report unless `--with-location` /
 `--with-identity` ask for them. UDP sinks accept `--iface <iface>`,

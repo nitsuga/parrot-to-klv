@@ -2,6 +2,25 @@
 
 ## 2026-08-29
 
+* **Live reconnect mode (issue #101, [ADR 0018](./decisions/0018-live-eos-modes.md)
+  mode 2):** `--reconnect` keeps one invocation running across a flying day. The
+  per-session body of `live_ingest` moved into `run_one_session`, and
+  `live_ingest` now either runs it once (unchanged default) or loops it: finalize
+  the session, poll the source every `--reconnect-interval` seconds (default 3,
+  interruptible within a tick), and build a fresh pipeline when it returns. Only
+  an interrupt ends the run; a session that fails to open is the normal state
+  between sorties, not a fault, so it is logged and retried. A file sink rolls
+  through `_000n`, numbering every session including the first and starting at
+  the first free index — libmisbklv's file sink truncates an existing path on
+  open, so reusing an index would destroy the earlier capture. A session that
+  emits no telemetry has its file removed and does not consume an index, which
+  stops an endpoint that accepts and stalls from filling a directory unattended.
+  Live sinks reuse their address. Five regressions: path rolling (7 cases),
+  first-free-index scanning, no-telemetry sessions leaving nothing behind,
+  telemetry-carrying sessions producing contiguous `flight_0000.ts`…, and two
+  CLI rejections. Debug and sanitize: `ctest -L parrot` 41/41 each.
+
+
 * **Live runs end when the source goes idle (issue #100, [ADR 0018](./decisions/0018-live-eos-modes.md)):**
   `live_ingest`'s drive loop now tracks the time of the last captured Parrot RTP
   header extension and ends the session once the gap reaches `idle_timeout`,

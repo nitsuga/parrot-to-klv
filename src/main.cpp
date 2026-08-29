@@ -218,6 +218,14 @@ void print_usage(std::ostream& out, const char* program) {
         << "  --idle-timeout <s> end a live run when no telemetry has arrived\n"
         << "                    for <s> seconds (default 10; 0 disables). Only\n"
         << "                    with a live input.\n"
+        << "  --reconnect       after a live source stops, keep polling for it\n"
+        << "                    and start a new capture when it returns; runs\n"
+        << "                    until SIGINT. A file output numbers every\n"
+        << "                    session (out_0000.ts, out_0001.ts, ...); a\n"
+        << "                    udp:/srt: output reuses its address. Only with\n"
+        << "                    a live input.\n"
+        << "  --reconnect-interval <s>  how often to poll for the source in\n"
+        << "                    --reconnect (default 3).\n"
         << "  --repeat          loop file replay to a live sink until SIGINT\n"
         << "                    (only with -i file.mp4 -o udp:/srt:).\n"
         << "  --repeat-pts <m>  how PTS behaves when looping: reset (each\n"
@@ -322,6 +330,9 @@ int main(int argc, char* argv[]) {
     // Live-input only: end the run after this long with no telemetry (ADR 0018).
     std::chrono::seconds idle_timeout{10};
     bool has_idle_timeout = false;
+    bool reconnect = false;
+    std::chrono::seconds reconnect_interval{3};
+    bool has_reconnect_interval = false;
     bool repeat = false;
     bool has_repeat_pts = false;
     bool repeat_pts_continue = false;  // reset is the default — matches per-loop video restart; continue would desync KLV from the per-loop video (see PR #58 review)
@@ -441,6 +452,29 @@ int main(int argc, char* argv[]) {
                           << val << ").\n";
                 return 1;
             }
+        } else if (arg == "--reconnect") {
+            reconnect = true;
+        } else if (arg == "--reconnect-interval") {
+            if (i + 1 >= argc) {
+                std::cerr << "Error: --reconnect-interval needs a value.\n";
+                return 1;
+            }
+            std::string val = argv[++i];
+            try {
+                size_t pos = 0;
+                long parsed = std::stol(val, &pos, 10);
+                if (pos != val.size()) throw std::invalid_argument("trailing");
+                if (parsed < 1) {
+                    std::cerr << "Error: --reconnect-interval must be >= 1 (got " << val << ").\n";
+                    return 1;
+                }
+                reconnect_interval = std::chrono::seconds(parsed);
+                has_reconnect_interval = true;
+            } catch (const std::exception&) {
+                std::cerr << "Error: --reconnect-interval must be a whole number of seconds (got "
+                          << val << ").\n";
+                return 1;
+            }
         } else if (arg == "--loop") {
             udp_loop = true;
             has_loop = true;
@@ -512,6 +546,14 @@ int main(int argc, char* argv[]) {
     // input has no such source, so accepting it silently would be a lie.
     if (has_idle_timeout && !is_live_input) {
         std::cerr << "Error: --idle-timeout is only valid with a live input.\n";
+        return 1;
+    }
+    if (reconnect && !is_live_input) {
+        std::cerr << "Error: --reconnect is only valid with a live input.\n";
+        return 1;
+    }
+    if (has_reconnect_interval && !reconnect) {
+        std::cerr << "Error: --reconnect-interval is only valid with --reconnect.\n";
         return 1;
     }
 
@@ -589,6 +631,8 @@ int main(int argc, char* argv[]) {
         if (has_ttl) cfg.udp_ttl = udp_ttl;
         if (has_loop) cfg.udp_loop = udp_loop;
         if (has_idle_timeout) cfg.idle_timeout = idle_timeout;
+        cfg.reconnect = reconnect;
+        if (has_reconnect_interval) cfg.reconnect_interval = reconnect_interval;
         auto res = live_ingest(cfg);
         if (!res) {
             std::cerr << "live ingest failed: " << static_cast<int>(res.error()) << "\n";
