@@ -38,8 +38,14 @@
   transiently absent. A missing sink element factory also reports `Unsupported`
   and, with an RTSP source, is indistinguishable from a powered-off aircraft;
   that residual is recorded at the call site rather than papered over, since a
-  startup sink probe cannot be done safely for `udp:`/`srt:` sinks. Debug and
-  sanitize: `ctest -L parrot` 41/41 each.
+  startup sink probe cannot be done safely for `udp:`/`srt:` sinks. Post-open
+  failures carry the same ambiguity one level later — libmisbklv reports a dead
+  source and a dead sink alike as `Backend` — so consecutive sessions that open
+  and produce no telemetry are bounded (`max_empty_sessions`, default 5, 0
+  disables), which stops a full disk or a broken output from retrying forever
+  while leaving a source that is merely absent to retry indefinitely, since that
+  fails to open rather than emptily succeeding. Tracked upstream as
+  libmisbklv#63. Debug and sanitize: `ctest -L parrot` 41/41 each.
 
 
 * **Live runs end when the source goes idle (issue #100, [ADR 0018](./decisions/0018-live-eos-modes.md)):**

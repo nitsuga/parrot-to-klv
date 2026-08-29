@@ -1027,6 +1027,7 @@ static bool test_reconnect_discards_sessions_without_telemetry() {
     cfg.idle_timeout = std::chrono::seconds(1);
     cfg.reconnect = true;
     cfg.reconnect_interval = std::chrono::seconds(1);
+    cfg.max_empty_sessions = 0;  // isolate the discard behavior from the guard
 
     // Reconnect ends only on interrupt. The suite latches the same global the
     // SIGINT handler sets, so request it from a watcher thread and reset after.
@@ -1248,6 +1249,76 @@ static bool test_reconnect_does_not_retry_an_unsupported_config() {
     }
     if (ok) std::cout << "  ok (surfaced after " << elapsed << " ms)\n";
     std::filesystem::remove(out, ec);
+    parrot_to_klv::parrot_extension_clear();
+    return ok;
+}
+
+// A sink that breaks mid-run — a full disk, an output that went away — is
+// reported as a generic Backend error, indistinguishable from a source dying.
+// Retrying it forever would spin unattended, so consecutive sessions that open
+// and produce nothing are bounded.
+static bool test_reconnect_bounds_consecutive_empty_sessions() {
+    std::cout << "test_reconnect_bounds_consecutive_empty_sessions\n";
+    parrot_to_klv::parrot_extension_clear();
+    std::string enc = pick_encoder();
+    if (enc.empty()) {
+        std::cout << "  SKIP: no encoder available\n";
+        return true;
+    }
+    if (parrot_to_klv::is_mux_interrupted()) {
+        std::cout << "  SKIP: already interrupted (no reset)\n";
+        return true;
+    }
+    const bool h265 = enc == "x265enc";
+    const std::string dir = "/tmp/parrot_reconnect_bound";
+    std::error_code ec;
+    std::filesystem::remove_all(dir, ec);
+    std::filesystem::create_directories(dir, ec);
+
+    parrot_to_klv::LiveIngestConfig cfg;
+    // Opens fine, never carries telemetry: every session is an empty one.
+    cfg.rtsp_uri = "pipeline:videotestsrc is-live=true ! videoconvert ! "
+                   "video/x-raw,width=320,height=240,framerate=30/1 ! " +
+                   enc + (h265 ? " ! h265parse" : " ! h264parse");
+    cfg.udp_sink = "file:" + dir + "/flight.ts";
+    cfg.run_duration = std::chrono::milliseconds(6000);
+    cfg.idle_timeout = std::chrono::seconds(1);
+    cfg.reconnect = true;
+    cfg.reconnect_interval = std::chrono::seconds(1);
+    cfg.max_empty_sessions = 2;
+
+    // Backstop: if the bound regresses, this releases the test rather than
+    // hanging the suite, and the elapsed assertion below fails it.
+    std::thread stopper([] {
+        std::this_thread::sleep_for(std::chrono::milliseconds(15000));
+        parrot_to_klv::request_mux_interrupt();
+    });
+    const auto t0 = std::chrono::steady_clock::now();
+    auto r = parrot_to_klv::live_ingest(cfg);
+    const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+                             std::chrono::steady_clock::now() - t0)
+                             .count();
+    stopper.join();
+    parrot_to_klv::reset_mux_interrupt_for_test();
+
+    bool ok = true;
+    if (r) {
+        std::cerr << "  expected the bound to stop the run with an error\n";
+        ok = false;
+    }
+    // Two ~1 s sessions plus one interval; well inside the 15 s backstop.
+    if (elapsed >= 12000) {
+        std::cerr << "  bound did not stop the run: " << elapsed << " ms\n";
+        ok = false;
+    }
+    size_t left = 0;
+    for (const auto& e : std::filesystem::directory_iterator(dir, ec)) {
+        ++left;
+        std::cerr << "  unexpected leftover: " << e.path().filename() << "\n";
+    }
+    if (left != 0) ok = false;
+    if (ok) std::cout << "  ok (stopped after " << elapsed << " ms, nothing left behind)\n";
+    std::filesystem::remove_all(dir, ec);
     parrot_to_klv::parrot_extension_clear();
     return ok;
 }
@@ -1779,6 +1850,7 @@ int main(int argc, char* argv[]) {
     ok &= test_reconnect_rolls_numbered_captures();
     ok &= test_reconnect_does_not_retry_a_fatal_sink();
     ok &= test_reconnect_does_not_retry_an_unsupported_config();
+    ok &= test_reconnect_bounds_consecutive_empty_sessions();
     ok &= test_pipeline_h265_generate_no_corruption();
     ok &= test_indefinite_live_until_sigint();
 

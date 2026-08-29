@@ -407,6 +407,10 @@ misbklv::Result<std::monostate> live_ingest(const LiveIngestConfig& cfg) {
     // Reconnect mode: each sortie is its own session and its own finalized
     // capture. Only an interrupt (SIGINT/SIGTERM) ends the run, or a failure
     // that retrying cannot fix (ADR 0018 mode 2).
+    // Consecutive sessions that opened and produced nothing. Reset by any
+    // session that emits, so a flaky link costs attempts rather than the run.
+    unsigned empty_sessions = 0;
+    misbklv::Error last_empty_error = misbklv::Error::Backend;
     while (!is_mux_interrupted()) {
         // Recomputed every session, never incremented. A capture that appeared
         // since the last scan — a gap in the numbering, a concurrent writer —
@@ -452,9 +456,12 @@ misbklv::Result<std::monostate> live_ingest(const LiveIngestConfig& cfg) {
             }
             // A session that failed after opening has already discarded its
             // partial output (libmisbklv ADR 0022), so there is nothing to
-            // clean up — the source died and we wait for it to return.
+            // clean up. It is reported as a generic Backend error whether the
+            // source died or the sink did, so the empty-session bound below is
+            // what stops a broken output from retrying forever.
             std::fprintf(stderr, "live: session ended with error %d; retrying\n",
                          static_cast<int>(r.error()));
+            last_empty_error = r.error();
         } else if (emitted == 0 && sink_spec.starts_with("file:")) {
             // A source that connected and then said nothing must not leave a
             // near-empty capture behind, nor consume an index — otherwise an
@@ -462,6 +469,15 @@ misbklv::Result<std::monostate> live_ingest(const LiveIngestConfig& cfg) {
             // Removing it also makes the next scan reuse this same index.
             std::error_code ec;
             std::filesystem::remove(sink_spec.substr(5), ec);
+        }
+
+        if (emitted > 0) {
+            empty_sessions = 0;
+        } else if (cfg.max_empty_sessions > 0 && ++empty_sessions >= cfg.max_empty_sessions) {
+            std::fprintf(stderr,
+                         "live: %u consecutive sessions produced no telemetry; stopping\n",
+                         empty_sessions);
+            return misbklv::Result<std::monostate>::err(last_empty_error);
         }
         if (is_mux_interrupted()) break;
         // Interruptible wait, so an interrupt is noticed within a tick rather

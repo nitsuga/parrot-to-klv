@@ -72,6 +72,18 @@ struct LiveIngestConfig {
     // finalized capture per sortie; a live sink reuses its address.
     bool reconnect = false;
     std::chrono::seconds reconnect_interval{3};
+
+    // Give up after this many consecutive sessions that opened and then
+    // produced no telemetry. A source that is merely absent fails to *open*,
+    // which is not counted and retries forever — that is the flying-day case
+    // this mode exists for. But a session that opens and then fails, over and
+    // over with nothing to show, means something retrying cannot fix: a full
+    // disk, an output that broke mid-run, an endpoint that accepts and stalls.
+    // libmisbklv reports those as a generic Backend error, indistinguishable
+    // from a source dying, so a bound is the only defense (see ADR 0018).
+    // A link that drops mid-sortie resets the count, because that session
+    // emitted telemetry before it died. Zero disables the guard.
+    unsigned max_empty_sessions = 5;
 };
 
 namespace live_detail {
