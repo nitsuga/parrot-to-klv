@@ -1,5 +1,12 @@
 # Knowledge Bundle Log
 
+## 2026-08-29
+
+* **Accepted live end-of-source and reconnect modes** ([ADR 0018](./decisions/0018-live-eos-modes.md),
+  fork 16): an idle timeout is the primary end signal with EOS as a later early
+  exit, ending and exiting by default, plus an opt-in reconnect mode that rolls
+  the output. Implementation follows as separate issues.
+
 ## 2026-08-28
 
 * **Bumped the libmisbklv pin for live terminal status:** moved the exact
