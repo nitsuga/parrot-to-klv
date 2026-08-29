@@ -31,8 +31,15 @@
   the operator had just stopped. It surfaced as a CI-only failure — the
   `InterruptBridge` watcher polls every 10 ms, so a fast local close finished
   first and a slower runner did not. Live ingest closes uncancellably and the
-  reasoning is recorded at both call sites. Debug and sanitize:
-  `ctest -L parrot` 41/41 each.
+  reasoning is recorded at both call sites. Retry classification narrowed once
+  more: `Unsupported` is overloaded upstream — an unreachable RTSP source and a
+  video pad that never appears, but also a `pipeline:` description that fails to
+  parse or carries a demuxer — so only a network source is allowed to be
+  transiently absent. A missing sink element factory also reports `Unsupported`
+  and, with an RTSP source, is indistinguishable from a powered-off aircraft;
+  that residual is recorded at the call site rather than papered over, since a
+  startup sink probe cannot be done safely for `udp:`/`srt:` sinks. Debug and
+  sanitize: `ctest -L parrot` 41/41 each.
 
 
 * **Live runs end when the source goes idle (issue #100, [ADR 0018](./decisions/0018-live-eos-modes.md)):**

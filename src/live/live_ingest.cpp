@@ -422,12 +422,29 @@ misbklv::Result<std::monostate> live_ingest(const LiveIngestConfig& cfg) {
         auto r = run_one_session(cfg, sink_spec, &emitted, &opened);
         if (!r) {
             // Two very different failures reach here. A session that never
-            // opened and reports Unsupported is a source that is not back yet
-            // — the normal state between sorties. Anything else at open time is
-            // the configuration itself failing (an unwritable sink path, a
-            // missing element), which retrying cannot fix and which would
-            // otherwise spin until the process is killed.
-            const bool transient = opened || r.error() == misbklv::Error::Unsupported;
+            // opened and reports Unsupported may be a source that is not back
+            // yet — the normal state between sorties. Anything else at open
+            // time is the configuration itself failing (an unwritable sink
+            // path), which retrying cannot fix and which would otherwise spin
+            // until the process is killed.
+            //
+            // Unsupported is overloaded upstream, so it is not sufficient on
+            // its own: libmisbklv returns it for an unreachable RTSP source and
+            // a video pad that never appears, but also for a pipeline:
+            // description that fails to parse or contains a demuxer. Only a
+            // network source can be transiently absent, so a pipeline: source
+            // that fails to open is always a configuration error.
+            //
+            // Known residual: a missing sink element factory also reports
+            // Unsupported, and with an RTSP source it is indistinguishable from
+            // an aircraft that is powered off — both fail identically on every
+            // attempt. That case still retries. Detecting it would need a sink
+            // probe at startup, which cannot be done safely for udp:/srt:
+            // sinks, since opening one with no peer yet is not a fault.
+            const bool source_can_be_absent = cfg.rtsp_uri.starts_with("rtsp://") ||
+                                              cfg.rtsp_uri.starts_with("rtsps://");
+            const bool transient =
+                opened || (r.error() == misbklv::Error::Unsupported && source_can_be_absent);
             if (!transient) {
                 std::fprintf(stderr, "live: session failed to start with error %d; not retrying\n",
                              static_cast<int>(r.error()));

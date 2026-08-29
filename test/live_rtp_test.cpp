@@ -1200,6 +1200,58 @@ static bool test_reconnect_does_not_retry_a_fatal_sink() {
     return ok;
 }
 
+// Unsupported is overloaded upstream: it means both "the RTSP source is not
+// reachable" and "this video_source description cannot be built". Only the
+// former is worth retrying, so a malformed pipeline: description must surface
+// rather than spin.
+static bool test_reconnect_does_not_retry_an_unsupported_config() {
+    std::cout << "test_reconnect_does_not_retry_an_unsupported_config\n";
+    parrot_to_klv::parrot_extension_clear();
+    if (parrot_to_klv::is_mux_interrupted()) {
+        std::cout << "  SKIP: already interrupted (no reset)\n";
+        return true;
+    }
+    const std::string out = "/tmp/parrot_reconnect_badcfg.ts";
+    std::error_code ec;
+    std::filesystem::remove(out, ec);
+    parrot_to_klv::LiveIngestConfig cfg;
+    // Names an element that does not exist, so the description never parses.
+    cfg.rtsp_uri = "pipeline:no_such_element_9f2c ! h264parse";
+    cfg.udp_sink = "file:" + out;
+    cfg.run_duration = std::chrono::milliseconds(4000);
+    cfg.idle_timeout = std::chrono::seconds(1);
+    cfg.reconnect = true;
+    cfg.reconnect_interval = std::chrono::seconds(1);
+
+    // Backstop, so a regression to retrying fails the test instead of hanging.
+    std::thread stopper([] {
+        std::this_thread::sleep_for(std::chrono::milliseconds(6000));
+        parrot_to_klv::request_mux_interrupt();
+    });
+    const auto t0 = std::chrono::steady_clock::now();
+    auto r = parrot_to_klv::live_ingest(cfg);
+    const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+                             std::chrono::steady_clock::now() - t0)
+                             .count();
+    stopper.join();
+    parrot_to_klv::reset_mux_interrupt_for_test();
+
+    bool ok = true;
+    if (r) {
+        std::cerr << "  expected an error for an unbuildable source, got success\n";
+        ok = false;
+    }
+    if (elapsed >= 5000) {
+        std::cerr << "  unsupported config was retried rather than surfaced: " << elapsed
+                  << " ms\n";
+        ok = false;
+    }
+    if (ok) std::cout << "  ok (surfaced after " << elapsed << " ms)\n";
+    std::filesystem::remove(out, ec);
+    parrot_to_klv::parrot_extension_clear();
+    return ok;
+}
+
 // --- HEVC regression helpers: validate video ES, not just KLV + size ---------
 namespace {
 constexpr std::size_t kTsPkt = 188;
@@ -1726,6 +1778,7 @@ int main(int argc, char* argv[]) {
     ok &= test_reconnect_discards_sessions_without_telemetry();
     ok &= test_reconnect_rolls_numbered_captures();
     ok &= test_reconnect_does_not_retry_a_fatal_sink();
+    ok &= test_reconnect_does_not_retry_an_unsupported_config();
     ok &= test_pipeline_h265_generate_no_corruption();
     ok &= test_indefinite_live_until_sigint();
 
