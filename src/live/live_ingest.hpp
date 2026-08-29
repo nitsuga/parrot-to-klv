@@ -45,7 +45,8 @@ struct LiveIngestConfig {
     // opt-in, must be set for production live — drive until
     // is_mux_interrupted()/SIGINT — finite live sources must be stopped
     // manually. A failure from emitting a decoded KLV or from the live pipeline
-    // is returned immediately; a natural EOS ends the loop cleanly.
+    // is returned immediately; the loop otherwise ends on its deadline or
+    // SIGINT.
     // Default is timed 2000 ms for safety (safe for tests that forget to set
     // a duration); run_duration has value -> timed drive until deadline or
     // SIGINT (e.g., 2s for hermetic tests). If caller wants one-shot startup

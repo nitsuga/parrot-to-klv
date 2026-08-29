@@ -17,6 +17,15 @@
   The focused no-telemetry failure regression passed, as did the debug and
   sanitizer suites.
 
+* **Dropped the live-ingest EOS stop path (issue #94):** upstream narrowed
+  `poll()` to failure-only on review, because a clean EOS is unreachable before
+  `close()` — `mpegtsmux` is a `GstAggregator` and forwards EOS only once every
+  sink pad has it, and the KLV appsrc pad is EOS'd only by `finish()`
+  (libmisbklv ADR 0035). `live_ingest` therefore drops `pipeline_ended` and the
+  two branches that set it, keeping the failure check issue #94 needed. Done
+  before the pin move so each commit builds: this change still compiles against
+  the old `Result<bool>` pin, which the pin bump alone would not have.
+
 * **Returned generated-KLV parse failures for issue #95:** `try_decode_and_emit`
   and file-to-live replay now return `Message::parse` errors for KLV produced by
   `to_0601`, instead of treating an internal generated-packet invariant failure

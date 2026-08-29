@@ -261,7 +261,6 @@ misbklv::Result<std::monostate> live_ingest(const LiveIngestConfig& cfg) {
         deadline = std::chrono::steady_clock::now() + *cfg.run_duration;
     }
     bool dummy_emitted = false;
-    bool pipeline_ended = false;
 
     while (!is_mux_interrupted()) {
         if (deadline && std::chrono::steady_clock::now() >= *deadline) break;
@@ -269,10 +268,6 @@ misbklv::Result<std::monostate> live_ingest(const LiveIngestConfig& cfg) {
         auto pipeline_status = sink.poll();
         if (!pipeline_status) {
             return misbklv::Result<std::monostate>::err(pipeline_status.error());
-        }
-        if (*pipeline_status) {
-            pipeline_ended = true;
-            break;
         }
 
         bool had = false;
@@ -291,17 +286,13 @@ misbklv::Result<std::monostate> live_ingest(const LiveIngestConfig& cfg) {
         // after a 50ms grace so injected real telemetry is not shadowed.
         // Timed runs only — the indefinite production path never emits a
         // dummy (pipeline: is test-only).
-        if (!pipeline_ended && emitted_real == 0 && !dummy_emitted && is_pipeline &&
+        if (emitted_real == 0 && !dummy_emitted && is_pipeline &&
             cfg.run_duration.has_value()) {
             if (!had) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(50));
                 pipeline_status = sink.poll();
                 if (!pipeline_status) {
                     return misbklv::Result<std::monostate>::err(pipeline_status.error());
-                }
-                if (*pipeline_status) {
-                    pipeline_ended = true;
-                    break;
                 }
                 bool late_arrival = false;
                 while (auto cap = parrot_extension_pop_next()) {
@@ -325,11 +316,12 @@ misbklv::Result<std::monostate> live_ingest(const LiveIngestConfig& cfg) {
         if (!had) {
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
-        // Indefinite sources normally run until SIGINT; finite sources can end
-        // through sink.poll().
+        // Indefinite sources run until SIGINT or the deadline. sink.poll() ends
+        // the loop only on a backend failure: a live insert cannot observe a
+        // clean EOS before close() sends it (libmisbklv ADR 0035).
     }
 
-    if (!pipeline_ended && emitted_real == 0 && !dummy_emitted && is_pipeline &&
+    if (emitted_real == 0 && !dummy_emitted && is_pipeline &&
         cfg.run_duration.has_value()) {
         if (auto r = emit_dummy_batch(sink, session_ptr, cfg.transform_options); !r) return r;
     }

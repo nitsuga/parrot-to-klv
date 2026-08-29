@@ -20,9 +20,10 @@ being treated as a skipped packet and leaving the drive loop to spin until its
 deadline or SIGINT.
 
 **Live pipeline terminal failures are returned (#94):** `live_ingest` polls
-libmisbklv's nonblocking `KlvSink` terminal-status API and returns a backend
-error promptly, including when no telemetry has arrived; natural EOS ends the
-loop and timed and explicit indefinite modes remain available.
+libmisbklv's nonblocking `KlvSink::poll()` and returns a backend error
+promptly, including when no telemetry has arrived; timed and explicit
+indefinite modes remain available. The contract is failure-only — a live insert
+cannot observe a clean EOS before `close()` sends it (libmisbklv ADR 0035).
 
 **Generated KLV parse failures are returned (#95):** live v3 and proto telemetry,
 as well as file-to-live replay, now terminate with the original
