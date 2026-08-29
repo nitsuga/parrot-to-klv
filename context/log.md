@@ -24,10 +24,15 @@
   path that cannot be stat'd counts as occupied; exhausting 0..9999 returns an
   error instead of reusing `_9999`; a failure that never opened and is not
   `Unsupported` is a configuration fault and is surfaced rather than retried
-  forever (an unwritable sink previously spun until the process was killed); and
-  `close()` now takes a stop token through the `InterruptBridge` shared with
-  file replay, so an interrupt cuts the drain instead of waiting out libmisbklv's
-  multi-minute timeout. Debug and sanitize: `ctest -L parrot` 41/41 each.
+  forever (an unwritable sink previously spun until the process was killed).
+  Review also asked live ingest to close with a stop token as file replay does;
+  that was tried and reverted, because libmisbklv discards the sink file on a
+  cancelled drain (ADR 0022), so forwarding the interrupt deleted the capture
+  the operator had just stopped. It surfaced as a CI-only failure — the
+  `InterruptBridge` watcher polls every 10 ms, so a fast local close finished
+  first and a slower runner did not. Live ingest closes uncancellably and the
+  reasoning is recorded at both call sites. Debug and sanitize:
+  `ctest -L parrot` 41/41 each.
 
 
 * **Live runs end when the source goes idle (issue #100, [ADR 0018](./decisions/0018-live-eos-modes.md)):**

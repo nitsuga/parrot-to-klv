@@ -3,7 +3,6 @@
 
 #include "live/live_ingest.hpp"
 
-#include "live/interrupt_bridge.hpp"
 #include "live/parrot_rtp_header_extension.hpp"
 #include "mux.hpp"
 
@@ -378,11 +377,14 @@ misbklv::Result<std::monostate> run_one_session(const LiveIngestConfig& cfg,
     // For RTSP with no metadata, no dummy is emitted — just close (video
     // only). The loop reached SIGINT, its deadline, or the idle timeout.
     if (emitted_out) *emitted_out = emitted_real;
-    // Cancellable: without a token the close would drain the video branch at
-    // wall-clock speed after the loop has already honored the interrupt, up to
-    // libmisbklv's multi-minute drain timeout.
-    InterruptBridge bridge;
-    return sink.close(bridge.token());
+    // Deliberately NOT cancellable, unlike file replay. libmisbklv discards the
+    // sink file on a cancelled drain (ADR 0022 — no output unless the session
+    // succeeded), so forwarding the interrupt here would delete the capture the
+    // operator just pressed Ctrl-C to stop. A live capture must survive its own
+    // shutdown, so this waits for the drain instead. The exposure is a stalled
+    // pipeline holding shutdown until libmisbklv's drain timeout; losing a
+    // sortie is the worse failure.
+    return sink.close();
 }
 
 }  // namespace

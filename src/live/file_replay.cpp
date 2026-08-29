@@ -16,7 +16,6 @@
 #include "misbklv/message.hpp"
 #include "misbklv/stream.hpp"
 
-#include "live/interrupt_bridge.hpp"
 #include "mp4_metadata_extractor.hpp"
 #include "mux.hpp"
 #include "parrot_proto.hpp"
@@ -42,6 +41,37 @@ void interruptible_sleep_for(std::chrono::microseconds delta, bool disable) {
         std::this_thread::sleep_for(chunk);
     }
 }
+
+// Bridge the interrupt flag to a stop_source for sink.close(token). The signal
+// handler only sets an atomic flag (async-signal-safe), and a handler cannot
+// call stop_source::request_stop() safely either, so a watcher thread polls the
+// flag and forwards it. Without this, the final close() would still drain the
+// video branch at wall-clock speed after the emission loop has already honored
+// the interrupt — the drain tail this exists to cut short.
+//
+// Replay-only: cancelling the drain makes libmisbklv discard the sink file
+// (ADR 0022), which is right for a replay that was interrupted mid-pass and
+// wrong for a live capture, where it would delete the sortie. Live ingest
+// therefore closes uncancellably; see live_ingest.cpp.
+class InterruptBridge {
+  public:
+    InterruptBridge() {
+        watcher_ = std::jthread([src = source_](std::stop_token self) mutable {
+            while (!self.stop_requested()) {
+                if (is_mux_interrupted()) {
+                    src.request_stop();
+                    return;
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            }
+        });
+    }
+    std::stop_token token() const { return source_.get_token(); }
+
+  private:
+    std::stop_source source_;
+    std::jthread watcher_;
+};
 
 // Build per-iteration sink string: for file: sinks with a test repeat limit,
 // emit each pass to a distinct file so the test can read back both loops
