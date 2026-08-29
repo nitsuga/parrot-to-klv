@@ -261,9 +261,17 @@ misbklv::Result<std::monostate> live_ingest(const LiveIngestConfig& cfg) {
         deadline = std::chrono::steady_clock::now() + *cfg.run_duration;
     }
     bool dummy_emitted = false;
+    // Armed here, not at the first sample: a source that connects and never
+    // delivers is the same failure as one that stops, and arming late would
+    // leave exactly the hang this watchdog removes (ADR 0018).
+    auto last_telemetry = std::chrono::steady_clock::now();
 
     while (!is_mux_interrupted()) {
         if (deadline && std::chrono::steady_clock::now() >= *deadline) break;
+        if (cfg.idle_timeout.count() > 0 &&
+            std::chrono::steady_clock::now() - last_telemetry >= cfg.idle_timeout) {
+            break;
+        }
 
         auto pipeline_status = sink.poll();
         if (!pipeline_status) {
@@ -273,6 +281,7 @@ misbklv::Result<std::monostate> live_ingest(const LiveIngestConfig& cfg) {
         bool had = false;
         while (auto cap = parrot_extension_pop_next()) {
             had = true;
+            last_telemetry = std::chrono::steady_clock::now();
             auto emitted = try_decode_and_emit(*cap, sink, session_ptr, cfg.transform_options,
                                                 emitted_real, proto_coalesce, proto_coalesce_pts);
             if (!emitted) return misbklv::Result<std::monostate>::err(emitted.error());
@@ -297,6 +306,7 @@ misbklv::Result<std::monostate> live_ingest(const LiveIngestConfig& cfg) {
                 bool late_arrival = false;
                 while (auto cap = parrot_extension_pop_next()) {
                     late_arrival = true;
+                    last_telemetry = std::chrono::steady_clock::now();
                     auto emitted = try_decode_and_emit(*cap, sink, session_ptr,
                                                         cfg.transform_options, emitted_real,
                                                         proto_coalesce, proto_coalesce_pts);
@@ -316,9 +326,11 @@ misbklv::Result<std::monostate> live_ingest(const LiveIngestConfig& cfg) {
         if (!had) {
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
-        // Indefinite sources run until SIGINT or the deadline. sink.poll() ends
-        // the loop only on a backend failure: a live insert cannot observe a
-        // clean EOS before close() sends it (libmisbklv ADR 0035).
+        // Indefinite sources run until SIGINT, the deadline, or the idle
+        // timeout. sink.poll() ends the loop only on a backend failure: a live
+        // insert cannot observe a clean EOS before close() sends it
+        // (libmisbklv ADR 0035), which is why idleness is the primary
+        // end-of-source signal rather than EOS (ADR 0018).
     }
 
     if (emitted_real == 0 && !dummy_emitted && is_pipeline &&

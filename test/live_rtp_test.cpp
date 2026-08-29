@@ -757,6 +757,161 @@ static bool test_live_pipeline_error_without_telemetry() {
     return true;
 }
 
+// --- ADR 0018: the idle timeout is the primary end-of-source signal ---------
+
+// A live source that connects and then never delivers telemetry must end on the
+// idle timeout rather than hanging. This is the case the watchdog would silently
+// miss if its timer armed at the first sample instead of at drive-loop entry.
+static bool test_idle_timeout_ends_a_source_that_never_delivers() {
+    std::cout << "test_idle_timeout_ends_a_source_that_never_delivers\n";
+    parrot_to_klv::parrot_extension_clear();
+    std::string enc = pick_encoder();
+    if (enc.empty()) {
+        std::cout << "  SKIP: no encoder available\n";
+        return true;
+    }
+    const bool h265 = enc == "x265enc";
+    const std::string out = "/tmp/live_idle_never_delivers.ts";
+    std::filesystem::remove(out);
+    parrot_to_klv::LiveIngestConfig cfg;
+    // Video with no Parrot header extensions: the pipeline stays healthy, so
+    // only the idle timeout can end this run.
+    cfg.rtsp_uri = "pipeline:videotestsrc is-live=true ! videoconvert ! "
+                   "video/x-raw,width=320,height=240,framerate=30/1 ! " +
+                   enc + (h265 ? " ! h265parse" : " ! h264parse");
+    cfg.udp_sink = "file:" + out;
+    // A deadline well past the timeout: the watchdog is what should end this
+    // run, but without a backstop a regression would hang the suite instead of
+    // failing it. Reaching the deadline trips the elapsed assertion below.
+    cfg.run_duration = std::chrono::milliseconds(8000);
+    cfg.idle_timeout = std::chrono::seconds(1);
+
+    const auto t0 = std::chrono::steady_clock::now();
+    auto r = parrot_to_klv::live_ingest(cfg);
+    const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+                             std::chrono::steady_clock::now() - t0)
+                             .count();
+    bool ok = true;
+    if (!r) {
+        std::cerr << "  expected a clean end, got error " << static_cast<int>(r.error()) << "\n";
+        ok = false;
+    }
+    // Bounded above: without the watchdog this run never returns at all.
+    if (elapsed < 1000 || elapsed >= 8000) {
+        std::cerr << "  idle timeout did not end the run on schedule: " << elapsed << " ms\n";
+        ok = false;
+    }
+    if (ok) std::cout << "  ok (clean end after " << elapsed << " ms)\n";
+    std::filesystem::remove(out);
+    parrot_to_klv::parrot_extension_clear();
+    return ok;
+}
+
+// Telemetry that arrives and then stops must also end the run, and must not end
+// it while telemetry is still flowing.
+static bool test_idle_timeout_ends_after_telemetry_stops() {
+    std::cout << "test_idle_timeout_ends_after_telemetry_stops\n";
+    parrot_to_klv::parrot_extension_clear();
+    std::string enc = pick_encoder();
+    if (enc.empty()) {
+        std::cout << "  SKIP: no encoder available\n";
+        return true;
+    }
+    if (g_fixture_dir.empty()) {
+        std::cout << "  SKIP: no fixture dir\n";
+        return true;
+    }
+    auto extractor = parrot_to_klv::Mp4MetadataExtractor::open(g_fixture_dir + "/parrot_v3.mp4");
+    if (!extractor) {
+        std::cout << "  SKIP: fixture unavailable\n";
+        return true;
+    }
+    auto s0 = extractor->extract_sample(0);
+    if (!s0) {
+        std::cout << "  SKIP: fixture has no sample 0\n";
+        return true;
+    }
+    const bool h265 = enc == "x265enc";
+    const std::string out = "/tmp/live_idle_after_stop.ts";
+    std::filesystem::remove(out);
+    parrot_to_klv::LiveIngestConfig cfg;
+    cfg.rtsp_uri = "pipeline:videotestsrc is-live=true ! videoconvert ! "
+                   "video/x-raw,width=320,height=240,framerate=30/1 ! " +
+                   enc + (h265 ? " ! h265parse" : " ! h264parse");
+    cfg.udp_sink = "file:" + out;
+    cfg.run_duration = std::chrono::milliseconds(8000);  // backstop, as above
+    cfg.idle_timeout = std::chrono::seconds(1);
+    // One sample, then silence: the run must survive the sample and end on the
+    // timeout that follows it.
+    cfg.test_injected_extensions.push_back(
+        make_cap(std::span<const uint8_t>(s0->data.data(), s0->data.size()), 1'000'000'000ULL));
+
+    const auto t0 = std::chrono::steady_clock::now();
+    auto r = parrot_to_klv::live_ingest(cfg);
+    const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+                             std::chrono::steady_clock::now() - t0)
+                             .count();
+    bool ok = true;
+    if (!r) {
+        std::cerr << "  expected a clean end, got error " << static_cast<int>(r.error()) << "\n";
+        ok = false;
+    }
+    if (elapsed < 1000 || elapsed >= 8000) {
+        std::cerr << "  idle timeout did not end the run on schedule: " << elapsed << " ms\n";
+        ok = false;
+    }
+    if (ok && !std::filesystem::exists(out)) {
+        std::cerr << "  clean end left no output\n";
+        ok = false;
+    }
+    if (ok) std::cout << "  ok (clean end after " << elapsed << " ms, output kept)\n";
+    std::filesystem::remove(out);
+    parrot_to_klv::parrot_extension_clear();
+    return ok;
+}
+
+// idle_timeout == 0 disables the watchdog, so a silent source runs to its
+// deadline as it did before ADR 0018.
+static bool test_idle_timeout_zero_disables() {
+    std::cout << "test_idle_timeout_zero_disables\n";
+    parrot_to_klv::parrot_extension_clear();
+    std::string enc = pick_encoder();
+    if (enc.empty()) {
+        std::cout << "  SKIP: no encoder available\n";
+        return true;
+    }
+    const bool h265 = enc == "x265enc";
+    const std::string out = "/tmp/live_idle_disabled.ts";
+    std::filesystem::remove(out);
+    parrot_to_klv::LiveIngestConfig cfg;
+    cfg.rtsp_uri = "pipeline:videotestsrc is-live=true ! videoconvert ! "
+                   "video/x-raw,width=320,height=240,framerate=30/1 ! " +
+                   enc + (h265 ? " ! h265parse" : " ! h264parse");
+    cfg.udp_sink = "file:" + out;
+    cfg.run_duration = std::chrono::milliseconds(2000);
+    cfg.idle_timeout = std::chrono::seconds(0);
+
+    const auto t0 = std::chrono::steady_clock::now();
+    auto r = parrot_to_klv::live_ingest(cfg);
+    const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+                             std::chrono::steady_clock::now() - t0)
+                             .count();
+    bool ok = true;
+    if (!r) {
+        std::cerr << "  expected a clean end, got error " << static_cast<int>(r.error()) << "\n";
+        ok = false;
+    }
+    // Must reach its 2 s deadline rather than ending early on silence.
+    if (elapsed < 1900) {
+        std::cerr << "  disabled timeout still ended the run early: " << elapsed << " ms\n";
+        ok = false;
+    }
+    if (ok) std::cout << "  ok (ran to deadline, " << elapsed << " ms)\n";
+    std::filesystem::remove(out);
+    parrot_to_klv::parrot_extension_clear();
+    return ok;
+}
+
 // --- HEVC regression helpers: validate video ES, not just KLV + size ---------
 namespace {
 constexpr std::size_t kTsPkt = 188;
@@ -1275,6 +1430,9 @@ int main(int argc, char* argv[]) {
     ok &= test_real_decode();
     ok &= test_continuous_live();
     ok &= test_live_pipeline_error_without_telemetry();
+    ok &= test_idle_timeout_ends_a_source_that_never_delivers();
+    ok &= test_idle_timeout_ends_after_telemetry_stops();
+    ok &= test_idle_timeout_zero_disables();
     ok &= test_pipeline_h265_generate_no_corruption();
     ok &= test_indefinite_live_until_sigint();
 
