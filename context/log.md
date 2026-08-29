@@ -2,6 +2,14 @@
 
 ## 2026-08-29
 
+* **Fork 16 follow-up closed:** libmisbklv#63, which would have split `Backend`
+  into source-side and sink-side failures, was declined as not planned —
+  attribution does not decompose cleanly, and the `max_empty_sessions` bound
+  handles the same cases in the open where an operator can tune it.
+  [ADR 0018](./decisions/0018-live-eos-modes.md) now records the bound as the
+  settled answer rather than a placeholder.
+
+
 * **Repinned to libmisbklv `15b0e89` and dropped the scheme-based retry
   inference (ADR 0036 upstream):** `open_insert` now reports a live source that
   is absent right now as `SourceUnavailable`, so reconnect branches on the error
