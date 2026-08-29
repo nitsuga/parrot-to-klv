@@ -21,11 +21,13 @@ include(FetchContent)
 FetchContent_Declare(
   misbklv
   GIT_REPOSITORY https://github.com/nitsuga/libmisbklv.git
-  # Live insert terminal status: exposes nonblocking EOS/ERROR polling so a
-  # consumer can fail before its first KLV packet (parrot-to-klv#94). Prior:
+  # Live insert terminal status: exposes nonblocking polling for a backend
+  # failure so a consumer can fail before its first KLV packet
+  # (parrot-to-klv#94). Clean EOS is deliberately not reported — a live insert
+  # cannot observe one before close() sends it (libmisbklv ADR 0035). Prior:
   # live insert teardown keeps the mpegtsmux request pad linked through a real
   # EOS drain, closing the GList use-after-free (libmisbklv#40, this repo's #57).
-  GIT_TAG 08f65dee27dba3f5b0f9f9b35f39746292b0fe7e
+  GIT_TAG 2e1c23254ce4dcd020ebe2a325d8174b5013954c
 )
 FetchContent_MakeAvailable(misbklv)
 

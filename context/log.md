@@ -26,6 +26,10 @@
   before the pin move so each commit builds: this change still compiles against
   the old `Result<bool>` pin, which the pin bump alone would not have.
 
+* **Repinned to the accepted terminal-status contract (issue #94):** moved the
+  exact `GIT_TAG` from `08f65de` to `2e1c232`, the merge of libmisbklv#59,
+  where `poll()` returns `Result<std::monostate>` under the accepted ADR 0035.
+
 * **Returned generated-KLV parse failures for issue #95:** `try_decode_and_emit`
   and file-to-live replay now return `Message::parse` errors for KLV produced by
   `to_0601`, instead of treating an internal generated-packet invariant failure
