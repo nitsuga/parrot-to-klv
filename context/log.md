@@ -2,6 +2,65 @@
 
 ## 2026-08-29
 
+* **Revised [ADR 0018](./decisions/0018-live-eos-modes.md)** (fork 16): mode 2 is
+  no longer interrupt-only. The empty-session bound added for #101 stops a run
+  that connects but achieves nothing, so the ADR, README, and `--help` now
+  describe it, and `--max-empty-sessions` exposes it (default 5, `0` never
+  stops).
+
+
+* **Live reconnect mode (issue #101, [ADR 0018](./decisions/0018-live-eos-modes.md)
+  mode 2):** `--reconnect` keeps one invocation running across a flying day. The
+  per-session body of `live_ingest` moved into `run_one_session`, and
+  `live_ingest` now either runs it once (unchanged default) or loops it: finalize
+  the session, poll the source every `--reconnect-interval` seconds (default 3,
+  interruptible within a tick), and build a fresh pipeline when it returns. Only
+  an interrupt ends the run; a session that fails to open is the normal state
+  between sorties, not a fault, so it is logged and retried. A file sink rolls
+  through `_000n`, numbering every session including the first and starting at
+  the first free index — libmisbklv's file sink truncates an existing path on
+  open, so reusing an index would destroy the earlier capture. A session that
+  emits no telemetry has its file removed and does not consume an index, which
+  stops an endpoint that accepts and stalls from filling a directory unattended.
+  Live sinks reuse their address. Five regressions: path rolling (7 cases),
+  first-free-index scanning, no-telemetry sessions leaving nothing behind,
+  telemetry-carrying sessions producing contiguous `flight_0000.ts`…, and two
+  CLI rejections. Review hardened it further: the free index is recomputed
+  before every session rather than incremented, so a gap in the numbering or a
+  file that appeared since the last scan cannot be walked onto and truncated; a
+  path that cannot be stat'd counts as occupied; exhausting 0..9999 returns an
+  error instead of reusing `_9999`; a failure that never opened and is not
+  `Unsupported` is a configuration fault and is surfaced rather than retried
+  forever (an unwritable sink previously spun until the process was killed).
+  Review also asked live ingest to close with a stop token as file replay does;
+  that was tried and reverted, because libmisbklv discards the sink file on a
+  cancelled drain (ADR 0022), so forwarding the interrupt deleted the capture
+  the operator had just stopped. It surfaced as a CI-only failure — the
+  `InterruptBridge` watcher polls every 10 ms, so a fast local close finished
+  first and a slower runner did not. Live ingest closes uncancellably and the
+  reasoning is recorded at both call sites. Retry classification narrowed once
+  more: `Unsupported` is overloaded upstream — an unreachable RTSP source and a
+  video pad that never appears, but also a `pipeline:` description that fails to
+  parse or carries a demuxer — so only a network source is allowed to be
+  transiently absent. A missing sink element factory also reports `Unsupported`
+  and, with an RTSP source, is indistinguishable from a powered-off aircraft;
+  that residual is recorded at the call site rather than papered over, since a
+  startup sink probe cannot be done safely for `udp:`/`srt:` sinks. Post-open
+  failures carry the same ambiguity one level later — libmisbklv reports a dead
+  source and a dead sink alike as `Backend` — so consecutive sessions that open
+  and produce no telemetry are bounded (`max_empty_sessions`, default 5, 0
+  disables), which stops a full disk or a broken output from retrying forever
+  while leaving a source that is merely absent to retry indefinitely, since that
+  fails to open rather than emptily succeeding. Review caught that the first cut
+  of the bound broke both of those properties: it counted sessions that never
+  opened, so an absent source stopped after five attempts, and it read the
+  emission count only on the normal exit path, so a session that emitted and
+  then failed looked empty. The count is now bound to the caller's counter as it
+  accumulates, and only opened sessions are counted; both are pinned by
+  regressions verified to fail when each fix is reverted. Tracked upstream as
+  libmisbklv#63. Debug and sanitize: `ctest -L parrot` 41/41 each.
+
+
 * **Live runs end when the source goes idle (issue #100, [ADR 0018](./decisions/0018-live-eos-modes.md)):**
   `live_ingest`'s drive loop now tracks the time of the last captured Parrot RTP
   header extension and ends the session once the gap reaches `idle_timeout`,

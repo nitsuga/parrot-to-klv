@@ -291,6 +291,18 @@ add_test(NAME cli_rejects_loop_without_udp
 add_test(NAME cli_rejects_idle_timeout_without_live
          COMMAND ${CMAKE_SOURCE_DIR}/test/cli_reject_test.sh "only valid with a live input"
                  $<TARGET_FILE:parrot-to-klv> ${CMAKE_SOURCE_DIR}/test/fixtures/parrot_v3.mp4 -o ${CMAKE_CURRENT_BINARY_DIR}/cli_idle_timeout_out.ts --idle-timeout 1)
+add_test(NAME cli_rejects_reconnect_without_live
+         COMMAND ${CMAKE_SOURCE_DIR}/test/cli_reject_test.sh "only valid with a live input"
+                 $<TARGET_FILE:parrot-to-klv> ${CMAKE_SOURCE_DIR}/test/fixtures/parrot_v3.mp4 -o ${CMAKE_CURRENT_BINARY_DIR}/cli_reconnect_out.ts --reconnect)
+add_test(NAME cli_rejects_reconnect_interval_without_reconnect
+         COMMAND ${CMAKE_SOURCE_DIR}/test/cli_reject_test.sh "only valid with --reconnect"
+                 $<TARGET_FILE:parrot-to-klv> -i rtsp://127.0.0.1/live -o udp:239.0.0.1:5000 --reconnect-interval 5)
+add_test(NAME cli_rejects_max_empty_sessions_without_reconnect
+         COMMAND ${CMAKE_SOURCE_DIR}/test/cli_reject_test.sh "only valid with --reconnect"
+                 $<TARGET_FILE:parrot-to-klv> -i rtsp://127.0.0.1/live -o udp:239.0.0.1:5000 --max-empty-sessions 3)
+add_test(NAME cli_rejects_max_empty_sessions_overflow
+         COMMAND ${CMAKE_SOURCE_DIR}/test/cli_reject_test.sh "must be 0.."
+                 $<TARGET_FILE:parrot-to-klv> -i rtsp://127.0.0.1/live -o udp:239.0.0.1:5000 --reconnect --max-empty-sessions 4294967296)
 add_test(NAME cli_rejects_live_without_output
          COMMAND ${CMAKE_SOURCE_DIR}/test/cli_reject_test.sh "live input needs"
                  $<TARGET_FILE:parrot-to-klv> -i rtsp://127.0.0.1/live)
@@ -425,6 +437,8 @@ set_tests_properties(
   cli_rejects_live_flags_removed cli_rejects_udp_flag_without_udp
   cli_rejects_ttl_without_udp cli_rejects_loop_without_udp
   cli_rejects_live_without_output cli_rejects_idle_timeout_without_live
+  cli_rejects_reconnect_without_live cli_rejects_reconnect_interval_without_reconnect
+  cli_rejects_max_empty_sessions_without_reconnect cli_rejects_max_empty_sessions_overflow
   cli_rejects_udp_ttl_out_of_range cli_rejects_repeat_without_file_live
   cli_rejects_repeat_with_file_to_file cli_rejects_repeat_pts_without_repeat
   cli_rejects_repeat_pts_invalid_value

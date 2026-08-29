@@ -64,7 +64,48 @@ struct LiveIngestConfig {
     // telemetry arriving implies video arriving — the converse does not hold,
     // which is why a video-only stream is out of this watchdog's reach.
     std::chrono::seconds idle_timeout{10};
+
+    // Reconnect mode (ADR 0018 mode 2): when a session ends, finalize it and
+    // then poll the source on `reconnect_interval` until it returns. Runs until
+    // SIGINT/SIGTERM, or until `max_empty_sessions` consecutive sessions
+    // connect and carry no telemetry — see that field. Each reconnect builds a
+    // fresh pipeline rather than repairing the old one. A file sink rolls
+    // through a _000n counter, one finalized capture per sortie; a live sink
+    // reuses its address.
+    bool reconnect = false;
+    std::chrono::seconds reconnect_interval{3};
+
+    // Give up after this many consecutive sessions that opened and then
+    // produced no telemetry. A source that is merely absent fails to *open*,
+    // which is not counted and is waited on for as long as the run is up —
+    // that is the flying-day case this mode exists for. But a session that opens and then fails, over and
+    // over with nothing to show, means something retrying cannot fix: a full
+    // disk, an output that broke mid-run, an endpoint that accepts and stalls.
+    // libmisbklv reports those as a generic Backend error, indistinguishable
+    // from a source dying, so a bound is the only defense (see ADR 0018).
+    // A link that drops mid-sortie resets the count, because that session
+    // emitted telemetry before it died. Zero disables the guard.
+    unsigned max_empty_sessions = 5;
 };
+
+namespace live_detail {
+
+// Insert a zero-padded counter before the extension of a file sink spec:
+// "file:/tmp/flight.ts" with index 2 -> "file:/tmp/flight_0002.ts". A udp: or
+// srt: sink has no name to roll and is returned unchanged, since a live output
+// reuses its address across reconnects.
+std::string roll_sink_spec(const std::string& sink_spec, unsigned index);
+
+// The first index whose rolled path does not exist yet. Re-running in a
+// directory that already holds a capture appends rather than destroys —
+// libmisbklv's file sink truncates an existing path when it opens, so reusing
+// an index would lose the earlier capture. A path that cannot be stat'd counts
+// as occupied: an unreadable entry must never be treated as free. Returns 0 for
+// a non-file sink, and nullopt when the whole 0..9999 range is taken, which the
+// caller must treat as a failure rather than reusing an occupied path.
+std::optional<unsigned> first_free_index(const std::string& sink_spec);
+
+}  // namespace live_detail
 
 // Live ingest: validate cfg, register Parrot RTP header extension, create a
 // KlvSink with live video_source and realtime=true, push KLV derived from

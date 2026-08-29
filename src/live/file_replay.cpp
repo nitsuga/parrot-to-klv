@@ -42,12 +42,17 @@ void interruptible_sleep_for(std::chrono::microseconds delta, bool disable) {
     }
 }
 
-// Bridge the SIGINT flag to a stop_source for sink.close(token). The
-// signal handler only sets an atomic flag (async-signal-safe), and a handler
-// cannot call stop_source::request_stop() safely either, so a watcher thread
-// polls the flag and forwards it. Without this, the final close() would still
-// drain the video branch at wall-clock speed after the emission loop has
-// already honored the interrupt — the drain tail this exists to cut short.
+// Bridge the interrupt flag to a stop_source for sink.close(token). The signal
+// handler only sets an atomic flag (async-signal-safe), and a handler cannot
+// call stop_source::request_stop() safely either, so a watcher thread polls the
+// flag and forwards it. Without this, the final close() would still drain the
+// video branch at wall-clock speed after the emission loop has already honored
+// the interrupt — the drain tail this exists to cut short.
+//
+// Replay-only: cancelling the drain makes libmisbklv discard the sink file
+// (ADR 0022), which is right for a replay that was interrupted mid-pass and
+// wrong for a live capture, where it would delete the sortie. Live ingest
+// therefore closes uncancellably; see live_ingest.cpp.
 class InterruptBridge {
   public:
     InterruptBridge() {

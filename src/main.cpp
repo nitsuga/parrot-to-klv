@@ -19,6 +19,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <iomanip>
+#include <limits>
 #include <iostream>
 #include <optional>
 #include <span>
@@ -218,6 +219,19 @@ void print_usage(std::ostream& out, const char* program) {
         << "  --idle-timeout <s> end a live run when no telemetry has arrived\n"
         << "                    for <s> seconds (default 10; 0 disables). Only\n"
         << "                    with a live input.\n"
+        << "  --reconnect       after a live source stops, keep polling for it\n"
+        << "                    and start a new capture when it returns; runs\n"
+        << "                    until SIGINT/SIGTERM. A file output numbers\n"
+        << "                    every session (out_0000.ts, out_0001.ts, ...);\n"
+        << "                    a udp:/srt: output reuses its address. Only\n"
+        << "                    with a live input.\n"
+        << "  --reconnect-interval <s>  how often to poll for the source in\n"
+        << "                    --reconnect (default 3).\n"
+        << "  --max-empty-sessions <n>  in --reconnect, stop after <n>\n"
+        << "                    consecutive sessions that connect but carry no\n"
+        << "                    telemetry (default 5; 0 never stops). A source\n"
+        << "                    that is simply absent never connects and is not\n"
+        << "                    counted.\n"
         << "  --repeat          loop file replay to a live sink until SIGINT\n"
         << "                    (only with -i file.mp4 -o udp:/srt:).\n"
         << "  --repeat-pts <m>  how PTS behaves when looping: reset (each\n"
@@ -322,6 +336,11 @@ int main(int argc, char* argv[]) {
     // Live-input only: end the run after this long with no telemetry (ADR 0018).
     std::chrono::seconds idle_timeout{10};
     bool has_idle_timeout = false;
+    bool reconnect = false;
+    std::chrono::seconds reconnect_interval{3};
+    bool has_reconnect_interval = false;
+    unsigned max_empty_sessions = 5;
+    bool has_max_empty_sessions = false;
     bool repeat = false;
     bool has_repeat_pts = false;
     bool repeat_pts_continue = false;  // reset is the default — matches per-loop video restart; continue would desync KLV from the per-loop video (see PR #58 review)
@@ -441,6 +460,55 @@ int main(int argc, char* argv[]) {
                           << val << ").\n";
                 return 1;
             }
+        } else if (arg == "--reconnect") {
+            reconnect = true;
+        } else if (arg == "--reconnect-interval") {
+            if (i + 1 >= argc) {
+                std::cerr << "Error: --reconnect-interval needs a value.\n";
+                return 1;
+            }
+            std::string val = argv[++i];
+            try {
+                size_t pos = 0;
+                long parsed = std::stol(val, &pos, 10);
+                if (pos != val.size()) throw std::invalid_argument("trailing");
+                if (parsed < 1) {
+                    std::cerr << "Error: --reconnect-interval must be >= 1 (got " << val << ").\n";
+                    return 1;
+                }
+                reconnect_interval = std::chrono::seconds(parsed);
+                has_reconnect_interval = true;
+            } catch (const std::exception&) {
+                std::cerr << "Error: --reconnect-interval must be a whole number of seconds (got "
+                          << val << ").\n";
+                return 1;
+            }
+        } else if (arg == "--max-empty-sessions") {
+            if (i + 1 >= argc) {
+                std::cerr << "Error: --max-empty-sessions needs a value.\n";
+                return 1;
+            }
+            std::string val = argv[++i];
+            try {
+                size_t pos = 0;
+                long parsed = std::stol(val, &pos, 10);
+                if (pos != val.size()) throw std::invalid_argument("trailing");
+                if (parsed < 0 ||
+                    static_cast<unsigned long long>(parsed) >
+                        std::numeric_limits<unsigned>::max()) {
+                    // Casting a wider value would wrap, and wrapping to 0
+                    // silently disables the safeguard this flag configures.
+                    std::cerr << "Error: --max-empty-sessions must be 0.."
+                              << std::numeric_limits<unsigned>::max() << " (got " << val << ").\n";
+                    return 1;
+                }
+                max_empty_sessions = static_cast<unsigned>(parsed);
+                has_max_empty_sessions = true;
+            } catch (const std::exception&) {
+                std::cerr << "Error: --max-empty-sessions must be a whole number (got " << val
+                          << ").\n";
+                return 1;
+            }
         } else if (arg == "--loop") {
             udp_loop = true;
             has_loop = true;
@@ -512,6 +580,18 @@ int main(int argc, char* argv[]) {
     // input has no such source, so accepting it silently would be a lie.
     if (has_idle_timeout && !is_live_input) {
         std::cerr << "Error: --idle-timeout is only valid with a live input.\n";
+        return 1;
+    }
+    if (reconnect && !is_live_input) {
+        std::cerr << "Error: --reconnect is only valid with a live input.\n";
+        return 1;
+    }
+    if (has_reconnect_interval && !reconnect) {
+        std::cerr << "Error: --reconnect-interval is only valid with --reconnect.\n";
+        return 1;
+    }
+    if (has_max_empty_sessions && !reconnect) {
+        std::cerr << "Error: --max-empty-sessions is only valid with --reconnect.\n";
         return 1;
     }
 
@@ -589,6 +669,9 @@ int main(int argc, char* argv[]) {
         if (has_ttl) cfg.udp_ttl = udp_ttl;
         if (has_loop) cfg.udp_loop = udp_loop;
         if (has_idle_timeout) cfg.idle_timeout = idle_timeout;
+        cfg.reconnect = reconnect;
+        if (has_reconnect_interval) cfg.reconnect_interval = reconnect_interval;
+        if (has_max_empty_sessions) cfg.max_empty_sessions = max_empty_sessions;
         auto res = live_ingest(cfg);
         if (!res) {
             std::cerr << "live ingest failed: " << static_cast<int>(res.error()) << "\n";

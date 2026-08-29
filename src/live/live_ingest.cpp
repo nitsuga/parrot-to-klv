@@ -8,6 +8,8 @@
 
 #include <chrono>
 #include <cstdint>
+#include <cstdio>
+#include <filesystem>
 #include <optional>
 #include <span>
 #include <string>
@@ -183,17 +185,48 @@ misbklv::Result<bool> try_decode_and_emit(
 
 }  // namespace
 
-misbklv::Result<std::monostate> live_ingest(const LiveIngestConfig& cfg) {
-    if (cfg.rtsp_uri.empty() || cfg.udp_sink.empty()) {
-        return misbklv::Result<std::monostate>::err(misbklv::Error::Unsupported);
-    }
-    if (!is_valid_sink(cfg.udp_sink)) {
-        return misbklv::Result<std::monostate>::err(misbklv::Error::Unsupported);
-    }
-    if (!is_valid_video_source(cfg.rtsp_uri)) {
-        return misbklv::Result<std::monostate>::err(misbklv::Error::Unsupported);
-    }
+namespace live_detail {
 
+std::string roll_sink_spec(const std::string& sink_spec, unsigned index) {
+    // A live sink reuses its address; only a file has a name to roll.
+    if (!sink_spec.starts_with("file:")) return sink_spec;
+    const std::string path = sink_spec.substr(5);
+    // Split on the final extension, and only when it belongs to the basename —
+    // a dot in a parent directory must not be mistaken for one.
+    const auto slash = path.find_last_of('/');
+    const auto dot = path.find_last_of('.');
+    const bool has_ext = dot != std::string::npos && (slash == std::string::npos || dot > slash + 1);
+    char counter[16];
+    std::snprintf(counter, sizeof(counter), "_%04u", index);
+    if (!has_ext) return "file:" + path + counter;
+    return "file:" + path.substr(0, dot) + counter + path.substr(dot);
+}
+
+std::optional<unsigned> first_free_index(const std::string& sink_spec) {
+    if (!sink_spec.starts_with("file:")) return 0u;
+    // The counter is four digits wide, so the range is 0..9999. Exhausting it
+    // returns nullopt rather than the last index: that path exists, and handing
+    // it back would have the sink truncate a capture on open.
+    for (unsigned i = 0; i <= 9999; ++i) {
+        const std::string candidate = roll_sink_spec(sink_spec, i).substr(5);
+        std::error_code ec;
+        // A stat failure means "cannot prove this is free", which must count as
+        // occupied — exists() reports false on error, so check ec explicitly.
+        if (!std::filesystem::exists(candidate, ec) && !ec) return i;
+    }
+    return std::nullopt;
+}
+
+}  // namespace live_detail
+
+namespace {
+
+// One live session: build a pipeline against `sink_spec`, drive it until the
+// source stops, and close. `emitted_out` receives the number of real telemetry
+// packets emitted, which is what decides whether a reconnect counted (ADR 0018).
+misbklv::Result<std::monostate> run_one_session(const LiveIngestConfig& cfg,
+                                                const std::string& sink_spec,
+                                                size_t* emitted_out, bool* opened_out) {
     // Clear any residual captures from prior sessions or late RTSP pushes after
     // the previous close() so they do not bleed across sessions.
     parrot_extension_clear();
@@ -212,7 +245,7 @@ misbklv::Result<std::monostate> live_ingest(const LiveIngestConfig& cfg) {
     const std::string video_src = cfg.rtsp_uri;
 
     misbklv::InsertConfig icfg;
-    icfg.sink = cfg.udp_sink;
+    icfg.sink = sink_spec;
     icfg.realtime = true;
     icfg.video_source = video_src;
     // Live H.264 now uses Generate so KLV and video stay time-synced via ST 0604 SEI.
@@ -229,6 +262,9 @@ misbklv::Result<std::monostate> live_ingest(const LiveIngestConfig& cfg) {
     if (sink.error()) {
         return misbklv::Result<std::monostate>::err(*sink.error());
     }
+    // Past this point the sink and the video branch both exist, so any later
+    // failure is the session dying rather than a configuration that cannot run.
+    if (opened_out) *opened_out = true;
 
     const SessionMetadata* session_ptr = cfg.session ? &*cfg.session : nullptr;
 
@@ -236,7 +272,12 @@ misbklv::Result<std::monostate> live_ingest(const LiveIngestConfig& cfg) {
     // ParrotRtpHeaderExtension::read populates. For live RTSP, proto may be
     // split across first packets — coalesce until parse succeeds. PTS is the
     // RTP buffer PTS (running_time) per ADR 0013.
-    size_t emitted_real = 0;
+    // Bound to the caller's counter when it supplied one, so an early error
+    // return still reports the telemetry this session emitted. Writing it only
+    // at the normal exit lost that, and a mid-sortie failure then looked like a
+    // session that had produced nothing.
+    size_t emitted_local = 0;
+    size_t& emitted_real = emitted_out ? *emitted_out : emitted_local;
     std::vector<std::byte> proto_coalesce;
     uint64_t proto_coalesce_pts = GST_CLOCK_TIME_NONE;
 
@@ -339,8 +380,122 @@ misbklv::Result<std::monostate> live_ingest(const LiveIngestConfig& cfg) {
     }
 
     // For RTSP with no metadata, no dummy is emitted — just close (video
-    // only). Loop reached SIGINT or its deadline.
+    // only). The loop reached SIGINT, its deadline, or the idle timeout.
+    // Deliberately NOT cancellable, unlike file replay. libmisbklv discards the
+    // sink file on a cancelled drain (ADR 0022 — no output unless the session
+    // succeeded), so forwarding the interrupt here would delete the capture the
+    // operator just pressed Ctrl-C to stop. A live capture must survive its own
+    // shutdown, so this waits for the drain instead. The exposure is a stalled
+    // pipeline holding shutdown until libmisbklv's drain timeout; losing a
+    // sortie is the worse failure.
     return sink.close();
+}
+
+}  // namespace
+
+misbklv::Result<std::monostate> live_ingest(const LiveIngestConfig& cfg) {
+    if (cfg.rtsp_uri.empty() || cfg.udp_sink.empty()) {
+        return misbklv::Result<std::monostate>::err(misbklv::Error::Unsupported);
+    }
+    if (!is_valid_sink(cfg.udp_sink)) {
+        return misbklv::Result<std::monostate>::err(misbklv::Error::Unsupported);
+    }
+    if (!is_valid_video_source(cfg.rtsp_uri)) {
+        return misbklv::Result<std::monostate>::err(misbklv::Error::Unsupported);
+    }
+
+    if (!cfg.reconnect) {
+        return run_one_session(cfg, cfg.udp_sink, nullptr, nullptr);
+    }
+
+    // Reconnect mode: each sortie is its own session and its own finalized
+    // capture. Only an interrupt (SIGINT/SIGTERM) ends the run, or a failure
+    // that retrying cannot fix (ADR 0018 mode 2).
+    // Consecutive sessions that opened and produced nothing. Reset by any
+    // session that emits, so a flaky link costs attempts rather than the run.
+    unsigned empty_sessions = 0;
+    misbklv::Error last_empty_error = misbklv::Error::Backend;
+    while (!is_mux_interrupted()) {
+        // Recomputed every session, never incremented. A capture that appeared
+        // since the last scan — a gap in the numbering, a concurrent writer —
+        // would otherwise be truncated when the counter walked onto it.
+        const auto index = live_detail::first_free_index(cfg.udp_sink);
+        if (!index) {
+            std::fprintf(stderr, "live: no free capture index below 10000; stopping\n");
+            return misbklv::Result<std::monostate>::err(misbklv::Error::ResourceLimit);
+        }
+        const std::string sink_spec = live_detail::roll_sink_spec(cfg.udp_sink, *index);
+        size_t emitted = 0;
+        bool opened = false;
+        auto r = run_one_session(cfg, sink_spec, &emitted, &opened);
+        if (!r) {
+            // Two very different failures reach here. A session that never
+            // opened and reports Unsupported may be a source that is not back
+            // yet — the normal state between sorties. Anything else at open
+            // time is the configuration itself failing (an unwritable sink
+            // path), which retrying cannot fix and which would otherwise spin
+            // until the process is killed.
+            //
+            // Unsupported is overloaded upstream, so it is not sufficient on
+            // its own: libmisbklv returns it for an unreachable RTSP source and
+            // a video pad that never appears, but also for a pipeline:
+            // description that fails to parse or contains a demuxer. Only a
+            // network source can be transiently absent, so a pipeline: source
+            // that fails to open is always a configuration error.
+            //
+            // Known residual: a missing sink element factory also reports
+            // Unsupported, and with an RTSP source it is indistinguishable from
+            // an aircraft that is powered off — both fail identically on every
+            // attempt. That case still retries. Detecting it would need a sink
+            // probe at startup, which cannot be done safely for udp:/srt:
+            // sinks, since opening one with no peer yet is not a fault.
+            const bool source_can_be_absent = cfg.rtsp_uri.starts_with("rtsp://") ||
+                                              cfg.rtsp_uri.starts_with("rtsps://");
+            const bool transient =
+                opened || (r.error() == misbklv::Error::Unsupported && source_can_be_absent);
+            if (!transient) {
+                std::fprintf(stderr, "live: session failed to start with error %d; not retrying\n",
+                             static_cast<int>(r.error()));
+                return r;
+            }
+            // A session that failed after opening has already discarded its
+            // partial output (libmisbklv ADR 0022), so there is nothing to
+            // clean up. It is reported as a generic Backend error whether the
+            // source died or the sink did, so the empty-session bound below is
+            // what stops a broken output from retrying forever.
+            std::fprintf(stderr, "live: session ended with error %d; retrying\n",
+                         static_cast<int>(r.error()));
+            last_empty_error = r.error();
+        } else if (emitted == 0 && sink_spec.starts_with("file:")) {
+            // A source that connected and then said nothing must not leave a
+            // near-empty capture behind, nor consume an index — otherwise an
+            // endpoint that accepts and stalls fills the directory unattended.
+            // Removing it also makes the next scan reuse this same index.
+            std::error_code ec;
+            std::filesystem::remove(sink_spec.substr(5), ec);
+        }
+
+        if (emitted > 0) {
+            empty_sessions = 0;
+        } else if (opened && cfg.max_empty_sessions > 0 &&
+                   ++empty_sessions >= cfg.max_empty_sessions) {
+            // Only a session that opened counts. A source that is merely absent
+            // never opens, and must keep retrying for as long as the operator
+            // leaves the run up — that is the flying-day case this mode is for.
+            std::fprintf(stderr,
+                         "live: %u consecutive sessions produced no telemetry; stopping\n",
+                         empty_sessions);
+            return misbklv::Result<std::monostate>::err(last_empty_error);
+        }
+        if (is_mux_interrupted()) break;
+        // Interruptible wait, so an interrupt is noticed within a tick rather
+        // than after a full interval.
+        const auto wake = std::chrono::steady_clock::now() + cfg.reconnect_interval;
+        while (!is_mux_interrupted() && std::chrono::steady_clock::now() < wake) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+    }
+    return misbklv::Result<std::monostate>::ok({});
 }
 
 }  // namespace parrot_to_klv

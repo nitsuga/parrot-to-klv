@@ -19,6 +19,11 @@ failure now terminates `live_ingest` with the original backend error instead of
 being treated as a skipped packet and leaving the drive loop to spin until its
 deadline or SIGINT.
 
+**Live reconnect mode (#101):** `--reconnect` finalizes each session and polls
+the source until it returns, one numbered capture per sortie for a file sink and
+a reused address for a live one
+([ADR 0018](../context/decisions/0018-live-eos-modes.md) mode 2).
+
 **Live runs end when the source goes idle (#100):** `live_ingest` ends the
 session when no Parrot telemetry has arrived for `--idle-timeout` seconds
 (default 10, `0` disables), the primary end-of-source signal under
@@ -152,9 +157,7 @@ The one substantive feature piece left is **fork 4, Tier 2 geometry fidelity**
 
 ## Next
 
-1. [ADR 0018](../context/decisions/0018-live-eos-modes.md)'s opt-in reconnect
-   mode (#101).
-2. Fork 4, Tier 2 geometry fidelity, in [ROADMAP](./ROADMAP.md).
+1. Fork 4, Tier 2 geometry fidelity, in [ROADMAP](./ROADMAP.md).
 
 ## Known gaps
 - **Non-H.264 output carries no ST 0604.** Generation is H.264-only upstream, so
