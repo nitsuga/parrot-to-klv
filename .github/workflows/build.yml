@@ -8,6 +8,9 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 # A newer push to the same branch supersedes this run.
 concurrency:
   group: build-${{ github.ref }}
@@ -15,48 +18,52 @@ concurrency:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || fromJSON('["self-hosted", "parrot-to-klv"]') }}
+    container:
+      image: ghcr.io/nitsuga/libmisbklv-ci:9eeeeae9701449e06eee671c40b00fe4892888a7
+      options: ${{ github.event.pull_request.head.repo.fork && ' ' || '--user 1000:1000' }}
+      volumes:
+        - ${{ github.event.pull_request.head.repo.fork && '/tmp/ccache:/ccache' || '/home/eric/ci-cache/ccache:/ccache' }}
+        - ${{ github.event.pull_request.head.repo.fork && '/tmp/ci-capacity:/ci-capacity' || '/home/eric/ci-cache:/ci-capacity' }}
     steps:
       - uses: actions/checkout@v7
         with:
           lfs: true  # test fixtures are LFS objects; a bare checkout gets pointers
 
-      - uses: ./.github/actions/install-build-deps
-
       - name: Configure
-        run: cmake --preset release
+        run: bash ci/with-capacity.sh 1 cmake --preset release
 
       - name: Build
-        run: cmake --build --preset release -j"$(nproc)"
+        run: bash ci/with-capacity.sh 1 cmake --build --preset release -j3
 
       # -L parrot: libmisbklv is a subproject, so an unfiltered ctest would also
       # run its suite — including the tests needing the media skipped above.
       # Upstream has its own CI; this job tests this project.
       - name: Test
-        run: ctest --test-dir build/release -L parrot --output-on-failure
+        run: bash ci/with-capacity.sh 1 ctest --test-dir build/release -L parrot --output-on-failure
 
   sanitizers:
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || fromJSON('["self-hosted", "parrot-to-klv"]') }}
+    container:
+      image: ghcr.io/nitsuga/libmisbklv-ci:9eeeeae9701449e06eee671c40b00fe4892888a7
+      options: ${{ github.event.pull_request.head.repo.fork && ' ' || '--user 1000:1000' }}
+      volumes:
+        - ${{ github.event.pull_request.head.repo.fork && '/tmp/ccache:/ccache' || '/home/eric/ci-cache/ccache:/ccache' }}
+        - ${{ github.event.pull_request.head.repo.fork && '/tmp/ci-capacity:/ci-capacity' || '/home/eric/ci-cache:/ci-capacity' }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
         with:
           lfs: true  # test fixtures are LFS objects; a bare checkout gets pointers
 
-      - uses: ./.github/actions/install-build-deps
-        with:
-          extra-packages: pkg-config
-
       - name: Configure sanitizer build
-        run: cmake --preset sanitize
+        run: bash ci/with-capacity.sh 1 cmake --preset sanitize
 
       - name: Build sanitizer test targets
-        run: cmake --build --preset sanitize -j"$(nproc)"
+        run: bash ci/with-capacity.sh 1 cmake --build --preset sanitize -j3
 
       - name: Test sanitizer suite
         env:
           ASAN_OPTIONS: abort_on_error=1:detect_leaks=1
           UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
-        run: >-
-          ctest --test-dir build/sanitize -L parrot-sanitize
-          --output-on-failure --timeout 120
+        run: bash ci/with-capacity.sh 1 ctest --test-dir build/sanitize -L parrot-sanitize --output-on-failure --timeout 120

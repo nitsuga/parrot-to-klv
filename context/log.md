@@ -2,6 +2,8 @@
 
 ## 2026-08-29
 
+* **Shared self-hosted CI capacity (#108, libmisbklv#67, [ADR 0019](./decisions/0019-shared-ci-capacity-gate.md)):** regular parrot jobs claim one of two shared host slots at `-j3`, while the libmisbklv image publisher claims both; fork pull requests and release jobs remain hosted.
+
 * **Fork 16 follow-up closed:** libmisbklv#63, which would have split `Backend`
   into source-side and sink-side failures, was declined as not planned —
   attribution does not decompose cleanly, and the `max_empty_sessions` bound
