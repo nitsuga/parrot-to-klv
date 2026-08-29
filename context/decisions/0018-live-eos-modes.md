@@ -7,7 +7,7 @@ fork: 16
 tags: [decision, live, cli, rtsp, reconnect, streaming, timeout]
 generated:
   by: claude/opus-5
-  at: 2026-08-29T06:53:39Z
+  at: 2026-08-29T07:45:52Z
 sources:
   - id: parrot-to-klv-94
     resource: https://github.com/nitsuga/parrot-to-klv/issues/94
@@ -260,12 +260,20 @@ fork, and it should not block the telemetry case.
   failed extmap negotiation. Closing the gap needs libmisbklv to expose
   time-since-last-video-delivery, which its `VideoCtx` delivery probe has the
   ingredient for — a separate upstream fork, to open when a real case appears.
-- **The empty-session bound is a stand-in for information the library does not
-  expose.** Once a session opens, libmisbklv reports a dead source and a dead
-  sink alike as `Backend`, so the bound infers from "connected but produced
-  nothing" what a proper classification would state outright. Tracked as
-  [libmisbklv#63](https://github.com/nitsuga/libmisbklv/issues/63); if that
-  lands, the bound can be replaced by branching on the error.
+- **The empty-session bound is the settled answer, not a placeholder.** Once a
+  session opens, libmisbklv reports a dead source and a dead sink alike as
+  `Backend`, so the bound infers from "connected but produced nothing" what a
+  library-side classification would state outright. Making the library
+  distinguish them was proposed and **declined**
+  ([libmisbklv#63](https://github.com/nitsuga/libmisbklv/issues/63), closed as
+  not planned): attribution does not decompose cleanly — a mux error caused by
+  a blocked sink originates at the mux, and a stalled sink surfaces as
+  backpressure almost anywhere — so it would bury occasional wrong judgments
+  inside the library where a consumer could neither see nor override them. The
+  bound is approximate in the open, tunable by the operator, and bounded in its
+  failure: a flaky link costs at most `max_empty_sessions` attempts. Reopen only
+  for a consumer that cannot tolerate that cost, or if GStreamer offers reliable
+  sink-subtree attribution.
 - **Startup semantics are settled**, not open: the timer arms at drive-loop
   entry, so a source that connects and never delivers ends on the same timeout
   as one that stops. Recorded here because the reverse choice — arming at the
