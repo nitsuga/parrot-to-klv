@@ -201,13 +201,15 @@ directory taxonomy in [`context/CONVENTIONS.md`](context/CONVENTIONS.md)
 [okf-project-template](https://github.com/nitsuga/okf-project-template).
 
 **CI**, both on push and pull request:
-[`build.yml`](.github/workflows/build.yml) builds and runs the suite on Ubuntu,
+[`build.yml`](.github/workflows/build.yml) builds and runs the suite on the
+repository's self-hosted runners for trusted events and on Ubuntu for fork
+pull requests,
 and [`link-check.yml`](.github/workflows/link-check.yml) fails on broken internal
 doc links. [`release.yml`](.github/workflows/release.yml) runs on a `v*` tag (or
 manually, which builds and tests but does not publish), producing both release
 deliverables and smoke-testing each one before anything is attached to a
-release. The build job needs one secret, since libmisbklv is a private
-dependency — setup in [`.github/workflows/README-ci.md`](.github/workflows/README-ci.md).
+release. Runner setup and the shared capacity gate are documented in
+[`.github/workflows/README-ci.md`](.github/workflows/README-ci.md).
 
 ## Structure
 
@@ -217,10 +219,10 @@ CLAUDE.md              one-line adapter: @AGENTS.md (Claude Code auto-loads)
 CHANGELOG.md           hand-written release notes (release.yml publishes these)
 CMakeLists.txt         build (FetchContent pulls libmisbklv at a pinned commit)
 .github/workflows/
-  build.yml            CI — builds and runs the suite on Ubuntu
+  build.yml            CI — builds and runs the suite
   release.yml          CI — builds both release deliverables on a tag
   link-check.yml       CI — fails on broken internal doc links
-  README-ci.md         the one secret build.yml needs, and why
+  README-ci.md         runner, image, and capacity-gate setup
 packaging/             release deliverables: bundle, image, launcher, usage
 src/                   C++ source (parrot-to-klv, parrot-scrub, parrot-conform)
 test/                  tests + synthetic MP4 fixtures

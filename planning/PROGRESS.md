@@ -134,6 +134,8 @@ The one substantive feature piece left is **fork 4, Tier 2 geometry fidelity**
 
 ## In progress
 
+- **Shared self-hosted CI capacity (#108, [ADR 0019](../context/decisions/0019-shared-ci-capacity-gate.md)):** the regular build and sanitizer jobs target two parrot runners, use the pinned libmisbklv image, cache FetchContent dependencies, and claim one of two shared host capacity slots at `-j3`; fork pull requests use hosted runners at their full parallelism and release jobs remain hosted.
+
 - **Preparing to make the repository public.** The driver is multi-architecture
   releases: GitHub's free arm64 hosted runners and unmetered Actions minutes are
   public-repo benefits — though **not** arm64 itself, which GitHub made
@@ -160,7 +162,9 @@ The one substantive feature piece left is **fork 4, Tier 2 geometry fidelity**
 
 ## Next
 
-1. Fork 4, Tier 2 geometry fidelity, in [ROADMAP](./ROADMAP.md).
+1. Register the second `parrot-to-klv` runner and verify both regular CI jobs can run concurrently.
+2. Land the matching libmisbklv capacity-gate PR, then verify overlap behavior.
+3. Fork 4, Tier 2 geometry fidelity, in [ROADMAP](./ROADMAP.md).
 
 ## Known gaps
 - **Non-H.264 output carries no ST 0604.** Generation is H.264-only upstream, so

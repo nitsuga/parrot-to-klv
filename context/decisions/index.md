@@ -31,6 +31,7 @@ diverge; one fork can span several ADRs).
 | 14 | [0016 — Withdraw the Parrot documentation snapshot; cite the BSD-3 reference implementation instead](./0016-references-licensing-withdrawal.md) | accepted |
 | 15 | [0017 — Ship arm64 alongside x86-64, building both in a pinned 22.04 container on hosted runners](./0017-multi-architecture-release.md) | accepted |
 | 16 | [0018 — End a live run when the source goes idle, with an opt-in reconnect mode that rolls the output](./0018-live-eos-modes.md) | accepted |
+| — | [0019 — Share a two-slot capacity gate across self-hosted CI](./0019-shared-ci-capacity-gate.md) | accepted |
 
 _ADR 0001 predates formal fork numbering (no fork #): chosen direct MP4 parsing
 over GStreamer qtdemux based on investigation._
