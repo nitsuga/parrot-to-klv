@@ -7,6 +7,52 @@ tell a user nothing.
 The release workflow publishes the section matching the tag, so a heading here
 must be exactly `## vX.Y.Z`.
 
+## v0.4.0
+
+This release makes live capture practical for unattended and intermittent
+sources, and tightens failure handling for malformed recordings and runtime
+errors. File-to-file conversion and the MPEG-TS stream layout are unchanged.
+
+### Added
+
+- **Live runs finish when a source goes idle.** An RTSP capture now ends after
+  `--idle-timeout` seconds without Parrot telemetry (default 10); set it to `0`
+  to wait for `SIGINT`/`SIGTERM` instead. An unattended capture can therefore
+  finalize when a sortie ends instead of idling against a dead pipeline.
+
+- **Reconnect across repeated sorties.** `--reconnect` keeps one invocation
+  polling for a source every `--reconnect-interval` seconds (default 3),
+  finalizes each session, and starts a fresh capture when the source returns.
+  File outputs are numbered (`flight_0000.ts`, `flight_0001.ts`, …) without
+  overwriting captures already on disk; UDP/SRT outputs reuse their address.
+  `--max-empty-sessions` (default 5, or `0` to disable) stops a run after that
+  many opened sessions carry no telemetry, while a source that is simply absent
+  can remain unavailable until it returns.
+
+### Changed
+
+- **Live failures are no longer hidden.** Terminal pipeline failures, KLV
+  emission failures, and parse failures in generated KLV now return their
+  original errors and stop the run instead of being treated as skipped data or
+  allowing the drive loop to spin.
+
+- **Reconnect retries distinguish absence from broken configuration.** The
+  live dependency now reports an unavailable source explicitly, so reconnect
+  waits for an absent source but stops on a missing plugin, invalid sink, or
+  other startup error rather than retrying it indefinitely.
+
+- **Malformed metadata fails closed.** Track-pairing disagreements, malformed
+  v3 extensions, missing v3 timestamps, and invalid session-date anchors are
+  rejected or reported as absent instead of being mapped to a plausible target,
+  timestamp, or partially read value. Valid recordings and extensions retain
+  their existing behavior.
+
+### Fixed
+
+- **Scrubbing no longer trusts hostile extension sizes.** Oversized automation
+  payloads, short payloads, and truncated extension tails are reported and
+  cleared rather than being allowed to affect the scrubbed output.
+
 ## v0.3.0
 
 This release adds native arm64 downloads alongside x86-64 and makes the release

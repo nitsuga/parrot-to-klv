@@ -2,6 +2,11 @@
 
 ## 2026-08-29
 
+* **Release preparation (#110):** drafted the `v0.4.0` user-facing changelog
+  around live idle termination, reconnect sessions, surfaced runtime errors,
+  and fail-closed metadata handling; bumped the CMake project version from
+  `0.3.0` to `0.4.0`.
+
 * **CI review follow-up (PR #109):** cache each preset's FetchContent directory
   by the exact `CMakeLists.txt` hash, use the hosted fork runner's full
   parallelism, and document that capacity is claimed per substantive step.
