@@ -2,6 +2,22 @@
 
 ## 2026-08-29
 
+* **Live runs end when the source goes idle (issue #100, [ADR 0018](./decisions/0018-live-eos-modes.md)):**
+  `live_ingest`'s drive loop now tracks the time of the last captured Parrot RTP
+  header extension and ends the session once the gap reaches `idle_timeout`,
+  exposed as `--idle-timeout <seconds>` (default 10, `0` disables). The timer
+  arms at drive-loop entry rather than at the first sample, so a source that
+  connects and never delivers ends the same way as one that stops — arming late
+  would have preserved the hang the change exists to remove. Ending this way
+  calls `sink.close()` on the normal drain path, so a successful drain keeps the
+  output and a failure still propagates and exits non-zero. Three regressions
+  cover it: a source that never delivers, one that delivers a sample and stops,
+  and `0` disabling the watchdog. The first two carry an 8 s deadline as a
+  backstop so a regression fails the suite instead of hanging it — verified by
+  arming the timer at the first sample, which fails at 8019 ms. Debug and
+  sanitize: `ctest -L parrot` 38/38 each.
+
+
 * **Accepted live end-of-source and reconnect modes** ([ADR 0018](./decisions/0018-live-eos-modes.md),
   fork 16): an idle timeout is the primary end signal with EOS as a later early
   exit, ending and exiting by default, plus an opt-in reconnect mode that rolls

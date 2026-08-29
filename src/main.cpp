@@ -13,6 +13,7 @@
 #include "transform.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <csignal>
 #include <cstdint>
 #include <cstdio>
@@ -214,6 +215,9 @@ void print_usage(std::ostream& out, const char* program) {
         << "  --loop            enable multicast loopback for udp: output\n"
         << "                    (default).\n"
         << "  --no-loop         disable multicast loopback for udp: output.\n"
+        << "  --idle-timeout <s> end a live run when no telemetry has arrived\n"
+        << "                    for <s> seconds (default 10; 0 disables). Only\n"
+        << "                    with a live input.\n"
         << "  --repeat          loop file replay to a live sink until SIGINT\n"
         << "                    (only with -i file.mp4 -o udp:/srt:).\n"
         << "  --repeat-pts <m>  how PTS behaves when looping: reset (each\n"
@@ -315,6 +319,9 @@ int main(int argc, char* argv[]) {
     bool has_ttl = false;
     bool has_loop = false;
     bool udp_loop = true;
+    // Live-input only: end the run after this long with no telemetry (ADR 0018).
+    std::chrono::seconds idle_timeout{10};
+    bool has_idle_timeout = false;
     bool repeat = false;
     bool has_repeat_pts = false;
     bool repeat_pts_continue = false;  // reset is the default — matches per-loop video restart; continue would desync KLV from the per-loop video (see PR #58 review)
@@ -411,6 +418,27 @@ int main(int argc, char* argv[]) {
                 has_ttl = true;
             } catch (const std::exception&) {
                 std::cerr << "Error: --ttl must be 0..255 (got " << val << ").\n";
+                return 1;
+            }
+        } else if (arg == "--idle-timeout") {
+            if (i + 1 >= argc) {
+                std::cerr << "Error: --idle-timeout needs a value.\n";
+                return 1;
+            }
+            std::string val = argv[++i];
+            try {
+                size_t pos = 0;
+                long parsed = std::stol(val, &pos, 10);
+                if (pos != val.size()) throw std::invalid_argument("trailing");
+                if (parsed < 0) {
+                    std::cerr << "Error: --idle-timeout must be >= 0 (got " << val << ").\n";
+                    return 1;
+                }
+                idle_timeout = std::chrono::seconds(parsed);
+                has_idle_timeout = true;
+            } catch (const std::exception&) {
+                std::cerr << "Error: --idle-timeout must be a whole number of seconds (got "
+                          << val << ").\n";
                 return 1;
             }
         } else if (arg == "--loop") {
@@ -553,6 +581,7 @@ int main(int argc, char* argv[]) {
         if (has_iface) cfg.udp_mcast_iface = udp_iface;
         if (has_ttl) cfg.udp_ttl = udp_ttl;
         if (has_loop) cfg.udp_loop = udp_loop;
+        if (has_idle_timeout) cfg.idle_timeout = idle_timeout;
         auto res = live_ingest(cfg);
         if (!res) {
             std::cerr << "live ingest failed: " << static_cast<int>(res.error()) << "\n";

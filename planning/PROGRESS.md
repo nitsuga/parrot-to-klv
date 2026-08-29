@@ -19,6 +19,13 @@ failure now terminates `live_ingest` with the original backend error instead of
 being treated as a skipped packet and leaving the drive loop to spin until its
 deadline or SIGINT.
 
+**Live runs end when the source goes idle (#100):** `live_ingest` ends the
+session when no Parrot telemetry has arrived for `--idle-timeout` seconds
+(default 10, `0` disables), the primary end-of-source signal under
+[ADR 0018](../context/decisions/0018-live-eos-modes.md). A clean EOS early exit
+and video-only captures both await
+[libmisbklv#60](https://github.com/nitsuga/libmisbklv/issues/60).
+
 **Live pipeline terminal failures are returned (#94):** `live_ingest` polls
 libmisbklv's nonblocking `KlvSink::poll()` and returns a backend error
 promptly, including when no telemetry has arrived; timed and explicit
@@ -145,9 +152,8 @@ The one substantive feature piece left is **fork 4, Tier 2 geometry fidelity**
 
 ## Next
 
-1. Implement [ADR 0018](../context/decisions/0018-live-eos-modes.md)'s idle
-   timeout and end-and-exit default, then its opt-in reconnect mode. Tracked as
-   issues.
+1. [ADR 0018](../context/decisions/0018-live-eos-modes.md)'s opt-in reconnect
+   mode (#101).
 2. Fork 4, Tier 2 geometry fidelity, in [ROADMAP](./ROADMAP.md).
 
 ## Known gaps

@@ -52,6 +52,18 @@ struct LiveIngestConfig {
     // SIGINT (e.g., 2s for hermetic tests). If caller wants one-shot startup
     // poll (previous behavior), use a small run_duration like 600ms.
     std::optional<std::chrono::milliseconds> run_duration{std::chrono::milliseconds(2000)};
+
+    // End the session when no Parrot RTP header extension has arrived for this
+    // long. The primary end-of-source signal (ADR 0018): a clean RTSP teardown
+    // is the polite ending, but power loss and hard link failures send no
+    // TEARDOWN at all, so idleness is the only signal guaranteed to fire.
+    // The timer arms at drive-loop entry, not at the first sample, so a source
+    // that connects and never delivers ends the same way as one that stops.
+    // Zero disables it, restoring a run that ends only on its deadline or
+    // SIGINT. Telemetry rides inside the video stream's header extensions, so
+    // telemetry arriving implies video arriving — the converse does not hold,
+    // which is why a video-only stream is out of this watchdog's reach.
+    std::chrono::seconds idle_timeout{10};
 };
 
 // Live ingest: validate cfg, register Parrot RTP header extension, create a
