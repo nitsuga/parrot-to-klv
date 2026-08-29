@@ -7,6 +7,10 @@
   and fail-closed metadata handling; bumped the CMake project version from
   `0.3.0` to `0.4.0`.
 
+* **CI maintenance (PR #111):** upgraded the FetchContent cache action from
+  `actions/cache@v4` to `@v5`, removing the Node 20 deprecation warning; the
+  self-hosted runner is already new enough for the Node 24 action runtime.
+
 * **CI review follow-up (PR #109):** cache each preset's FetchContent directory
   by the exact `CMakeLists.txt` hash, use the hosted fork runner's full
   parallelism, and document that capacity is claimed per substantive step.
