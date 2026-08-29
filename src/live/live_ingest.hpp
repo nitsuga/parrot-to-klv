@@ -66,17 +66,19 @@ struct LiveIngestConfig {
     std::chrono::seconds idle_timeout{10};
 
     // Reconnect mode (ADR 0018 mode 2): when a session ends, finalize it and
-    // then poll the source on `reconnect_interval` until it returns, forever,
-    // until SIGINT/SIGTERM. Each reconnect builds a fresh pipeline rather than
-    // repairing the old one. A file sink rolls through a _000n counter, one
-    // finalized capture per sortie; a live sink reuses its address.
+    // then poll the source on `reconnect_interval` until it returns. Runs until
+    // SIGINT/SIGTERM, or until `max_empty_sessions` consecutive sessions
+    // connect and carry no telemetry — see that field. Each reconnect builds a
+    // fresh pipeline rather than repairing the old one. A file sink rolls
+    // through a _000n counter, one finalized capture per sortie; a live sink
+    // reuses its address.
     bool reconnect = false;
     std::chrono::seconds reconnect_interval{3};
 
     // Give up after this many consecutive sessions that opened and then
     // produced no telemetry. A source that is merely absent fails to *open*,
-    // which is not counted and retries forever — that is the flying-day case
-    // this mode exists for. But a session that opens and then fails, over and
+    // which is not counted and is waited on for as long as the run is up —
+    // that is the flying-day case this mode exists for. But a session that opens and then fails, over and
     // over with nothing to show, means something retrying cannot fix: a full
     // disk, an output that broke mid-run, an endpoint that accepts and stalls.
     // libmisbklv reports those as a generic Backend error, indistinguishable

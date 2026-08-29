@@ -19,6 +19,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <iomanip>
+#include <limits>
 #include <iostream>
 #include <optional>
 #include <span>
@@ -492,8 +493,13 @@ int main(int argc, char* argv[]) {
                 size_t pos = 0;
                 long parsed = std::stol(val, &pos, 10);
                 if (pos != val.size()) throw std::invalid_argument("trailing");
-                if (parsed < 0) {
-                    std::cerr << "Error: --max-empty-sessions must be >= 0 (got " << val << ").\n";
+                if (parsed < 0 ||
+                    static_cast<unsigned long long>(parsed) >
+                        std::numeric_limits<unsigned>::max()) {
+                    // Casting a wider value would wrap, and wrapping to 0
+                    // silently disables the safeguard this flag configures.
+                    std::cerr << "Error: --max-empty-sessions must be 0.."
+                              << std::numeric_limits<unsigned>::max() << " (got " << val << ").\n";
                     return 1;
                 }
                 max_empty_sessions = static_cast<unsigned>(parsed);

@@ -7,7 +7,7 @@ fork: 16
 tags: [decision, live, cli, rtsp, reconnect, streaming, timeout]
 generated:
   by: claude/opus-5
-  at: 2026-08-29T03:01:11Z
+  at: 2026-08-29T06:53:39Z
 sources:
   - id: parrot-to-klv-94
     resource: https://github.com/nitsuga/parrot-to-klv/issues/94
