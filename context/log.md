@@ -2,6 +2,10 @@
 
 ## 2026-08-29
 
+* **CI review follow-up (PR #109):** cache each preset's FetchContent directory
+  by the exact `CMakeLists.txt` hash, use the hosted fork runner's full
+  parallelism, and document that capacity is claimed per substantive step.
+
 * **Shared self-hosted CI capacity (#108, libmisbklv#67, [ADR 0019](./decisions/0019-shared-ci-capacity-gate.md)):** regular parrot jobs claim one of two shared host slots at `-j3`, while the libmisbklv image publisher claims both; fork pull requests and release jobs remain hosted.
 
 * **Fork 16 follow-up closed:** libmisbklv#63, which would have split `Backend`

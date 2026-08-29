@@ -41,6 +41,10 @@ build, sanitizer, generated-drift, and parrot jobs claim one slot for each
 substantive command; the libmisbklv image publisher claims both. Hosted fork
 jobs use an ephemeral `/tmp` lock path. Trusted parrot jobs use two
 repository-scoped self-hosted runner registrations labeled `parrot-to-klv`.
+Parrot caches its FetchContent dependency directory with an exact
+`CMakeLists.txt` hash, and uses the hosted runner's full parallelism for fork
+builds. The capacity slot is intentionally acquired per substantive step rather
+than held across the whole job.
 
 # Alternatives considered
 
@@ -60,6 +64,9 @@ Two parrot jobs can run concurrently, and occasional overlap with libmisbklv is
 bounded rather than dependent on operator timing. Jobs may occupy a runner
 while waiting for a capacity slot. The lock files depend on the existing shared
 host mount, and both repositories must keep the helper and slot count aligned.
+The dependency cache avoids repeated FetchContent clones without sharing a
+mutable CMake dependency build directory between concurrent jobs. Per-step
+claims leave room for other jobs between configure, build, and test.
 
 # Assumptions / open questions
 

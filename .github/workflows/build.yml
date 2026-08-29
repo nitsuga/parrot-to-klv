@@ -30,11 +30,22 @@ jobs:
         with:
           lfs: true  # test fixtures are LFS objects; a bare checkout gets pointers
 
+      - name: Cache FetchContent dependencies
+        uses: actions/cache@v4
+        with:
+          path: build/release/_deps
+          key: fetchcontent-build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('CMakeLists.txt') }}
+
       - name: Configure
         run: bash ci/with-capacity.sh 1 cmake --preset release
 
       - name: Build
-        run: bash ci/with-capacity.sh 1 cmake --build --preset release -j3
+        run: |
+          jobs=3
+          if [[ "${{ github.event.pull_request.head.repo.fork }}" == "true" ]]; then
+            jobs=$(nproc)
+          fi
+          bash ci/with-capacity.sh 1 cmake --build --preset release -j"$jobs"
 
       # -L parrot: libmisbklv is a subproject, so an unfiltered ctest would also
       # run its suite — including the tests needing the media skipped above.
@@ -56,11 +67,22 @@ jobs:
         with:
           lfs: true  # test fixtures are LFS objects; a bare checkout gets pointers
 
+      - name: Cache FetchContent dependencies
+        uses: actions/cache@v4
+        with:
+          path: build/sanitize/_deps
+          key: fetchcontent-sanitizers-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('CMakeLists.txt') }}
+
       - name: Configure sanitizer build
         run: bash ci/with-capacity.sh 1 cmake --preset sanitize
 
       - name: Build sanitizer test targets
-        run: bash ci/with-capacity.sh 1 cmake --build --preset sanitize -j3
+        run: |
+          jobs=3
+          if [[ "${{ github.event.pull_request.head.repo.fork }}" == "true" ]]; then
+            jobs=$(nproc)
+          fi
+          bash ci/with-capacity.sh 1 cmake --build --preset sanitize -j"$jobs"
 
       - name: Test sanitizer suite
         env:

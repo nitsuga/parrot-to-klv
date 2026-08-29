@@ -134,7 +134,7 @@ The one substantive feature piece left is **fork 4, Tier 2 geometry fidelity**
 
 ## In progress
 
-- **Shared self-hosted CI capacity (#108, [ADR 0019](../context/decisions/0019-shared-ci-capacity-gate.md)):** the regular build and sanitizer jobs target two parrot runners, use the pinned libmisbklv image, and claim one of two shared host capacity slots at `-j3`; fork pull requests and release jobs remain hosted.
+- **Shared self-hosted CI capacity (#108, [ADR 0019](../context/decisions/0019-shared-ci-capacity-gate.md)):** the regular build and sanitizer jobs target two parrot runners, use the pinned libmisbklv image, cache FetchContent dependencies, and claim one of two shared host capacity slots at `-j3`; fork pull requests use hosted runners at their full parallelism and release jobs remain hosted.
 
 - **Preparing to make the repository public.** The driver is multi-architecture
   releases: GitHub's free arm64 hosted runners and unmetered Actions minutes are
