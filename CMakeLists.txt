@@ -288,6 +288,9 @@ add_test(NAME cli_rejects_ttl_without_udp
 add_test(NAME cli_rejects_loop_without_udp
          COMMAND ${CMAKE_SOURCE_DIR}/test/cli_reject_test.sh "only valid with a udp"
                  $<TARGET_FILE:parrot-to-klv> ${CMAKE_SOURCE_DIR}/test/fixtures/parrot_v3.mp4 -o ${CMAKE_CURRENT_BINARY_DIR}/cli_udp_loop_out.ts --loop)
+add_test(NAME cli_rejects_idle_timeout_without_live
+         COMMAND ${CMAKE_SOURCE_DIR}/test/cli_reject_test.sh "only valid with a live input"
+                 $<TARGET_FILE:parrot-to-klv> ${CMAKE_SOURCE_DIR}/test/fixtures/parrot_v3.mp4 -o ${CMAKE_CURRENT_BINARY_DIR}/cli_idle_timeout_out.ts --idle-timeout 1)
 add_test(NAME cli_rejects_live_without_output
          COMMAND ${CMAKE_SOURCE_DIR}/test/cli_reject_test.sh "live input needs"
                  $<TARGET_FILE:parrot-to-klv> -i rtsp://127.0.0.1/live)
@@ -421,7 +424,7 @@ set_tests_properties(
   cli_rejects_output_without_path cli_rejects_two_inputs
   cli_rejects_live_flags_removed cli_rejects_udp_flag_without_udp
   cli_rejects_ttl_without_udp cli_rejects_loop_without_udp
-  cli_rejects_live_without_output
+  cli_rejects_live_without_output cli_rejects_idle_timeout_without_live
   cli_rejects_udp_ttl_out_of_range cli_rejects_repeat_without_file_live
   cli_rejects_repeat_with_file_to_file cli_rejects_repeat_pts_without_repeat
   cli_rejects_repeat_pts_invalid_value

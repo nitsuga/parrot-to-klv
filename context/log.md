@@ -14,8 +14,11 @@
   cover it: a source that never delivers, one that delivers a sample and stops,
   and `0` disabling the watchdog. The first two carry an 8 s deadline as a
   backstop so a regression fails the suite instead of hanging it — verified by
-  arming the timer at the first sample, which fails at 8019 ms. Debug and
-  sanitize: `ctest -L parrot` 38/38 each.
+  arming the timer at the first sample, which fails at 8019 ms. The CLI rejects
+  `--idle-timeout` without a live input rather than accepting and ignoring it
+  (a file input has no source that can stop), with a `cli_reject_test.sh` case
+  and the README's live section rewritten — it still promised a run until
+  `SIGINT`. Debug and sanitize: `ctest -L parrot` 39/39 each.
 
 
 * **Accepted live end-of-source and reconnect modes** ([ADR 0018](./decisions/0018-live-eos-modes.md),

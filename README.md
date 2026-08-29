@@ -121,7 +121,13 @@ to loop until `SIGINT`. The video is never decoded or re-encoded, so there is
 no generation loss — but it is not bit-identical: we ask libmisbklv to rewrite
 the timing NALs, replacing Picture Timing SEI with ST 0604 Precision Time Stamps
 so consumers can correlate frames without reading the KLV. Conversion shows
-progress every 10%. Live RTSP runs until `SIGINT` (Ctrl-C).
+progress every 10%.
+
+Live RTSP ends when the source stops: if no telemetry arrives for
+`--idle-timeout` seconds (default 10) the run finishes writing its output and
+exits, so an unattended capture terminates on its own when a sortie ends rather
+than idling against a dead pipeline. `--idle-timeout 0` disables that and runs
+until `SIGINT` (Ctrl-C). The timeout is only valid with a live input.
 
 Without `-o` the tool only reads a file input and reports; location and
 airframe identity are withheld from that report unless `--with-location` /

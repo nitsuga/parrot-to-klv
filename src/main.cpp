@@ -508,6 +508,13 @@ int main(int argc, char* argv[]) {
         }
     }
 
+    // The idle timeout ends a live source that has stopped delivering; a file
+    // input has no such source, so accepting it silently would be a lie.
+    if (has_idle_timeout && !is_live_input) {
+        std::cerr << "Error: --idle-timeout is only valid with a live input.\n";
+        return 1;
+    }
+
     // UDP sink options are only valid with a udp: output.
     if ((has_iface || has_ttl || has_loop) && !is_udp_output) {
         if (has_iface) {
