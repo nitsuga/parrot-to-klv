@@ -3,6 +3,7 @@
 
 #include "live/live_ingest.hpp"
 
+#include "live/interrupt_bridge.hpp"
 #include "live/parrot_rtp_header_extension.hpp"
 #include "mux.hpp"
 
@@ -202,15 +203,19 @@ std::string roll_sink_spec(const std::string& sink_spec, unsigned index) {
     return "file:" + path.substr(0, dot) + counter + path.substr(dot);
 }
 
-unsigned first_free_index(const std::string& sink_spec) {
-    if (!sink_spec.starts_with("file:")) return 0;
-    for (unsigned i = 0;; ++i) {
+std::optional<unsigned> first_free_index(const std::string& sink_spec) {
+    if (!sink_spec.starts_with("file:")) return 0u;
+    // The counter is four digits wide, so the range is 0..9999. Exhausting it
+    // returns nullopt rather than the last index: that path exists, and handing
+    // it back would have the sink truncate a capture on open.
+    for (unsigned i = 0; i <= 9999; ++i) {
         const std::string candidate = roll_sink_spec(sink_spec, i).substr(5);
         std::error_code ec;
-        if (!std::filesystem::exists(candidate, ec)) return i;
-        // Guard against an unbounded scan on a pathological directory.
-        if (i == 9999) return i;
+        // A stat failure means "cannot prove this is free", which must count as
+        // occupied — exists() reports false on error, so check ec explicitly.
+        if (!std::filesystem::exists(candidate, ec) && !ec) return i;
     }
+    return std::nullopt;
 }
 
 }  // namespace live_detail
@@ -222,7 +227,7 @@ namespace {
 // packets emitted, which is what decides whether a reconnect counted (ADR 0018).
 misbklv::Result<std::monostate> run_one_session(const LiveIngestConfig& cfg,
                                                 const std::string& sink_spec,
-                                                size_t* emitted_out) {
+                                                size_t* emitted_out, bool* opened_out) {
     // Clear any residual captures from prior sessions or late RTSP pushes after
     // the previous close() so they do not bleed across sessions.
     parrot_extension_clear();
@@ -258,6 +263,9 @@ misbklv::Result<std::monostate> run_one_session(const LiveIngestConfig& cfg,
     if (sink.error()) {
         return misbklv::Result<std::monostate>::err(*sink.error());
     }
+    // Past this point the sink and the video branch both exist, so any later
+    // failure is the session dying rather than a configuration that cannot run.
+    if (opened_out) *opened_out = true;
 
     const SessionMetadata* session_ptr = cfg.session ? &*cfg.session : nullptr;
 
@@ -370,7 +378,11 @@ misbklv::Result<std::monostate> run_one_session(const LiveIngestConfig& cfg,
     // For RTSP with no metadata, no dummy is emitted — just close (video
     // only). The loop reached SIGINT, its deadline, or the idle timeout.
     if (emitted_out) *emitted_out = emitted_real;
-    return sink.close();
+    // Cancellable: without a token the close would drain the video branch at
+    // wall-clock speed after the loop has already honored the interrupt, up to
+    // libmisbklv's multi-minute drain timeout.
+    InterruptBridge bridge;
+    return sink.close(bridge.token());
 }
 
 }  // namespace
@@ -387,36 +399,54 @@ misbklv::Result<std::monostate> live_ingest(const LiveIngestConfig& cfg) {
     }
 
     if (!cfg.reconnect) {
-        return run_one_session(cfg, cfg.udp_sink, nullptr);
+        return run_one_session(cfg, cfg.udp_sink, nullptr, nullptr);
     }
 
     // Reconnect mode: each sortie is its own session and its own finalized
-    // capture. Only SIGINT ends the run (ADR 0018 mode 2).
-    unsigned index = live_detail::first_free_index(cfg.udp_sink);
+    // capture. Only an interrupt (SIGINT/SIGTERM) ends the run, or a failure
+    // that retrying cannot fix (ADR 0018 mode 2).
     while (!is_mux_interrupted()) {
-        const std::string sink_spec = live_detail::roll_sink_spec(cfg.udp_sink, index);
+        // Recomputed every session, never incremented. A capture that appeared
+        // since the last scan — a gap in the numbering, a concurrent writer —
+        // would otherwise be truncated when the counter walked onto it.
+        const auto index = live_detail::first_free_index(cfg.udp_sink);
+        if (!index) {
+            std::fprintf(stderr, "live: no free capture index below 10000; stopping\n");
+            return misbklv::Result<std::monostate>::err(misbklv::Error::ResourceLimit);
+        }
+        const std::string sink_spec = live_detail::roll_sink_spec(cfg.udp_sink, *index);
         size_t emitted = 0;
-        auto r = run_one_session(cfg, sink_spec, &emitted);
+        bool opened = false;
+        auto r = run_one_session(cfg, sink_spec, &emitted, &opened);
         if (!r) {
-            // A source that is not back yet fails to open, which is the normal
-            // state between sorties, not a fault. A session that fails after
-            // opening has already discarded its partial output (libmisbklv
-            // ADR 0022). Either way the answer is to keep waiting.
+            // Two very different failures reach here. A session that never
+            // opened and reports Unsupported is a source that is not back yet
+            // — the normal state between sorties. Anything else at open time is
+            // the configuration itself failing (an unwritable sink path, a
+            // missing element), which retrying cannot fix and which would
+            // otherwise spin until the process is killed.
+            const bool transient = opened || r.error() == misbklv::Error::Unsupported;
+            if (!transient) {
+                std::fprintf(stderr, "live: session failed to start with error %d; not retrying\n",
+                             static_cast<int>(r.error()));
+                return r;
+            }
+            // A session that failed after opening has already discarded its
+            // partial output (libmisbklv ADR 0022), so there is nothing to
+            // clean up — the source died and we wait for it to return.
             std::fprintf(stderr, "live: session ended with error %d; retrying\n",
                          static_cast<int>(r.error()));
-        } else if (emitted > 0) {
-            // The session carried telemetry, so it counts and keeps its file.
-            ++index;
-        } else if (sink_spec.starts_with("file:")) {
+        } else if (emitted == 0 && sink_spec.starts_with("file:")) {
             // A source that connected and then said nothing must not leave a
             // near-empty capture behind, nor consume an index — otherwise an
             // endpoint that accepts and stalls fills the directory unattended.
+            // Removing it also makes the next scan reuse this same index.
             std::error_code ec;
             std::filesystem::remove(sink_spec.substr(5), ec);
         }
         if (is_mux_interrupted()) break;
-        // Interruptible wait, so SIGINT is noticed within a tick rather than
-        // after a full interval.
+        // Interruptible wait, so an interrupt is noticed within a tick rather
+        // than after a full interval.
         const auto wake = std::chrono::steady_clock::now() + cfg.reconnect_interval;
         while (!is_mux_interrupted() && std::chrono::steady_clock::now() < wake) {
             std::this_thread::sleep_for(std::chrono::milliseconds(10));

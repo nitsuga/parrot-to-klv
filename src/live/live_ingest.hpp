@@ -67,7 +67,7 @@ struct LiveIngestConfig {
 
     // Reconnect mode (ADR 0018 mode 2): when a session ends, finalize it and
     // then poll the source on `reconnect_interval` until it returns, forever,
-    // until SIGINT. Each reconnect builds a fresh pipeline rather than
+    // until SIGINT/SIGTERM. Each reconnect builds a fresh pipeline rather than
     // repairing the old one. A file sink rolls through a _000n counter, one
     // finalized capture per sortie; a live sink reuses its address.
     bool reconnect = false;
@@ -85,8 +85,11 @@ std::string roll_sink_spec(const std::string& sink_spec, unsigned index);
 // The first index whose rolled path does not exist yet. Re-running in a
 // directory that already holds a capture appends rather than destroys —
 // libmisbklv's file sink truncates an existing path when it opens, so reusing
-// an index would lose the earlier capture. Returns 0 for a non-file sink.
-unsigned first_free_index(const std::string& sink_spec);
+// an index would lose the earlier capture. A path that cannot be stat'd counts
+// as occupied: an unreadable entry must never be treated as free. Returns 0 for
+// a non-file sink, and nullopt when the whole 0..9999 range is taken, which the
+// caller must treat as a failure rather than reusing an occupied path.
+std::optional<unsigned> first_free_index(const std::string& sink_spec);
 
 }  // namespace live_detail
 

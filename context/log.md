@@ -18,7 +18,16 @@
   Live sinks reuse their address. Five regressions: path rolling (7 cases),
   first-free-index scanning, no-telemetry sessions leaving nothing behind,
   telemetry-carrying sessions producing contiguous `flight_0000.ts`…, and two
-  CLI rejections. Debug and sanitize: `ctest -L parrot` 41/41 each.
+  CLI rejections. Review hardened it further: the free index is recomputed
+  before every session rather than incremented, so a gap in the numbering or a
+  file that appeared since the last scan cannot be walked onto and truncated; a
+  path that cannot be stat'd counts as occupied; exhausting 0..9999 returns an
+  error instead of reusing `_9999`; a failure that never opened and is not
+  `Unsupported` is a configuration fault and is surfaced rather than retried
+  forever (an unwritable sink previously spun until the process was killed); and
+  `close()` now takes a stop token through the `InterruptBridge` shared with
+  file replay, so an interrupt cuts the drain instead of waiting out libmisbklv's
+  multi-minute timeout. Debug and sanitize: `ctest -L parrot` 41/41 each.
 
 
 * **Live runs end when the source goes idle (issue #100, [ADR 0018](./decisions/0018-live-eos-modes.md)):**

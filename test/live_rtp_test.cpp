@@ -956,7 +956,7 @@ static bool test_first_free_index_skips_existing() {
     std::filesystem::create_directories(dir, ec);
     const std::string spec = "file:" + dir + "/flight.ts";
     bool ok = true;
-    if (first_free_index(spec) != 0) {
+    if (first_free_index(spec) != 0u) {
         std::cerr << "  empty directory should start at 0\n";
         ok = false;
     }
@@ -966,13 +966,34 @@ static bool test_first_free_index_skips_existing() {
         std::ofstream f(dir + "/flight_000" + std::to_string(i) + ".ts");
         f << "x";
     }
-    if (first_free_index(spec) != 2) {
-        std::cerr << "  expected first free index 2, got " << first_free_index(spec) << "\n";
+    if (first_free_index(spec) != 2u) {
+        std::cerr << "  expected first free index 2, got "
+                  << first_free_index(spec).value_or(9999) << "\n";
         ok = false;
     }
     // A live sink has no files to scan.
-    if (first_free_index("udp:239.0.0.1:5000") != 0) {
+    if (first_free_index("udp:239.0.0.1:5000") != 0u) {
         std::cerr << "  live sink should report 0\n";
+        ok = false;
+    }
+    // A gap must not be walked onto: with _0000 and _0002 present the scan
+    // returns 1, and after that session it must return 3, never 2.
+    {
+        std::ofstream f(dir + "/flight_0002.ts");
+        f << "x";
+    }
+    std::filesystem::remove(dir + "/flight_0001.ts", ec);
+    if (first_free_index(spec) != 1u) {
+        std::cerr << "  expected the gap at index 1\n";
+        ok = false;
+    }
+    {
+        std::ofstream f(dir + "/flight_0001.ts");
+        f << "x";
+    }
+    if (first_free_index(spec) != 3u) {
+        std::cerr << "  expected index 3 once the gap is filled, got "
+                  << first_free_index(spec).value_or(9999) << "\n";
         ok = false;
     }
     if (ok) std::cout << "  ok\n";
@@ -1120,6 +1141,61 @@ static bool test_reconnect_rolls_numbered_captures() {
     }
     if (ok) std::cout << "  ok (" << names.size() << " numbered captures)\n";
     std::filesystem::remove_all(dir, ec);
+    parrot_to_klv::parrot_extension_clear();
+    return ok;
+}
+
+// A sink that cannot be opened is a configuration failure, not a source that
+// has yet to return. Reconnect must surface it instead of retrying until the
+// process is killed.
+static bool test_reconnect_does_not_retry_a_fatal_sink() {
+    std::cout << "test_reconnect_does_not_retry_a_fatal_sink\n";
+    parrot_to_klv::parrot_extension_clear();
+    std::string enc = pick_encoder();
+    if (enc.empty()) {
+        std::cout << "  SKIP: no encoder available\n";
+        return true;
+    }
+    if (parrot_to_klv::is_mux_interrupted()) {
+        std::cout << "  SKIP: already interrupted (no reset)\n";
+        return true;
+    }
+    const bool h265 = enc == "x265enc";
+    parrot_to_klv::LiveIngestConfig cfg;
+    cfg.rtsp_uri = "pipeline:videotestsrc is-live=true ! videoconvert ! "
+                   "video/x-raw,width=320,height=240,framerate=30/1 ! " +
+                   enc + (h265 ? " ! h265parse" : " ! h264parse");
+    // A directory that does not exist: the sink cannot be created, ever.
+    cfg.udp_sink = "file:/tmp/parrot_no_such_dir_9f2c/flight.ts";
+    cfg.run_duration = std::chrono::milliseconds(4000);
+    cfg.idle_timeout = std::chrono::seconds(1);
+    cfg.reconnect = true;
+    cfg.reconnect_interval = std::chrono::seconds(1);
+
+    // Backstop: if the fatal path regresses to retrying, this releases the test
+    // instead of hanging the suite, and the elapsed check below fails it.
+    std::thread stopper([] {
+        std::this_thread::sleep_for(std::chrono::milliseconds(6000));
+        parrot_to_klv::request_mux_interrupt();
+    });
+    const auto t0 = std::chrono::steady_clock::now();
+    auto r = parrot_to_klv::live_ingest(cfg);
+    const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+                             std::chrono::steady_clock::now() - t0)
+                             .count();
+    stopper.join();
+    parrot_to_klv::reset_mux_interrupt_for_test();
+
+    bool ok = true;
+    if (r) {
+        std::cerr << "  expected an error for an unopenable sink, got success\n";
+        ok = false;
+    }
+    if (elapsed >= 5000) {
+        std::cerr << "  fatal sink error was retried rather than surfaced: " << elapsed << " ms\n";
+        ok = false;
+    }
+    if (ok) std::cout << "  ok (surfaced after " << elapsed << " ms)\n";
     parrot_to_klv::parrot_extension_clear();
     return ok;
 }
@@ -1649,6 +1725,7 @@ int main(int argc, char* argv[]) {
     ok &= test_first_free_index_skips_existing();
     ok &= test_reconnect_discards_sessions_without_telemetry();
     ok &= test_reconnect_rolls_numbered_captures();
+    ok &= test_reconnect_does_not_retry_a_fatal_sink();
     ok &= test_pipeline_h265_generate_no_corruption();
     ok &= test_indefinite_live_until_sigint();
 
