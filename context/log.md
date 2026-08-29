@@ -2,6 +2,13 @@
 
 ## 2026-08-29
 
+* **Revised [ADR 0018](./decisions/0018-live-eos-modes.md)** (fork 16): mode 2 is
+  no longer interrupt-only. The empty-session bound added for #101 stops a run
+  that connects but achieves nothing, so the ADR, README, and `--help` now
+  describe it, and `--max-empty-sessions` exposes it (default 5, `0` never
+  stops).
+
+
 * **Live reconnect mode (issue #101, [ADR 0018](./decisions/0018-live-eos-modes.md)
   mode 2):** `--reconnect` keeps one invocation running across a flying day. The
   per-session body of `live_ingest` moved into `run_one_session`, and

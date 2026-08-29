@@ -132,7 +132,11 @@ until `SIGINT`/`SIGTERM` (Ctrl-C). The timeout is only valid with a live input.
 `--reconnect` keeps one invocation running across a flying day: when the source
 stops, the capture is finalized, then the source is polled every
 `--reconnect-interval` seconds (default 3) until it returns and a fresh capture
-begins. Only `SIGINT`/`SIGTERM` ends it. A file output numbers every session —
+begins. An interrupt (`SIGINT`/`SIGTERM`) ends it, and so does
+`--max-empty-sessions` (default 5, `0` never stops): consecutive sessions that
+connect and then carry no telemetry stop the run, so a full disk or a broken
+output cannot retry unattended forever. A source that is simply absent never
+connects, is not counted, and is waited on indefinitely. A file output numbers every session —
 `flight.ts` becomes `flight_0000.ts`, `flight_0001.ts`, … so one glob catches
 the run — and skips forward past any captures already on disk rather than
 overwriting them. A `udp:`/`srt:` output reuses its address. A session that

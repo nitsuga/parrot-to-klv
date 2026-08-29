@@ -115,6 +115,21 @@ default 3 seconds, configurable — indefinitely, until either:
 - the source accepts a connection, at which point a **new pipeline** is built
   and ingest resumes.
 
+**A run also stops on its own when it is achieving nothing.** Consecutive
+sessions that connect and then carry no telemetry are bounded by
+`--max-empty-sessions` (default 5, `0` never stops), after which the run ends
+with the last error. This is a deliberate narrowing of "only an interrupt ends
+it", added because the failures a long unattended run actually meets — a full
+disk, an output that broke mid-run — are reported by libmisbklv as a generic
+`Backend` error, indistinguishable from a source dying. Without a bound they
+retry forever, writing nothing, in precisely the scenario this mode exists to
+serve.
+
+The bound counts only sessions that **opened**. A source that is merely absent
+never connects, is never counted, and is waited on indefinitely — the flying-day
+case is untouched. A session that emits telemetry and then fails resets the
+count, so a link dropping mid-sortie costs an attempt rather than the run.
+
 Reconnect is a fresh `KlvSink` and a fresh `open_insert`, not a repair of the
 old one. The previous session is already finalized before polling starts, so a
 completed sortie is never held hostage to the next one.
@@ -221,9 +236,11 @@ fork, and it should not block the telemetry case.
 - A long enough transient dropout ends a session. In mode 1 that truncates the
   capture; in mode 2 it costs a file split and a few seconds. `--idle-timeout`
   is the tuning knob, and `0` disables the behavior outright.
-- Reconnect mode never exits on its own. That is the point — it is for leaving
-  a capture running across a flying day — but the process must be supervised
-  for shutdown, and `SIGINT` is the only clean stop.
+- Reconnect mode does not exit on its own while it is working — that is the
+  point, and it must be supervised for shutdown. It does stop once
+  `--max-empty-sessions` consecutive connected sessions carry no telemetry,
+  which is the difference between waiting for an aircraft and spinning on a
+  broken output.
 - File output in reconnect mode produces a variable number of files whose names
   depend on how often the source dropped. Anything consuming them must glob
   rather than expect one path.
@@ -243,6 +260,12 @@ fork, and it should not block the telemetry case.
   failed extmap negotiation. Closing the gap needs libmisbklv to expose
   time-since-last-video-delivery, which its `VideoCtx` delivery probe has the
   ingredient for — a separate upstream fork, to open when a real case appears.
+- **The empty-session bound is a stand-in for information the library does not
+  expose.** Once a session opens, libmisbklv reports a dead source and a dead
+  sink alike as `Backend`, so the bound infers from "connected but produced
+  nothing" what a proper classification would state outright. Tracked as
+  [libmisbklv#63](https://github.com/nitsuga/libmisbklv/issues/63); if that
+  lands, the bound can be replaced by branching on the error.
 - **Startup semantics are settled**, not open: the timer arms at drive-loop
   entry, so a source that connects and never delivers ends on the same timeout
   as one that stops. Recorded here because the reverse choice — arming at the

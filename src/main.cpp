@@ -226,6 +226,11 @@ void print_usage(std::ostream& out, const char* program) {
         << "                    with a live input.\n"
         << "  --reconnect-interval <s>  how often to poll for the source in\n"
         << "                    --reconnect (default 3).\n"
+        << "  --max-empty-sessions <n>  in --reconnect, stop after <n>\n"
+        << "                    consecutive sessions that connect but carry no\n"
+        << "                    telemetry (default 5; 0 never stops). A source\n"
+        << "                    that is simply absent never connects and is not\n"
+        << "                    counted.\n"
         << "  --repeat          loop file replay to a live sink until SIGINT\n"
         << "                    (only with -i file.mp4 -o udp:/srt:).\n"
         << "  --repeat-pts <m>  how PTS behaves when looping: reset (each\n"
@@ -333,6 +338,8 @@ int main(int argc, char* argv[]) {
     bool reconnect = false;
     std::chrono::seconds reconnect_interval{3};
     bool has_reconnect_interval = false;
+    unsigned max_empty_sessions = 5;
+    bool has_max_empty_sessions = false;
     bool repeat = false;
     bool has_repeat_pts = false;
     bool repeat_pts_continue = false;  // reset is the default — matches per-loop video restart; continue would desync KLV from the per-loop video (see PR #58 review)
@@ -475,6 +482,27 @@ int main(int argc, char* argv[]) {
                           << val << ").\n";
                 return 1;
             }
+        } else if (arg == "--max-empty-sessions") {
+            if (i + 1 >= argc) {
+                std::cerr << "Error: --max-empty-sessions needs a value.\n";
+                return 1;
+            }
+            std::string val = argv[++i];
+            try {
+                size_t pos = 0;
+                long parsed = std::stol(val, &pos, 10);
+                if (pos != val.size()) throw std::invalid_argument("trailing");
+                if (parsed < 0) {
+                    std::cerr << "Error: --max-empty-sessions must be >= 0 (got " << val << ").\n";
+                    return 1;
+                }
+                max_empty_sessions = static_cast<unsigned>(parsed);
+                has_max_empty_sessions = true;
+            } catch (const std::exception&) {
+                std::cerr << "Error: --max-empty-sessions must be a whole number (got " << val
+                          << ").\n";
+                return 1;
+            }
         } else if (arg == "--loop") {
             udp_loop = true;
             has_loop = true;
@@ -556,6 +584,10 @@ int main(int argc, char* argv[]) {
         std::cerr << "Error: --reconnect-interval is only valid with --reconnect.\n";
         return 1;
     }
+    if (has_max_empty_sessions && !reconnect) {
+        std::cerr << "Error: --max-empty-sessions is only valid with --reconnect.\n";
+        return 1;
+    }
 
     // UDP sink options are only valid with a udp: output.
     if ((has_iface || has_ttl || has_loop) && !is_udp_output) {
@@ -633,6 +665,7 @@ int main(int argc, char* argv[]) {
         if (has_idle_timeout) cfg.idle_timeout = idle_timeout;
         cfg.reconnect = reconnect;
         if (has_reconnect_interval) cfg.reconnect_interval = reconnect_interval;
+        if (has_max_empty_sessions) cfg.max_empty_sessions = max_empty_sessions;
         auto res = live_ingest(cfg);
         if (!res) {
             std::cerr << "live ingest failed: " << static_cast<int>(res.error()) << "\n";
