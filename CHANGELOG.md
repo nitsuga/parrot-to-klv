@@ -26,8 +26,8 @@ errors. File-to-file conversion and the MPEG-TS stream layout are unchanged.
   File outputs are numbered (`flight_0000.ts`, `flight_0001.ts`, …) without
   overwriting captures already on disk; UDP/SRT outputs reuse their address.
   `--max-empty-sessions` (default 5, or `0` to disable) stops a run after that
-  many opened sessions carry no telemetry, while a source that is simply absent
-  can remain unavailable until it returns.
+  many consecutive opened sessions carry no telemetry, while a source that is
+  simply absent can remain unavailable until it returns.
 
 ### Changed
 
