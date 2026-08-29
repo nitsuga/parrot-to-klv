@@ -272,7 +272,12 @@ misbklv::Result<std::monostate> run_one_session(const LiveIngestConfig& cfg,
     // ParrotRtpHeaderExtension::read populates. For live RTSP, proto may be
     // split across first packets — coalesce until parse succeeds. PTS is the
     // RTP buffer PTS (running_time) per ADR 0013.
-    size_t emitted_real = 0;
+    // Bound to the caller's counter when it supplied one, so an early error
+    // return still reports the telemetry this session emitted. Writing it only
+    // at the normal exit lost that, and a mid-sortie failure then looked like a
+    // session that had produced nothing.
+    size_t emitted_local = 0;
+    size_t& emitted_real = emitted_out ? *emitted_out : emitted_local;
     std::vector<std::byte> proto_coalesce;
     uint64_t proto_coalesce_pts = GST_CLOCK_TIME_NONE;
 
@@ -376,7 +381,6 @@ misbklv::Result<std::monostate> run_one_session(const LiveIngestConfig& cfg,
 
     // For RTSP with no metadata, no dummy is emitted — just close (video
     // only). The loop reached SIGINT, its deadline, or the idle timeout.
-    if (emitted_out) *emitted_out = emitted_real;
     // Deliberately NOT cancellable, unlike file replay. libmisbklv discards the
     // sink file on a cancelled drain (ADR 0022 — no output unless the session
     // succeeded), so forwarding the interrupt here would delete the capture the
@@ -473,7 +477,11 @@ misbklv::Result<std::monostate> live_ingest(const LiveIngestConfig& cfg) {
 
         if (emitted > 0) {
             empty_sessions = 0;
-        } else if (cfg.max_empty_sessions > 0 && ++empty_sessions >= cfg.max_empty_sessions) {
+        } else if (opened && cfg.max_empty_sessions > 0 &&
+                   ++empty_sessions >= cfg.max_empty_sessions) {
+            // Only a session that opened counts. A source that is merely absent
+            // never opens, and must keep retrying for as long as the operator
+            // leaves the run up — that is the flying-day case this mode is for.
             std::fprintf(stderr,
                          "live: %u consecutive sessions produced no telemetry; stopping\n",
                          empty_sessions);

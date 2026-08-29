@@ -1323,6 +1323,122 @@ static bool test_reconnect_bounds_consecutive_empty_sessions() {
     return ok;
 }
 
+// A source that is merely absent never opens, so it must not consume the
+// empty-session budget: the flying-day case is an operator leaving a run up
+// while the aircraft is powered off.
+static bool test_reconnect_bound_ignores_sessions_that_never_open() {
+    std::cout << "test_reconnect_bound_ignores_sessions_that_never_open\n";
+    parrot_to_klv::parrot_extension_clear();
+    if (parrot_to_klv::is_mux_interrupted()) {
+        std::cout << "  SKIP: already interrupted (no reset)\n";
+        return true;
+    }
+    const std::string out = "/tmp/parrot_reconnect_absent.ts";
+    std::error_code ec;
+    std::filesystem::remove(out, ec);
+    parrot_to_klv::LiveIngestConfig cfg;
+    // Refused fast, so several attempts fit in the window below.
+    cfg.rtsp_uri = "rtsp://127.0.0.1:9/unreachable";
+    cfg.udp_sink = "file:" + out;
+    cfg.idle_timeout = std::chrono::seconds(1);
+    cfg.reconnect = true;
+    cfg.reconnect_interval = std::chrono::seconds(1);
+    cfg.max_empty_sessions = 1;  // would stop after one attempt if miscounted
+
+    std::thread stopper([] {
+        std::this_thread::sleep_for(std::chrono::milliseconds(4000));
+        parrot_to_klv::request_mux_interrupt();
+    });
+    auto r = parrot_to_klv::live_ingest(cfg);
+    stopper.join();
+    parrot_to_klv::reset_mux_interrupt_for_test();
+
+    bool ok = true;
+    // Only the interrupt may end this run. An error means the bound counted a
+    // session that never opened.
+    if (!r) {
+        std::cerr << "  absent source ended the run with error " << static_cast<int>(r.error())
+                  << "; the bound counted un-opened sessions\n";
+        ok = false;
+    }
+    if (ok) std::cout << "  ok (kept retrying an absent source)\n";
+    std::filesystem::remove(out, ec);
+    parrot_to_klv::parrot_extension_clear();
+    return ok;
+}
+
+// Telemetry emitted before a session dies must reset the bound. The count is
+// reported through the caller's counter as it accumulates, so an early error
+// return still carries it.
+static bool test_reconnect_bound_resets_on_emitted_telemetry() {
+    std::cout << "test_reconnect_bound_resets_on_emitted_telemetry\n";
+    parrot_to_klv::parrot_extension_clear();
+    std::string enc = pick_encoder();
+    if (enc.empty()) {
+        std::cout << "  SKIP: no encoder available\n";
+        return true;
+    }
+    if (g_fixture_dir.empty()) {
+        std::cout << "  SKIP: no fixture dir\n";
+        return true;
+    }
+    auto extractor = parrot_to_klv::Mp4MetadataExtractor::open(g_fixture_dir + "/parrot_v3.mp4");
+    if (!extractor) {
+        std::cout << "  SKIP: fixture unavailable\n";
+        return true;
+    }
+    auto s0 = extractor->extract_sample(0);
+    if (!s0) {
+        std::cout << "  SKIP: fixture has no sample 0\n";
+        return true;
+    }
+    if (parrot_to_klv::is_mux_interrupted()) {
+        std::cout << "  SKIP: already interrupted (no reset)\n";
+        return true;
+    }
+    const bool h265 = enc == "x265enc";
+    const std::string dir = "/tmp/parrot_reconnect_reset";
+    std::error_code ec;
+    std::filesystem::remove_all(dir, ec);
+    std::filesystem::create_directories(dir, ec);
+
+    parrot_to_klv::LiveIngestConfig cfg;
+    // error-after is far enough out that the injected telemetry is emitted
+    // first, so each session dies *after* having produced something.
+    cfg.rtsp_uri = "pipeline:videotestsrc is-live=true ! videoconvert ! "
+                   "video/x-raw,width=320,height=240,framerate=30/1 ! " +
+                   enc + (h265 ? " ! h265parse" : " ! h264parse") + " ! identity error-after=30";
+    cfg.udp_sink = "file:" + dir + "/flight.ts";
+    cfg.run_duration = std::chrono::milliseconds(6000);
+    cfg.idle_timeout = std::chrono::seconds(2);
+    cfg.reconnect = true;
+    cfg.reconnect_interval = std::chrono::seconds(1);
+    cfg.max_empty_sessions = 1;  // one uncounted session would stop the run
+    cfg.test_injected_extensions.push_back(
+        make_cap(std::span<const uint8_t>(s0->data.data(), s0->data.size()), 1'000'000'000ULL));
+
+    std::thread stopper([] {
+        std::this_thread::sleep_for(std::chrono::milliseconds(5000));
+        parrot_to_klv::request_mux_interrupt();
+    });
+    auto r = parrot_to_klv::live_ingest(cfg);
+    stopper.join();
+    parrot_to_klv::reset_mux_interrupt_for_test();
+
+    bool ok = true;
+    // Sessions emit and then fail, so the bound must never trip: only the
+    // interrupt may end this run.
+    if (!r) {
+        std::cerr << "  run stopped with error " << static_cast<int>(r.error())
+                  << "; emitted telemetry did not reset the bound\n";
+        ok = false;
+    }
+    if (ok) std::cout << "  ok (emission reset the bound across failing sessions)\n";
+    std::filesystem::remove_all(dir, ec);
+    parrot_to_klv::parrot_extension_clear();
+    return ok;
+}
+
 // --- HEVC regression helpers: validate video ES, not just KLV + size ---------
 namespace {
 constexpr std::size_t kTsPkt = 188;
@@ -1851,6 +1967,8 @@ int main(int argc, char* argv[]) {
     ok &= test_reconnect_does_not_retry_a_fatal_sink();
     ok &= test_reconnect_does_not_retry_an_unsupported_config();
     ok &= test_reconnect_bounds_consecutive_empty_sessions();
+    ok &= test_reconnect_bound_ignores_sessions_that_never_open();
+    ok &= test_reconnect_bound_resets_on_emitted_telemetry();
     ok &= test_pipeline_h265_generate_no_corruption();
     ok &= test_indefinite_live_until_sigint();
 

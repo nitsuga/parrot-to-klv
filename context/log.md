@@ -44,7 +44,13 @@
   and produce no telemetry are bounded (`max_empty_sessions`, default 5, 0
   disables), which stops a full disk or a broken output from retrying forever
   while leaving a source that is merely absent to retry indefinitely, since that
-  fails to open rather than emptily succeeding. Tracked upstream as
+  fails to open rather than emptily succeeding. Review caught that the first cut
+  of the bound broke both of those properties: it counted sessions that never
+  opened, so an absent source stopped after five attempts, and it read the
+  emission count only on the normal exit path, so a session that emitted and
+  then failed looked empty. The count is now bound to the caller's counter as it
+  accumulates, and only opened sessions are counted; both are pinned by
+  regressions verified to fail when each fix is reverted. Tracked upstream as
   libmisbklv#63. Debug and sanitize: `ctest -L parrot` 41/41 each.
 
 
