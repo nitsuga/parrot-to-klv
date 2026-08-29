@@ -22,7 +22,10 @@ deadline or SIGINT.
 **Live reconnect mode (#101):** `--reconnect` finalizes each session and polls
 the source until it returns, one numbered capture per sortie for a file sink and
 a reused address for a live one
-([ADR 0018](../context/decisions/0018-live-eos-modes.md) mode 2).
+([ADR 0018](../context/decisions/0018-live-eos-modes.md) mode 2). Whether to
+retry is decided by libmisbklv's `SourceUnavailable` rather than inferred from
+the source scheme, so a configuration that cannot run stops the run instead of
+spinning.
 
 **Live runs end when the source goes idle (#100):** `live_ingest` ends the
 session when no Parrot telemetry has arrived for `--idle-timeout` seconds

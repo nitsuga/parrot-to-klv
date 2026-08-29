@@ -2,6 +2,22 @@
 
 ## 2026-08-29
 
+* **Repinned to libmisbklv `15b0e89` and dropped the scheme-based retry
+  inference (ADR 0036 upstream):** `open_insert` now reports a live source that
+  is absent right now as `SourceUnavailable`, so reconnect branches on the error
+  alone — `opened || r.error() == SourceUnavailable` — instead of guessing from
+  whether the URI was `rtsp://`. That closes the residual recorded in #101: a
+  missing sink element factory reports `Unsupported`, which is no longer
+  transient, so a broken deployment stops the run instead of retrying forever.
+  The pin and the call-site change are one commit because this bump is not
+  behavior-additive: an unreachable RTSP source changed its code, so a pin-only
+  commit fails `test_reconnect_bound_ignores_sessions_that_never_open`, and the
+  new enumerator also breaks `describe_misbklv_error`'s exhaustive switch under
+  `-Werror=switch`. The post-open `Backend` ambiguity and the
+  `max_empty_sessions` bound that covers it are unchanged — that is
+  libmisbklv#63. Debug and sanitize: `ctest -L parrot` 43/43 each.
+
+
 * **Revised [ADR 0018](./decisions/0018-live-eos-modes.md)** (fork 16): mode 2 is
   no longer interrupt-only. The empty-session bound added for #101 stops a run
   that connects but achieves nothing, so the ADR, README, and `--help` now

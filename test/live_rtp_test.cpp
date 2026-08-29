@@ -203,10 +203,12 @@ static bool test_live_ingest_api() {
                        std::chrono::steady_clock::now() - t0)
                        .count();
     if (r) {
-        std::cerr << "  expected Unsupported error, got ok\n";
+        std::cerr << "  expected SourceUnavailable error, got ok\n";
         return false;
     }
-    if (r.error() != misbklv::Error::Unsupported) {
+    // An unreachable peer is absent, not unsupported: the code a reconnect
+    // consumer polls on (libmisbklv ADR 0036).
+    if (r.error() != misbklv::Error::SourceUnavailable) {
         std::cerr << "  unexpected error code: " << static_cast<int>(r.error()) << "\n";
         return false;
     }
@@ -215,7 +217,7 @@ static bool test_live_ingest_api() {
         std::cerr << "  rtsp unreachable took too long: " << elapsed << " ms\n";
         return false;
     }
-    std::cout << "  rtsp unreachable correctly Unsupported in " << elapsed << " ms\n";
+    std::cout << "  rtsp unreachable correctly SourceUnavailable in " << elapsed << " ms\n";
     // Empty config should be Unsupported (validation before network).
     parrot_to_klv::LiveIngestConfig empty;
     auto r2 = parrot_to_klv::live_ingest(empty);
@@ -322,12 +324,12 @@ static bool test_rtsp_unreachable() {
                        std::chrono::steady_clock::now() - t0)
                        .count();
     if (r) {
-        std::cerr << "  expected Unsupported, got ok\n";
+        std::cerr << "  expected SourceUnavailable, got ok\n";
         std::filesystem::remove("/tmp/live_rtsp_unreach.ts");
         return false;
     }
-    if (r.error() != misbklv::Error::Unsupported) {
-        std::cerr << "  expected Unsupported, got " << static_cast<int>(r.error()) << "\n";
+    if (r.error() != misbklv::Error::SourceUnavailable) {
+        std::cerr << "  expected SourceUnavailable, got " << static_cast<int>(r.error()) << "\n";
         return false;
     }
     if (elapsed > 7000) {
