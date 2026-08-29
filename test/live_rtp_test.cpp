@@ -708,6 +708,55 @@ static bool test_continuous_live() {
     return true;
 }
 
+static bool test_live_pipeline_error_without_telemetry() {
+    std::cout << "test_live_pipeline_error_without_telemetry\n";
+    parrot_to_klv::parrot_extension_clear();
+    std::string enc = pick_encoder();
+    if (enc.empty()) {
+        std::cout << "  SKIP: no encoder available\n";
+        return true;
+    }
+    const bool h265 = enc == "x265enc";
+    const std::string out = "/tmp/live_pipeline_error.ts";
+    std::filesystem::remove(out);
+    parrot_to_klv::LiveIngestConfig cfg;
+    cfg.rtsp_uri = "pipeline:videotestsrc is-live=true ! videoconvert ! "
+                   "video/x-raw,width=320,height=240,framerate=30/1 ! " +
+                   enc + (h265 ? " ! h265parse" : " ! h264parse") +
+                   " ! identity error-after=1";
+    cfg.udp_sink = "file:" + out;
+    cfg.run_duration = std::nullopt;
+
+    const auto t0 = std::chrono::steady_clock::now();
+    auto r = parrot_to_klv::live_ingest(cfg);
+    const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+                             std::chrono::steady_clock::now() - t0)
+                             .count();
+    if (r) {
+        std::cerr << "  expected pipeline error, got success\n";
+        std::filesystem::remove(out);
+        return false;
+    }
+    if (r.error() != misbklv::Error::Backend) {
+        std::cerr << "  expected Backend, got " << static_cast<int>(r.error()) << "\n";
+        std::filesystem::remove(out);
+        return false;
+    }
+    if (elapsed >= 2000) {
+        std::cerr << "  pipeline error was not prompt: " << elapsed << " ms\n";
+        std::filesystem::remove(out);
+        return false;
+    }
+    if (std::filesystem::exists(out)) {
+        std::cerr << "  failed pipeline left output behind\n";
+        std::filesystem::remove(out);
+        return false;
+    }
+    std::cout << "  ok (Backend after " << elapsed << " ms, no output)\n";
+    parrot_to_klv::parrot_extension_clear();
+    return true;
+}
+
 // --- HEVC regression helpers: validate video ES, not just KLV + size ---------
 namespace {
 constexpr std::size_t kTsPkt = 188;
@@ -1225,6 +1274,7 @@ int main(int argc, char* argv[]) {
     ok &= test_rtsp_unreachable();
     ok &= test_real_decode();
     ok &= test_continuous_live();
+    ok &= test_live_pipeline_error_without_telemetry();
     ok &= test_pipeline_h265_generate_no_corruption();
     ok &= test_indefinite_live_until_sigint();
 

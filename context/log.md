@@ -2,6 +2,34 @@
 
 ## 2026-08-28
 
+* **Bumped the libmisbklv pin for live terminal status:** moved the exact
+  `GIT_TAG` from `b8ad143` to upstream `08f65de`, which adds the nonblocking
+  `KlvSink::poll()` API consumed by issue #94. This pin change is kept separate
+  from the parrot integration commit.
+
+* **Returned live pipeline terminal failures for issue #94:** libmisbklv now
+  exposes `Inserter::poll()`/`KlvSink::poll()`; the GStreamer backend observes
+  EOS/ERROR without blocking and retains a consumed terminal result for a later
+  `close()`. `live_ingest` polls that surface on its drive loop, returns
+  `Error::Backend` before telemetry can arrive when the pipeline fails, stops
+  cleanly on EOS, and preserves the timed dummy path plus explicit indefinite
+  mode.
+  The focused no-telemetry failure regression passed, as did the debug and
+  sanitizer suites.
+
+* **Dropped the live-ingest EOS stop path (issue #94):** upstream narrowed
+  `poll()` to failure-only on review, because a clean EOS is unreachable before
+  `close()` — `mpegtsmux` is a `GstAggregator` and forwards EOS only once every
+  sink pad has it, and the KLV appsrc pad is EOS'd only by `finish()`
+  (libmisbklv ADR 0035). `live_ingest` therefore drops `pipeline_ended` and the
+  two branches that set it, keeping the failure check issue #94 needed. Done
+  before the pin move so each commit builds: this change still compiles against
+  the old `Result<bool>` pin, which the pin bump alone would not have.
+
+* **Repinned to the accepted terminal-status contract (issue #94):** moved the
+  exact `GIT_TAG` from `08f65de` to `2e1c232`, the merge of libmisbklv#59,
+  where `poll()` returns `Result<std::monostate>` under the accepted ADR 0035.
+
 * **Returned generated-KLV parse failures for issue #95:** `try_decode_and_emit`
   and file-to-live replay now return `Message::parse` errors for KLV produced by
   `to_0601`, instead of treating an internal generated-packet invariant failure

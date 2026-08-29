@@ -244,10 +244,9 @@ misbklv::Result<std::monostate> live_ingest(const LiveIngestConfig& cfg) {
 
     // Drive mode (ADR 0013):
     // run_duration == nullopt -> indefinite live-unbounded (drive until
-    // is_mux_interrupted()/SIGINT — finite live sources must be stopped
-    // manually. Emission failures return immediately; EOS/ERROR from the live
-    // pipeline itself is not independently observed and may otherwise surface
-    // through a later emit() or close().
+    // is_mux_interrupted()/SIGINT or a terminal pipeline event — finite live
+    // sources may also end naturally. Emission and pipeline errors return
+    // immediately; EOS ends the loop cleanly.
     // run_duration has value -> timed live loop while
     // (!is_mux_interrupted() && now < deadline) with 10 ms idle sleep;
     // used for hermetic tests (e.g., 2s). If caller wants one-shot
@@ -266,6 +265,11 @@ misbklv::Result<std::monostate> live_ingest(const LiveIngestConfig& cfg) {
     while (!is_mux_interrupted()) {
         if (deadline && std::chrono::steady_clock::now() >= *deadline) break;
 
+        auto pipeline_status = sink.poll();
+        if (!pipeline_status) {
+            return misbklv::Result<std::monostate>::err(pipeline_status.error());
+        }
+
         bool had = false;
         while (auto cap = parrot_extension_pop_next()) {
             had = true;
@@ -282,9 +286,14 @@ misbklv::Result<std::monostate> live_ingest(const LiveIngestConfig& cfg) {
         // after a 50ms grace so injected real telemetry is not shadowed.
         // Timed runs only — the indefinite production path never emits a
         // dummy (pipeline: is test-only).
-        if (emitted_real == 0 && !dummy_emitted && is_pipeline && cfg.run_duration.has_value()) {
+        if (emitted_real == 0 && !dummy_emitted && is_pipeline &&
+            cfg.run_duration.has_value()) {
             if (!had) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                pipeline_status = sink.poll();
+                if (!pipeline_status) {
+                    return misbklv::Result<std::monostate>::err(pipeline_status.error());
+                }
                 bool late_arrival = false;
                 while (auto cap = parrot_extension_pop_next()) {
                     late_arrival = true;
@@ -307,11 +316,13 @@ misbklv::Result<std::monostate> live_ingest(const LiveIngestConfig& cfg) {
         if (!had) {
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
-        // For unbounded live sources EOS never arrives; finite sources must be
-        // stopped via SIGINT or timed mode.
+        // Indefinite sources run until SIGINT or the deadline. sink.poll() ends
+        // the loop only on a backend failure: a live insert cannot observe a
+        // clean EOS before close() sends it (libmisbklv ADR 0035).
     }
 
-    if (emitted_real == 0 && !dummy_emitted && is_pipeline && cfg.run_duration.has_value()) {
+    if (emitted_real == 0 && !dummy_emitted && is_pipeline &&
+        cfg.run_duration.has_value()) {
         if (auto r = emit_dummy_batch(sink, session_ptr, cfg.transform_options); !r) return r;
     }
 
