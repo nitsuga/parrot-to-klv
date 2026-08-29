@@ -1,8 +1,9 @@
 name: Build and test
 
 # The suite runs against committed fixtures only, so CI needs no drone footage
-# and no encoder: test/make_fixture.py regenerates the fixtures and needs ffmpeg,
-# but nothing here runs it.
+# or fixture regeneration. Its live RTP cases use whichever GStreamer encoder is
+# installed and skip encoder-dependent cases when none is available; nothing here
+# runs test/make_fixture.py.
 on:
   push:
     branches: [main]

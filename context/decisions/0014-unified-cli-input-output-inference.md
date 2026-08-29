@@ -1,7 +1,7 @@
 ---
 type: Decision
 title: Unified -i/-o CLI with input/output type inference
-description: Replace the positional/live-flag split with inferred -i/-o — rtsp://, rtsps://, and pipeline: (gated) as live inputs; udp:, udp://, srt:, and filesystem paths as outputs — removing --live-rtsp/--live-udp with a loud error and deferring file→udp replay
+description: Replace the positional/live-flag split with inferred -i/-o — rtsp://, rtsps://, and pipeline: (gated) as live inputs; udp:, udp://, srt:, and filesystem paths as outputs — removing --live-rtsp/--live-udp with a loud error, with file→udp replay implemented separately by ADR 0015
 decision_status: accepted
 fork: 13
 tags: [decision, cli, live, streaming, phase-4]
@@ -28,10 +28,10 @@ is. `rtsp://` looks like an RTSP URI; `pipeline:` looks like a pipeline;
 `udp://` looks like a UDP URI; a plain path looks like a file. Inference keeps
 the common case short, makes live RTSP→file and RTSP→UDP reachable without new
 flags, and preserves the deterministic `path→path` conversion byte-identical by
-never routing it through the realtime sink. `file→udp` (MP4 replay as
-multicast) is a real follow-up, but it is not this change — it is a separate
-bridge with its own pacing and clock questions, and routing it prematurely would
-hide a partially-working live sink behind a working offline path.
+never routing it through the realtime sink. At decision time, `file→udp` (MP4
+replay as multicast) was a separate follow-up with its own pacing and clock
+questions; routing it prematurely would have hidden a partially-working live
+sink behind a working offline path.
 
 # Decision
 
@@ -79,7 +79,7 @@ Unify the CLI on `-i`/`--input` and `-o`/`--output` with type inference:
      translated (`path` → `file:<path>`; `udp://…`/`udp:…` → normalized
      `udp:…`; `srt:` → as-is), `run_duration=nullopt` (indefinite until
      `SIGINT`), `transform_options` forwarded, plus udp knobs.
-  3. `path → {udp:/srt:}`: not in scope this round — error
+  3. `path → {udp:/srt:}`: not in scope this round — at the time, error
      "file input to a live sink (udp:/srt:) is not yet supported" and non-zero.
   4. `rtsp` with no `-o`: error "live input needs an output".
 
@@ -113,7 +113,7 @@ deterministic and byte-identical.
   `live_ingest` are unchanged except for being called from one place. The usage
   text now documents `-i`/positional with inference, `-o` with inference, the
   four udp flags, and live examples (rtsp→file, rtsp→udp), keeping the existing
-  attitude / image-source / output-streams sections intact.
+  attitude / image-source / output-streams sections intact, plus file replay.
 - Tests: `test/cli_test.cpp` gains an explicit `-i` happy-path conversion;
   `CMakeLists.txt` plus `test/cli_reject_test.sh` gain discriminant rejection
   tests for the removed flags, udp-flag-without-udp (covering `--iface`,
@@ -125,15 +125,16 @@ deterministic and byte-identical.
 - `cli_rejects_output_without_path` ("needs a path") and
   `cli_rejects_two_inputs` ("more than one input file") keep their exact
   messages; the new `-i` path reuses that wording.
-- `path→udp` file-replay/multicast is explicitly deferred — the routing emits a
-  clear "not yet supported" error. A follow-up PR will own that bridge.
+- `path→udp` file-replay/multicast was explicitly deferred here — the routing
+  emitted a clear "not yet supported" error. ADR 0015 later implemented that
+  bridge for UDP and SRT.
 
 # Assumptions / open questions
 
 - Assumes no downstream script depends on the old `--live-rtsp`/`--live-udp`
   spelling surviving silently — the loud removal is intentional per ADR 0008.
-- Whether `file→udp` replay should pace from the file's own timestamps or from a
-  wall clock is not decided here; it is the next fork.
+- The pacing question for `file→udp` replay was left open here and resolved by
+  ADR 0015 in favor of the file's own timeline with paced realtime emission.
 - `pipeline:` remains a test-only escape hatch gated on
   `PARROT_TEST_ALLOW_PIPELINE`, unchanged in semantics, now reachable via `-i`
   rather than `--live-rtsp`.

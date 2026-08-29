@@ -90,13 +90,15 @@ time in Item 2. Those describe when the drone sampled telemetry; the PTS
 describes where the packet sits in the file, and the two are anchored
 differently (see [[transform-stage]] § Item 2).
 
-**One metadata sample becomes one KLV packet.** Parrot writes one metadata
-sample per video frame, so this yields per-frame KLV without any resampling.
+**Each successfully decoded and mapped metadata sample becomes one KLV packet.**
+Parrot writes one metadata sample per video frame, so successful samples yield
+per-frame KLV without any resampling; samples that fail to decode or map to no
+packet are skipped and counted.
 
-> **File mode only.** This describes MP4-file conversion. The proposed live path
+> **File mode only.** This describes MP4-file conversion. The implemented live path
 > ([ADR 0013](decisions/0013-live-streaming-ingest.md), fork 13) anchors KLV PTS
 > to reception running time — matching libmisbklv
-> [ADR 0021](https://github.com/nitsuga/libmisbklv/blob/main/context/decisions/0021-read-path-timestamps.md)
+> [ADR 0021](https://github.com/nitsuga/libmisbklv/blob/15b0e89ab6a53b5c68fcc173b9ed521f035d7b72/context/decisions/0021-read-path-timestamps.md)
 > live semantics — not to a metadata track.
 
 ## Push in order, and let the muxer push back
@@ -251,5 +253,5 @@ break — a green suite says nothing about a stack you did not run on.
 
 ffmpeg is needed to *regenerate* those fixtures, never to use them: the
 committed `.mp4` is what the suite reads, so the rule that no test may require
-anything from `data/` still holds, and a machine with no encoder still runs
-every test.
+anything from `data/` still holds. A machine with no encoder can still run the
+suite; encoder-dependent live cases skip their coverage.

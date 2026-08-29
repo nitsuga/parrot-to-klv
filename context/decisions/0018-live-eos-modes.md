@@ -1,7 +1,7 @@
 ---
 type: Decision
 title: ADR 0018 — End a live run when the source goes idle, with an opt-in reconnect mode that rolls the output
-description: An idle timeout is the primary end-of-source signal for live ingest, with EOS as an early exit and a backend error as the failure path; the default mode finalizes the output and exits, while an opt-in reconnect mode polls the source on an interval and starts a fresh pipeline, reusing a live output address and rolling a file output through a _000n counter
+description: An idle timeout is the primary end-of-source signal for live ingest, while clean EOS remains a future early-exit option because the current live insert cannot observe it before close(); the default mode finalizes the output and exits, while an opt-in reconnect mode polls the source on an interval and starts a fresh pipeline, reusing a live output address and rolling a file output through a _000n counter
 decision_status: accepted
 fork: 16
 tags: [decision, live, cli, rtsp, reconnect, streaming, timeout]
@@ -13,7 +13,7 @@ sources:
     resource: https://github.com/nitsuga/parrot-to-klv/issues/94
     title: Live pipeline errors are not detected when no KLV is received
   - id: libmisbklv-adr-0035
-    resource: https://github.com/nitsuga/libmisbklv/blob/main/context/decisions/0035-live-insert-terminal-status.md
+    resource: https://github.com/nitsuga/libmisbklv/blob/7a83d9276890f1de5998ac245b8117cac9de8f10/context/decisions/0035-live-insert-terminal-status.md
     title: libmisbklv ADR 0035 — Nonblocking terminal status for asynchronous insert sources
   - id: libmisbklv-59
     resource: https://github.com/nitsuga/libmisbklv/pull/59
@@ -22,12 +22,13 @@ sources:
 
 # Context
 
-The production live path runs indefinitely: `parrot-to-klv rtsp://… -o out.ts`
-sets `run_duration = std::nullopt` and drives until `SIGINT`. When a sortie
-ends, the run has nothing left to do, and nothing notices — the loop keeps
-spinning at its 10 ms idle sleep against a dead pipeline until a human
-intervenes. `live_ingest.hpp` already concedes the hole: *"finite live sources
-must be stopped manually."*
+At the time of this decision, the production live path ran indefinitely:
+`parrot-to-klv rtsp://… -o out.ts` set `run_duration = std::nullopt` and drove
+until `SIGINT`. When a sortie ended, the run had nothing left to do, and nothing
+noticed — the loop kept spinning at its 10 ms idle sleep against a dead pipeline
+until a human intervened. `live_ingest.hpp` already conceded the hole: *"finite
+live sources must be stopped manually."* The idle-timeout behavior below is the
+implemented resolution.
 
 Live input is RTSP only. `is_live_input_value` accepts `rtsp://`, `rtsps://`,
 and `pipeline:`, and the last is a hermetic test escape hatch gated behind
@@ -72,7 +73,7 @@ A live session ends when any of these occurs, whichever comes first:
    One timeout covers both: by the time the loop runs, `open_insert` has already
    built and prerolled the pipeline, so the budget is for first telemetry alone
    and no separate, longer startup timeout is warranted.
-2. **EOS (early exit).** A clean RTSP teardown ends the session immediately
+2. **EOS (future early exit).** A clean RTSP teardown would end the session immediately
    rather than waiting out the timeout. An optimization, never the sole
    mechanism — and not implementable today: the accepted upstream `poll()` is
    failure-only, so parrot has no EOS signal to act on. It arrives with the same
@@ -90,8 +91,9 @@ an RTSP server's session timeout.
 Making idleness primary also removes this design's only unmeasured dependency.
 Whether an EOS *event* survives telemetry and video stopping together under
 muxer backpressure is unknown; a watchdog on elapsed time since the last
-telemetry sample does not care. If the branch stalls, the timeout fires; if EOS
-arrives first, it fires sooner.
+telemetry sample does not care. The current implementation cannot observe EOS
+before `close()`, so the timeout is the operative end-of-source signal. If a
+future upstream status API exposes EOS, it can fire sooner.
 
 ## Mode 1 — end and exit (default)
 
@@ -279,18 +281,18 @@ fork, and it should not block the telemetry case.
   as one that stops. Recorded here because the reverse choice — arming at the
   first sample — silently preserves the hang this decision removes, and is an
   easy thing to reintroduce.
-- **Interaction with existing tests.** A `pipeline:` run that injects one
-  telemetry sample and then goes quiet would now end after the idle timeout
-  rather than running to its deadline. Current indefinite tests interrupt well
-  inside 10 s, so none is expected to change, but this should be confirmed
-  rather than assumed when the code lands.
+- **Interaction with existing tests, confirmed 2026-08-29.** A `pipeline:` run
+  that injects one telemetry sample and then goes quiet ends after the idle
+  timeout rather than running to its deadline. The current indefinite tests
+  interrupt well inside 10 seconds, and the live project test suite passes with
+  this behavior.
 
 # Citations
 
 [^parrot-to-klv-94]: [parrot-to-klv#94](https://github.com/nitsuga/parrot-to-klv/issues/94)
     — the live-ingest failure report whose fix established the polling loop this
     builds on.
-[^libmisbklv-adr-0035]: [libmisbklv ADR 0035](https://github.com/nitsuga/libmisbklv/blob/main/context/decisions/0035-live-insert-terminal-status.md)
+[^libmisbklv-adr-0035]: [libmisbklv ADR 0035](https://github.com/nitsuga/libmisbklv/blob/7a83d9276890f1de5998ac245b8117cac9de8f10/context/decisions/0035-live-insert-terminal-status.md)
     — the accepted failure-only `poll()` contract, and its record that clean EOS
     is unobservable before `close()`.
 [^libmisbklv-59]: [libmisbklv#59](https://github.com/nitsuga/libmisbklv/pull/59)

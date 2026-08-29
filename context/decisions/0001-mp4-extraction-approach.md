@@ -39,8 +39,9 @@ Accepted (2026-07-23)
   - MP4 parsing → Parrot format parsing → MISB mapping (our code)
   - KLV encoding + MPEG-TS muxing (libmisbklv via GStreamer)
 - **Easier testing** — can unit test Parrot parser independently
-- **Smaller dependency surface** — GStreamer only needed for output (via libmisbklv),
-  not input
+- **Smaller dependency surface for the original offline path** — GStreamer is
+  only needed for output (via libmisbklv), not MP4 metadata input; the later live
+  ingest path uses it for live video input.
 
 ## Negative
 

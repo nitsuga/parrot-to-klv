@@ -46,9 +46,10 @@ struct MuxReport {
 /// **other codec** the elementary stream is carried unchanged and carries no ST
 /// 0604 — generation is H.264-only upstream, and asking for it elsewhere would
 /// refuse the conversion outright (ADR 0007). `MuxReport::st0604_generated`
-/// says which happened. Each metadata sample becomes one
-/// KLV packet, timestamped with that sample's own presentation time from the
-/// start of the file, which is the timeline libmisbklv gives the video branch.
+/// says which happened. Each successfully decoded and mapped metadata sample
+/// becomes one KLV packet, timestamped with that sample's own presentation time
+/// from the start of the file, which is the timeline libmisbklv gives the video
+/// branch.
 ///
 /// Samples that fail to decode are skipped and counted rather than aborting the
 /// conversion: one corrupt sample in a flight should cost that frame's

@@ -41,12 +41,11 @@ struct LiveIngestConfig {
     std::vector<CapturedExtension> test_injected_extensions;
 
     // Continuous mode: how long live_ingest should drive before closing.
-    // run_duration == nullopt -> indefinite live-unbounded (explicit
-    // opt-in, must be set for production live — drive until
-    // is_mux_interrupted()/SIGINT — finite live sources must be stopped
-    // manually. A failure from emitting a decoded KLV or from the live pipeline
-    // is returned immediately; the loop otherwise ends on its deadline or
-    // SIGINT.
+    // run_duration == nullopt -> no deadline (indefinite live-unbounded). The
+    // loop ends on is_mux_interrupted()/SIGINT, idle_timeout when enabled, or
+    // a failure from emitting a decoded KLV or from the live pipeline. A finite
+    // live source otherwise has to be stopped manually: clean EOS is not
+    // observable before close() sends it.
     // Default is timed 2000 ms for safety (safe for tests that forget to set
     // a duration); run_duration has value -> timed drive until deadline or
     // SIGINT (e.g., 2s for hermetic tests). If caller wants one-shot startup
@@ -111,8 +110,8 @@ std::optional<unsigned> first_free_index(const std::string& sink_spec);
 // KlvSink with live video_source and realtime=true, push KLV derived from
 // telemetry (via to_0601) with PTS anchored to running_time, then close.
 // For pipeline: video_source the path is hermetic (no RTSP server needed);
-// for rtsp:// the open attempts a 5 s connection and returns Unsupported if
-// unreachable — proving the RTSP URI is forwarded and the extension is wired.
+// for rtsp:// the open attempts a 5 s connection and returns SourceUnavailable
+// if unreachable — proving the RTSP URI is forwarded and the extension is wired.
 misbklv::Result<std::monostate> live_ingest(const LiveIngestConfig& cfg);
 
 }  // namespace parrot_to_klv
