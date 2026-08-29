@@ -284,10 +284,10 @@ misbklv::Result<std::monostate> run_one_session(const LiveIngestConfig& cfg,
     bool is_pipeline = video_src.starts_with("pipeline:");
 
     // Drive mode (ADR 0013):
-    // run_duration == nullopt -> indefinite live-unbounded (drive until
-    // is_mux_interrupted()/SIGINT or a terminal pipeline event — finite live
-    // sources may also end naturally. Emission and pipeline errors return
-    // immediately; EOS ends the loop cleanly.
+    // run_duration == nullopt -> no deadline (indefinite live-unbounded), with
+    // the loop ending on interrupt, idle timeout, or an emission/backend error.
+    // A live insert cannot observe clean EOS before close() sends it, so EOS
+    // cannot end this loop on its own.
     // run_duration has value -> timed live loop while
     // (!is_mux_interrupted() && now < deadline) with 10 ms idle sleep;
     // used for hermetic tests (e.g., 2s). If caller wants one-shot

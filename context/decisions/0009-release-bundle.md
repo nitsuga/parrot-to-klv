@@ -41,19 +41,19 @@ release.** The user extracts it anywhere and runs the wrapper. Nothing is
 installed, nothing needs root, nothing touches the system GStreamer.
 
 ```
-parrot-to-klv-<version>-linux-x86_64/
+parrot-to-klv-<version>-linux-<architecture>/
   parrot-to-klv                       wrapper: sets the GStreamer variables
   bin/parrot-to-klv                   rpath $ORIGIN/../lib
-  lib/*.so*                           28 libraries
-  lib/gstreamer-1.0/*.so              6 plugins, named individually
+  lib/*.so*                           the bundled library closure
+  lib/gstreamer-1.0/*.so              the required plugins, named individually
   libexec/gstreamer-1.0/gst-plugin-scanner
   THIRD-PARTY.md
 ```
 
-15 MB, ~6 MB compressed. `packaging/make-bundle.sh` assembles it by walking the
-`ldd` closure of the binary, the scanner *and* each plugin — plugins pull
-libraries the binary never references, so walking the binary alone silently
-misses them.
+The final size is determined by the target architecture and the bundled
+GStreamer closure. `packaging/make-bundle.sh` assembles it by walking the `ldd`
+closure of the binary, the scanner *and* each plugin — plugins pull libraries
+the binary never references, so walking the binary alone silently misses them.
 
 Four things make it relocatable, and each is load-bearing:
 
@@ -73,7 +73,7 @@ Four things make it relocatable, and each is load-bearing:
   mismatch surfaces as a crash somewhere unrelated.
 
 **The plugin list is explicit**, not "copy plugins-bad". That package carries
-patent-encumbered and oddly-licensed elements this tool has no use for; the six
+patent-encumbered and oddly-licensed elements this tool has no use for; the
 named plugins are LGPL. Shipping only what is used is both smaller and a license
 position we can state.
 
@@ -139,6 +139,11 @@ being solved.
   written. [ADR 0017](./0017-multi-architecture-release.md) adds an independent
   `aarch64` bundle and native 24.04 smoke coverage for both architectures. 22.04
   compatibility still rests on the checked glibc floor rather than a smoke run.
+- **Revisited 2026-08-29:** live ingest and file replay are now part of the
+  shipped surface. The bundle therefore includes the live-path GStreamer
+  plugins (`udp`, `srt`, `rtsp`, `rtp`, and `rtpmanager`) in addition to the
+  offline set; `packaging/make-bundle.sh` and the release smoke job are the
+  current source of truth for the plugin and library closure.
 - The container list the tool can read is now libmisbklv's explicit table
   (MP4/MOV, MPEG-TS, Matroska) rather than whatever GStreamer could autoplug.
   Irrelevant for Parrot MP4s; worth knowing.
@@ -155,11 +160,10 @@ being solved.
   only to provide parsebin and `audioparsers` only because parsebin insisted on
   parsing an audio pad the muxer then dropped — both fell out when libmisbklv
   stopped using parsebin. Re-derived by removal, not assumed.
-- Assumes the six plugins remain sufficient. They are empirically derived, not
-  guessed — but a future feature (a new container, a new codec) can add a
-  requirement, and the failure mode is a runtime "missing plugin" that only the
-  smoke test would catch. That is why the smoke test converts rather than merely
-  running `--help`.
+- The current bundle adds the five live-path plugins listed above, so its
+  closure is deliberately larger than the six-plugin offline bundle. The
+  failure mode remains a runtime "missing plugin"; the smoke test checks the
+  live path rather than merely running `--help`.
 - Assumes `ubuntu-22.04` remains available as a GitHub runner. It is deprecated
   eventually; when it goes, the choice is a `container: ubuntu:22.04` build (the
   20.04 plan, resurrected) or dropping 22.04.

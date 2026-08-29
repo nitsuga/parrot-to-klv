@@ -2,12 +2,14 @@
 
 Reads the telemetry Parrot drones embed in an MP4 and writes an MPEG-TS carrying
 two streams: the recording's own video, and a MISB ST 0601 KLV stream with one
-packet per metadata sample, on the same timeline.
+packet for each successfully decoded and mapped metadata sample, on the same
+timeline. Malformed or unmappable samples are skipped and counted.
 
 The video is **never decoded or re-encoded** — no generation loss. It is not
 byte-identical either: for H.264 the timing NALs are rewritten so the video
 carries ST 0604 Precision Time Stamps, letting a consumer correlate frames
-without reading the KLV. Other codecs are carried through unstamped.
+without reading the KLV. Other codecs are carried through unchanged and
+unstamped.
 
 **The output announces the video first, KLV second**, so `0:0` is the video and
 `0:1` the KLV (`ffmpeg -map 0:0` selects the video). Video is announced first

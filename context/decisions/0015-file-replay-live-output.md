@@ -1,7 +1,7 @@
 ---
 type: Decision
 title: File replay to a live sink — MP4 -> UDP/SRT multicast with paced realtime playback
-description: Bridge the deterministic offline path to the live sink — replay an MP4's video on the pipeline clock and emit its mett-track telemetry as KLV (PTS = zero-based file running time) to reach the deferred -i file.mp4 -o udp:/srt: route, with paced emission and play-through-close semantics
+description: Implement file replay to the live sink — replay an MP4's video on the pipeline clock and emit its mett-track telemetry as KLV (PTS = zero-based file running time) to support -i file.mp4 -o udp:/srt:, with paced emission and play-through-close semantics
 decision_status: accepted
 fork: 13
 tags: [decision, live, streaming, replay, mux, phase-4]
@@ -13,18 +13,19 @@ generated:
 # Context
 
 The unified CLI ([[0014-unified-cli-input-output-inference]]) resolves
-`-i <input> -o <output>` by type inference. Of the four `input × output`
-combinations, three route correctly today:
+`-i <input> -o <output>` by type inference. At the time of this decision, three
+of the four `input × output` combinations routed correctly:
 
 - `path → path`: offline, deterministic `mux_to_ts` (byte-identical, file-clock).
-- `rspt → {path | udp:/srt:}`: `live_ingest`, KLV from RTP header extensions.
-- `rspt` with no `-o`, and `path → {udp:/srt:}`: clear errors.
+- `rtsp → {path | udp:/srt:}`: `live_ingest`, KLV from RTP header extensions.
+- `rtsp` with no `-o`, and `path → {udp:/srt:}`: clear errors.
 
-The missing cell is **`path → {udp:/srt:}`** — play a recorded Parrot MP4 out
-as a live multicast/stream. `live_ingest` cannot serve it: its KLV source is the
-RTP header-extension FIFO, and an MP4's telemetry lives in the `mett` timed-
-metadata track, which that path never reads. The router currently answers with
-"not yet supported" ([[0014-unified-cli-input-output-inference]]).
+At decision time, the missing cell was **`path → {udp:/srt:}`** — play a
+recorded Parrot MP4 out as a live multicast/stream. `live_ingest` could not
+serve it: its KLV source was the RTP header-extension FIFO, and an MP4's
+telemetry lived in the `mett` timed-metadata track, which that path did not
+read. The router answered with "not yet supported"
+([[0014-unified-cli-input-output-inference]]).
 
 The pieces the bridge needs already exist on both sides of the split:
 
@@ -111,14 +112,14 @@ recording**, with these semantics:
 - `main.cpp` no longer errors on `path → {udp:/srt:}`; it routes to the new
   replay function. `help`/README document the usage
   (`-i flight.mp4 -o udp://239.0.0.1:5000 --iface eth1`, `--repeat` to loop).
-- A new replay function (likely `src/live/` or alongside `live_ingest`) reusing
-  the extractor + transform; `mux_to_ts` and `live_ingest` untouched.
-- **Testing** (hermetic, `parrot` + `parrot-sanitize`): a file→udp replay to a
-  `udp:` loopback reader asserting KLVA + ST 0604 present and KLV↔video drift
-  under the clock-pinning threshold (mirroring libmisbklv's loopback test);
-  plus natural-end/EOS and SIGINT-interruption cases leaving no partial output.
-- The ROADMAP "file→udp deferred" items and PROGRESS "Next" move once this
-  lands.
+- `src/live/file_replay.{hpp,cpp}` is the replay function, reusing the extractor
+  and transform; `mux_to_ts` and `live_ingest` remain untouched.
+- **Testing** (hermetic, `parrot` + `parrot-sanitize`) covers file replay,
+  pacing, repeat interruption, natural-end behavior, and the release bundle's
+  file→UDP smoke path. The implementation also preserves the no-partial-output
+  interruption behavior.
+- The ROADMAP "file→udp deferred" items and PROGRESS "Next" moved when this
+  landed.
 
 # Assumptions / open questions
 
@@ -133,8 +134,8 @@ recording**, with these semantics:
 
 # Citations
 
-- [[0014-unified-cli-input-output-inference]] — the CLI router that exposes this
-  cell and currently rejects it.
+- [[0014-unified-cli-input-output-inference]] — the CLI router that originally
+  rejected this cell; ADR 0015 records the implementation that replaced it.
 - [[mux-stage]] — the mett track as the one authoritative timeline.
 - libmisbklv ADR 0031 (live streaming surface) item 3 — file + realtime replay
   on the pipeline clock; libmisbklv ADR 0021 (read-path timestamps) — KLV PTS as

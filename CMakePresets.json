@@ -35,7 +35,7 @@
     {
       "name": "sanitize",
       "displayName": "Sanitize (ASan+UBSan)",
-      "description": "Debug + PARROT_SANITIZE=ON with ASan+UBSan (build dir: build/sanitize — maps to CI's build-sanitizers) for ctest -L parrot-sanitize — 24 tests, per ADR 0012 + context mp4-extraction + build.yml; binaryDir is build/sanitize (singular, consistent with libmisbklv)",
+      "description": "Debug + PARROT_SANITIZE=ON with ASan+UBSan (build dir: build/sanitize — maps to CI's build-sanitizers) for ctest -L parrot-sanitize, per ADR 0012 + context mp4-extraction + build.yml; binaryDir is build/sanitize (singular, consistent with libmisbklv)",
       "binaryDir": "${sourceDir}/build/sanitize",
       "inherits": "debug",
       "cacheVariables": {
@@ -78,7 +78,7 @@
     {
       "name": "sanitize",
       "displayName": "Sanitize build",
-      "description": "Build sanitize (Debug + PARROT_SANITIZE=ON, build/sanitize — maps to CI's build-sanitizers) with jobs=6 via base — ASan+UBSan, 24 tests via ctest -L parrot-sanitize",
+      "description": "Build sanitize (Debug + PARROT_SANITIZE=ON, build/sanitize — maps to CI's build-sanitizers) with jobs=6 via base — ASan+UBSan via ctest -L parrot-sanitize",
       "configurePreset": "sanitize",
       "inherits": "base"
     },

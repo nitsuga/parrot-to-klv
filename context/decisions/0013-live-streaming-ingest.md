@@ -21,13 +21,14 @@ sources:
 
 # Context
 
-Today this tool is a file converter: an MP4 in → its `mett` track extracted by
-direct box scan ([[0001-mp4-extraction-approach]]) → the v3/proto formats
-decoded ([[0003-protobuf-dependency]], [[0004-shared-telemetry-snapshot]]) →
-mapped to ST 0601 in the transform → remuxed by libmisbklv's `KlvSink` with a
+At the time of this decision, this tool was a file converter: an MP4 in → its
+`mett` track extracted by direct box scan
+([[0001-mp4-extraction-approach]]) → the v3/proto formats decoded
+([[0003-protobuf-dependency]], [[0004-shared-telemetry-snapshot]]) → mapped to
+ST 0601 in the transform → remuxed by libmisbklv's `KlvSink` with a
 `video_source` and `Sei0604::Generate` into an MPEG-TS file ([[mux-stage]]).
-Real-time streaming is currently listed out of scope and the integration API
-is deferred in [`../../planning/ROADMAP.md`](../../planning/ROADMAP.md).
+Real-time streaming was listed out of scope and the integration API was
+deferred in [`../../planning/ROADMAP.md`](../../planning/ROADMAP.md).
 
 We now want both directions live: **stream in a live video source** (Parrot
 drones send over RTSP) and **output a live MPEG-TS over UDP multicast**.
@@ -110,11 +111,10 @@ decision; the live surface it depends on is the pin.
 
 - parrot-to-klv gains a live ingest path — the deferred "integration API" in
   [`../../planning/ROADMAP.md`](../../planning/ROADMAP.md) gets its first consumer,
-  and that roadmap's "real-time streaming is out of scope" line changes once it
-  is implemented.
+  and that roadmap's "real-time streaming is out of scope" line has changed.
 - **New capability here:** capturing Parrot metadata from RTP header extensions
-  (a small `GstRTPHeaderExtension` subclass). Today's input is MP4 only, so this
-  is net-new and distinct from the box scan.
+  (a small `GstRTPHeaderExtension` subclass). At the time, input was MP4 only, so
+  this was net-new and distinct from the box scan.
 - **Timing model changes for live:** there is no "file start" to anchor a single
   timeline to. KLV PTS anchors to the reception running-time (matching
   libmisbklv ADR 0021's live semantics); Item 2 UTC stays the absolute clock.
@@ -132,11 +132,12 @@ decision; the live surface it depends on is the pin.
 
 # Assumptions / open questions
 
-- Live ships as an added mode / CLI input, not a merge with MP4-file mode — to
-  confirm at CLI design.
-- Whether the ingest path is a callable library API or lives in `main()` — the
-  deferred integration-API question, now on the critical path.
-- SRT output and broadcast specifics are deferred until a requirement appears.
+- Live ships as an added mode / CLI input, not a merge with MP4-file mode —
+  resolved by the unified CLI in ADR 0014.
+- The ingest path is exposed through the CLI; no separate integration API is
+  promised, consistent with the current roadmap.
+- SRT output is implemented as a sink route; broadcast-specific requirements
+  remain deferred until a requirement appears.
 - Live SRT extraction and live-0x15 remain libmisbklv roadmap items; out of
   scope here.
 

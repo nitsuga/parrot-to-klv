@@ -14,8 +14,8 @@ fields onto MISB ST 0601 tags, and remuxing video + KLV into MPEG-TS.
 The older v2 format (Bebop 2, Disco, Bluegrass) is a possible add-on but is not
 planned; v1 is deprecated by Parrot and out of scope, as are a GUI, an
 integration API, and KLV standards beyond ST 0601 — except
-ST 0604 SEI, which the output carries because we ask libmisbklv to generate it
-(its default leaves the video untouched). See
+ST 0604 SEI on H.264, which we ask libmisbklv to generate; other codecs are
+carried through unstamped (its default leaves the video untouched). See
 [`planning/ROADMAP.md`](planning/ROADMAP.md).
 
 ## Getting it
@@ -113,15 +113,18 @@ KLV emission and `file→srt` the same; add `--repeat` to loop until `SIGINT` (`
 see [ADR 0015](context/decisions/0015-file-replay-live-output.md).
 
 The offline output carries the recording's own video elementary stream plus one
-ST 0601 packet per metadata sample; the live output carries the same KLV
-alongside the live video pulled via RTSP and the Parrot RTP header extension.
+ST 0601 packet for each successfully decoded and mapped metadata sample;
+malformed or unmappable samples are skipped and counted. The live output carries
+the same KLV alongside the live video pulled via RTSP and the Parrot RTP header
+extension.
 File replay (`-i file.mp4 -o udp:/srt:`) replays the same file's video on the
 pipeline clock with paced KLV emission: one play-through then close, `--repeat`
 to loop until `SIGINT`. The video is never decoded or re-encoded, so there is
-no generation loss — but it is not bit-identical: we ask libmisbklv to rewrite
-the timing NALs, replacing Picture Timing SEI with ST 0604 Precision Time Stamps
-so consumers can correlate frames without reading the KLV. Conversion shows
-progress every 10%.
+no generation loss — but it is not bit-identical on H.264: we ask libmisbklv to
+rewrite the timing NALs, replacing Picture Timing SEI with ST 0604 Precision
+Time Stamps so consumers can correlate frames without reading the KLV. Other
+codecs are carried through unchanged and unstamped. Conversion shows progress
+every 10%.
 
 Live RTSP ends when the source stops: if no telemetry arrives for
 `--idle-timeout` seconds (default 10) the run finishes writing its output and
@@ -208,7 +211,9 @@ and [`link-check.yml`](.github/workflows/link-check.yml) fails on broken interna
 doc links. [`release.yml`](.github/workflows/release.yml) runs on a `v*` tag (or
 manually, which builds and tests but does not publish), producing both release
 deliverables and smoke-testing each one before anything is attached to a
-release. Runner setup and the shared capacity gate are documented in
+release. Neither workflow needs secrets: libmisbklv is public and fetched over
+anonymous HTTPS. Runner setup, the shared capacity gate, and the retired
+private-dependency options are recorded in
 [`.github/workflows/README-ci.md`](.github/workflows/README-ci.md).
 
 ## Structure
@@ -222,7 +227,7 @@ CMakeLists.txt         build (FetchContent pulls libmisbklv at a pinned commit)
   build.yml            CI — builds and runs the suite
   release.yml          CI — builds both release deliverables on a tag
   link-check.yml       CI — fails on broken internal doc links
-  README-ci.md         runner, image, and capacity-gate setup
+  README-ci.md         runner, image, capacity-gate setup, and retired alternatives
 packaging/             release deliverables: bundle, image, launcher, usage
 src/                   C++ source (parrot-to-klv, parrot-scrub, parrot-conform)
 test/                  tests + synthetic MP4 fixtures

@@ -34,8 +34,9 @@ still in production. Both are implemented.
 **Out of scope:** v1 (deprecated by Parrot; the Bebop 1 era — no v1 parsing, even
 with `--infer-image-source`, which is v3-only and not v1 support; see
 [ADR 0011](../context/decisions/0011-inferred-image-source-sensor.md)), GUI, KLV
-standards beyond ST 0601 — with one exception: the output carries **ST 0604**
-SEI, which we ask libmisbklv to generate rather than implement here
+standards beyond ST 0601 — with one exception: H.264 output carries **ST 0604**
+SEI, which we ask libmisbklv to generate rather than implement here; other
+codecs are carried through unstamped
 ([ADR 0006](../context/decisions/0006-inherited-st0604-sei-injection.md)).
 Live streaming is now in scope via the unified `-i`/`-o` CLI: `-i rtsp://… -o
 <path|udp://…|srt:…>` reaches `live_ingest`, and `-i file.mp4 -o udp:/srt:…`
@@ -55,13 +56,14 @@ replay landed per ADR 0015 — all four `input × output` cells are implemented.
   conversion coverage report. Tier 2 derived geometry remains, gated on the
   open fork below.
 - **Phase 3 — Mux** — *done*: video + KLV remuxed into MPEG-TS through
-  libmisbklv's `KlvSink`, the source's elementary stream never decoded (its
-  timing NALs are rewritten to carry ST 0604 — see
-  [ADR 0006](../context/decisions/0006-inherited-st0604-sei-injection.md)). See
+  libmisbklv's `KlvSink`, the source's elementary stream never decoded (H.264
+  timing NALs are rewritten to carry ST 0604; other codecs are carried through
+  unstamped — see [ADR 0006](../context/decisions/0006-inherited-st0604-sei-injection.md)
+  and [ADR 0007](../context/decisions/0007-h265-vs-st0604-generation.md)). See
   [mux stage](../context/mux-stage.md).
 
 - **Phase 4 — Release** — *done*: two deliverables for Ubuntu 22.04/24.04
-  x86-64, both built and smoke-tested by `release.yml` on tag — a relocatable
+  x86-64 and aarch64, both built and smoke-tested by `release.yml` on tag — a relocatable
   bundle ([ADR 0009](../context/decisions/0009-release-bundle.md)) and an
   exported container image built from it
   ([ADR 0010](../context/decisions/0010-container-deliverable.md)). The bundle

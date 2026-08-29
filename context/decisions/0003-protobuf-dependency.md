@@ -185,9 +185,11 @@ cannot validate.
 
 # Assumptions / open questions
 
-- Assumes the reference HTML's embedded schema is the authoritative 8.4.2
-  `vmeta.proto`. It is presented as the file's contents and is internally
-  consistent, but it has not been diffed against Parrot's SDK repository.
+- `references/vmeta.proto` is the authoritative local 8.4.2 schema snapshot,
+  vendored under ADR 0016. Its mapped subset has been checked against the
+  transcribed fixture schema; a separate diff against Parrot's SDK repository
+  is outside this project's source set and is not a build or runtime
+  prerequisite.
 - Assumes the mapped subset is stable. If Tier 2 geometry work (the other
   candidate fork) or a future consumer pulls in thermal or camera-model data,
   the subset grows and the nanopb trade-off should be revisited.
@@ -199,9 +201,8 @@ cannot validate.
 - **Open:** re-establish the independent-encoder fixture check when a machine
   with `protoc` or Python `protobuf` is available. Until then the cross-check is
   between two implementations we wrote.
-- Unsettled, and deliberately not decided here: whether v3 and proto converge on
-  a shared intermediate frame struct before the transform stage, or the
-  transform stage takes two inputs. That is a Phase 2 shape question.
+- Resolved by [[0004-shared-telemetry-snapshot]]: v3 and proto normalize into a
+  shared intermediate telemetry snapshot before the transform stage.
 
 # Citations
 
