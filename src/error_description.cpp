@@ -18,6 +18,8 @@ std::string describe_misbklv_error(misbklv::Error error) {
         case misbklv::Error::TypeMismatch:     return "value type does not match item";
         case misbklv::Error::ResourceLimit:    return "resource limit exceeded";
         case misbklv::Error::ReadOnly:         return "item is auto-managed and read-only";
+        case misbklv::Error::SourceUnavailable:
+            return "live source not available right now";
     }
     return "unknown error";
 }

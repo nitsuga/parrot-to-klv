@@ -409,8 +409,16 @@ misbklv::Result<std::monostate> live_ingest(const LiveIngestConfig& cfg) {
     }
 
     // Reconnect mode: each sortie is its own session and its own finalized
-    // capture. Only an interrupt (SIGINT/SIGTERM) ends the run, or a failure
-    // that retrying cannot fix (ADR 0018 mode 2).
+    // capture (ADR 0018 mode 2). Four things end the run:
+    //   - an interrupt (SIGINT/SIGTERM), the ordinary way an operator stops it;
+    //   - a failure that retrying cannot fix — anything at open time that is
+    //     not SourceUnavailable;
+    //   - max_empty_sessions consecutive sessions that opened and carried no
+    //     telemetry, which is how a broken output stops the run;
+    //   - exhausting the capture index, when every _000n name is taken.
+    // A source that is merely absent matches none of these and is waited on
+    // for as long as the run is up.
+
     // Consecutive sessions that opened and produced nothing. Reset by any
     // session that emits, so a flaky link costs attempts rather than the run.
     unsigned empty_sessions = 0;
@@ -429,30 +437,14 @@ misbklv::Result<std::monostate> live_ingest(const LiveIngestConfig& cfg) {
         bool opened = false;
         auto r = run_one_session(cfg, sink_spec, &emitted, &opened);
         if (!r) {
-            // Two very different failures reach here. A session that never
-            // opened and reports Unsupported may be a source that is not back
-            // yet — the normal state between sorties. Anything else at open
-            // time is the configuration itself failing (an unwritable sink
-            // path), which retrying cannot fix and which would otherwise spin
-            // until the process is killed.
-            //
-            // Unsupported is overloaded upstream, so it is not sufficient on
-            // its own: libmisbklv returns it for an unreachable RTSP source and
-            // a video pad that never appears, but also for a pipeline:
-            // description that fails to parse or contains a demuxer. Only a
-            // network source can be transiently absent, so a pipeline: source
-            // that fails to open is always a configuration error.
-            //
-            // Known residual: a missing sink element factory also reports
-            // Unsupported, and with an RTSP source it is indistinguishable from
-            // an aircraft that is powered off — both fail identically on every
-            // attempt. That case still retries. Detecting it would need a sink
-            // probe at startup, which cannot be done safely for udp:/srt:
-            // sinks, since opening one with no peer yet is not a fault.
-            const bool source_can_be_absent = cfg.rtsp_uri.starts_with("rtsp://") ||
-                                              cfg.rtsp_uri.starts_with("rtsps://");
-            const bool transient =
-                opened || (r.error() == misbklv::Error::Unsupported && source_can_be_absent);
+            // A session that never opened and reports SourceUnavailable is a
+            // source that is not back yet — the normal state between sorties.
+            // Anything else at open time is a configuration that cannot run:
+            // an unwritable sink, a missing element, a description that will
+            // not build, an RTSP server that answered and refused the request.
+            // Retrying those would spin until the process is killed
+            // (libmisbklv ADR 0036).
+            const bool transient = opened || r.error() == misbklv::Error::SourceUnavailable;
             if (!transient) {
                 std::fprintf(stderr, "live: session failed to start with error %d; not retrying\n",
                              static_cast<int>(r.error()));
