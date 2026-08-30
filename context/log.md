@@ -1,5 +1,15 @@
 # Knowledge Bundle Log
 
+## 2026-08-30
+
+* **Refreshed the libmisbklv source pin:** moved the exact `GIT_TAG` from
+  `15b0e89` to `a0b9964`, current upstream `main` after #70 and #71. The source
+  delta adds bounded gst-free TS extraction, truncated-tail reporting, and
+  timestamp validation; parrot-to-klv's existing nonnegative presentation
+  timestamps already satisfy the tightened contract. The fresh 71-test release
+  suite had no failures, with the optional real-data case skipped as designed;
+  the sanitizer build passed all 41 parrot sanitizer tests.
+
 ## 2026-08-29
 
 * **Release preparation (#110):** drafted the `v0.4.0` user-facing changelog
