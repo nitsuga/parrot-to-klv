@@ -1024,6 +1024,41 @@ def build_hostile_read_box_largesize() -> bytes:
     return ftyp + moov
 
 
+def build_dual_parrot_metadata_tracks() -> bytes:
+    """Two Parrot 'mett' tracks referencing the same video track.
+
+    Exercises the warning in Mp4MetadataExtractor::open when >1 matching
+    track is present: the extractor must pick the first and warn, not
+    silently ignore the second. Video is dummy bytes (no ffmpeg needed);
+    both metadata tracks carry the same MIME type so both match.
+    The second track's timestamps are offset by 999999 µs to prove the
+    first track is selected.
+    """
+    ftyp = box(b"ftyp", b"isom" + struct.pack(">I", 512) + b"isomiso2avc1mp41")
+    video_samples = [bytes([0xDE, 0xAD, 0xBE, 0xEF, i]) for i in range(8)]
+    samples1 = [v3_sample(i, timestamp_ext(33333 * i)) for i in range(8)]
+    samples2 = [v3_sample(i, timestamp_ext(999999 + 33333 * i)) for i in range(8)]
+    video_blob = b"".join(video_samples)
+    meta_blob1 = b"".join(samples1)
+    meta_blob2 = b"".join(samples2)
+    mdat_payload = video_blob + meta_blob1 + meta_blob2
+    video_chunk = len(ftyp) + 8
+    meta1_chunk = video_chunk + len(video_blob)
+    meta2_chunk = meta1_chunk + len(meta_blob1)
+    mdat = box(b"mdat", mdat_payload)
+    timescale = 30000
+    delta = 1000
+    duration = delta * 8
+    traks = video_trak(1, timescale, [len(s) for s in video_samples], delta, video_chunk)
+    traks += meta_trak(2, 1, timescale, [len(s) for s in samples1], delta, meta1_chunk,
+                       MIME_PREFIX + "com.parrot.videometadata3")
+    traks += meta_trak(3, 1, timescale, [len(s) for s in samples2], delta, meta2_chunk,
+                       MIME_PREFIX + "com.parrot.videometadata3")
+    moov = box(b"moov", mvhd(timescale, duration, 4)
+               + session_udta("+48.85837+002.29448+135.250/") + traks)
+    return ftyp + mdat + moov
+
+
 def main() -> int:
     if len(sys.argv) != 2:
         print(__doc__, file=sys.stderr)
@@ -1138,6 +1173,9 @@ def main() -> int:
         # A '©ART' box declares a 64-bit largesize near UINT64_MAX -- the
         # size_t-wrap regression test for issue #4.
         "hostile_read_box_largesize.mp4": build_hostile_read_box_largesize(),
+        # Two Parrot 'mett' tracks (same MIME type) referencing the same video
+        # track -- the dual-metadata warning regression test for issue #116.
+        "parrot_v3_dual_mett.mp4": build_dual_parrot_metadata_tracks(),
     }
     # The only fixture whose video track is real H.264 -- the mux stage feeds
     # that stream to gstreamer, which will not accept the dummy bytes above.

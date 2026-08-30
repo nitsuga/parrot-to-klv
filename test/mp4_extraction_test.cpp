@@ -15,6 +15,7 @@
 #include <fstream>
 #include <iostream>
 #include <iterator>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -273,6 +274,32 @@ void test_track_index_mismatch_is_rejected(const char* dir) {
           "a top-level track that shifts minimp4 indices is rejected");
 }
 
+void test_dual_parrot_metadata_track_warns(const char* dir) {
+    // Two Parrot 'mett' tracks (same MIME type) referencing the same video
+    // track. Mp4MetadataExtractor::open must pick the first and emit a
+    // warning mentioning both the count and the chosen index.
+    std::ostringstream captured;
+    auto* old_buf = std::cerr.rdbuf(captured.rdbuf());
+
+    auto extractor = Mp4MetadataExtractor::open(fixture(dir, "parrot_v3_dual_mett.mp4"));
+
+    std::cerr.rdbuf(old_buf);
+    const std::string err = captured.str();
+
+    check(extractor.has_value(), "dual-mett fixture opens");
+    if (!extractor) return;
+    check_eq(extractor->track_info().track_index, 1, "dual-mett picks first meta track (index 1)");
+    auto first = extractor->extract_sample(0);
+    check(first.has_value(), "dual-mett sample 0 extracts");
+    if (first) {
+        check_eq(first->timestamp_us, uint64_t{0}, "dual-mett sample 0 is from first track (timestamp 0)");
+    }
+    check(err.find("Warning") != std::string::npos, "dual-mett warning contains 'Warning'");
+    check(err.find("2 Parrot metadata tracks") != std::string::npos,
+          "dual-mett warning mentions '2 Parrot metadata tracks'");
+    check(err.find("using track") != std::string::npos, "dual-mett warning mentions 'using track'");
+}
+
 void test_mime_parsing() {
     // Valid standard MIME strings
     auto v1 = format_from_mime("application/octet-stream;type=com.parrot.videometadata1");
@@ -425,6 +452,7 @@ int main(int argc, char* argv[]) {
     test_hostile_mdhd_duration_is_bounded(dir);
     test_tkhd_version_2_track_id_not_misread(dir);
     test_track_index_mismatch_is_rejected(dir);
+    test_dual_parrot_metadata_track_warns(dir);
     test_malformed_and_truncated_inputs(dir);
 
     if (g_failures > 0) {

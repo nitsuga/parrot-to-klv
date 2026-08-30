@@ -249,6 +249,19 @@ std::optional<Mp4MetadataExtractor> Mp4MetadataExtractor::open(const std::string
         report_tracks(tracks);
         return std::nullopt;
     }
+    {
+        int match_count = 0;
+        for (const auto& t : tracks) {
+            if (t.handler_type == kHandlerMeta && format_from_mime(t.mime_format).has_value()) {
+                ++match_count;
+            }
+        }
+        if (match_count > 1) {
+            std::cerr << "Warning: found " << match_count
+                      << " Parrot metadata tracks; using track " << track_idx
+                      << " and ignoring " << (match_count - 1) << " other(s)\n";
+        }
+    }
     const auto& described = tracks[static_cast<size_t>(track_idx)];
 
     // The MIME type names the payload format outright — never infer it.
