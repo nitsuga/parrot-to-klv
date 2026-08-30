@@ -8,6 +8,12 @@ chronological history (what landed when, decision detail) lives in
 
 ## Now
 
+**v3 no-fix frames omit their position (#114):** `from_v3` gates the sensor
+latitude/longitude on `sv_count > 0`, so the pre-fix opening of a flight reports
+no Items 13/14 rather than a confident 0°N 0°E. Barometric altitude is
+unaffected. This extends to v3 the absent-vs-zero policy the proto sensor path
+already applied; the remaining proto-side gaps are #115.
+
 **MP4 track pairing fails closed (#87):** `Mp4MetadataExtractor::open()` rejects
 disagreement between the first-`moov` box scan and minimp4's track count, then
 verifies every indexed handler type before using the metadata index. A synthetic

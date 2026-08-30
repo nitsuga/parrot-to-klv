@@ -145,8 +145,17 @@ TelemetrySnapshot from_v3(const ParrotV3Frame& f) {
     // than guessed — see the open question in field-mapping-analysis.
     if (f.frame_timestamp_us) s.monotonic_us = *f.frame_timestamp_us;
 
-    s.latitude_deg = f.latitude_deg;
-    s.longitude_deg = f.longitude_deg;
+    // Zero lat/lon with no satellites is the no-fix state, not a position at
+    // 0°N 0°E. Most flights start recording before the first fix, so emitting
+    // the pair regardless would put a confident wrong position into Items
+    // 13/14 for the opening segment — the same reason the proto path gates on
+    // its own sentinel below. v3 carries a real satellite count, so it gates
+    // on that rather than on the coordinates being zero.
+    if (f.sv_count > 0) {
+        s.latitude_deg = f.latitude_deg;
+        s.longitude_deg = f.longitude_deg;
+    }
+    // Altitude is barometric, so it stays engaged without a fix.
     s.altitude_amsl_m = f.altitude_amsl_m;
     // No ellipsoid height in v3: Item 75 would need an EGM96 lookup.
     s.sv_count = f.sv_count;

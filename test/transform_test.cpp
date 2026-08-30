@@ -788,6 +788,50 @@ void check_no_fix_proto_frame_omits_position_and_agl() {
     check(decoded.reals.count(113) == 0, "no-fix frame emits no Item 113");
 }
 
+void check_no_fix_v3_frame_omits_position_but_keeps_altitude() {
+    // Most flights start recording before the first fix, so a v3 frame with
+    // zero satellites and zero lat/lon is the common opening state, not a
+    // position off West Africa. v3 carries a real satellite count, so the
+    // position gates on that rather than on the coordinates being zero the
+    // way proto must. Altitude is barometric and survives the gate.
+    ParrotV3Frame frame;
+    frame.latitude_deg = 0.0;
+    frame.longitude_deg = 0.0;
+    frame.altitude_amsl_m = 250.0;
+    frame.sv_count = 0;
+    frame.drone_quat = identity();
+    frame.frame_quat = identity();
+    frame.frame_timestamp_us = 33333;
+    const auto snapshot = from_v3(frame);
+    check(!snapshot.latitude_deg.has_value(), "no-fix v3 frame: latitude is absent, not 0.0");
+    check(!snapshot.longitude_deg.has_value(), "no-fix v3 frame: longitude is absent, not 0.0");
+    check(snapshot.altitude_amsl_m.has_value(),
+          "no-fix v3 frame keeps its barometric altitude");
+
+    const auto klv = to_0601(snapshot);
+    const auto decoded = decode_packet(klv.packet);
+    // count-then-at, not a bare at(): when this regression fires the key is
+    // missing, and at() would abort the whole suite instead of reporting it.
+    check(klv.coverage.omitted.count(13) == 1 &&
+              klv.coverage.omitted.at(13) == OmissionReason::SourceAbsent,
+          "Item 13 omitted as absent, not fabricated");
+    check(klv.coverage.omitted.count(14) == 1 &&
+              klv.coverage.omitted.at(14) == OmissionReason::SourceAbsent,
+          "Item 14 omitted as absent, not fabricated");
+    check(decoded.reals.count(13) == 0, "no-fix v3 frame emits no Item 13");
+    check(decoded.reals.count(14) == 0, "no-fix v3 frame emits no Item 14");
+    check(decoded.reals.count(15) == 1, "Item 15 still carries the barometric altitude");
+
+    // The gate must not fire once the receiver has satellites, or it would
+    // suppress every position the flight actually recorded.
+    frame.sv_count = 11;
+    frame.latitude_deg = 45.5;
+    frame.longitude_deg = -73.5;
+    const auto fixed = from_v3(frame);
+    check(fixed.latitude_deg.has_value() && fixed.longitude_deg.has_value(),
+          "a v3 frame with satellites still reports its position");
+}
+
 void check_zero_sv_count_omits_item_124() {
     // sv_count present but 0 (a GPS-denied frame that still reports "zero
     // satellites") is a real, valid Item 123 value -- but ST 0601.19 §8.124.1
@@ -850,6 +894,7 @@ int main() {
     check_air_speed_rejection_policy(300.0, "over-ceiling air speed");
     check_navsat_count_rejection_policy();
     check_no_fix_proto_frame_omits_position_and_agl();
+    check_no_fix_v3_frame_omits_position_but_keeps_altitude();
     check_zero_sv_count_omits_item_124();
     check_nan_attitude_is_invalid_not_out_of_range();
 
