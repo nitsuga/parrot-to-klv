@@ -134,6 +134,8 @@ bool track_sample_tables_valid(const MP4D_track_t& track) {
     return true;
 }
 
+/// Locate the Parrot metadata tracks among the scanned descriptions.
+/// Returns the first matching index (or -1 when none) and the total count of Parrot metadata tracks.
 struct FindResult {
     int index = -1;
     int count = 0;
