@@ -2,6 +2,8 @@
 
 ## 2026-08-30
 
+* **v3 sentinel sv_count 0xFF is now absent, not 255 NAVSATs (#118):** ingested `references/vmeta.h` at `22f715a` (BSD-3-Clause) where `VMETA_LOCATION_INVALID_SV_COUNT ((uint8_t)-1)` defines the sentinel (`vmeta.h` § `VMETA_LOCATION_INVALID_SV_COUNT` / `vmeta_location` — `sv_count` decoupled from `valid`: `0xFF` means count unavailable, not "no fix"). The header decouples count from valid — `0xFF` may appear even when `valid` is set — so it does not mean "no fix". v3 packs only altitude+count and offers no validity signal other than `sv_count`, so `0xFF` leaves nothing to trust — fail closed (withhold position). `from_v3` now gates position on `sv_count != 0 && sv_count != 0xFF`, so Items 13/14/15 are withheld as `SourceAbsent`; `TelemetrySnapshot::sv_count` is left absent for 0xFF and the transform treats it as `SourceAbsent` for Items 123/124 instead of emitting 255 NAVSATs. Cost: a real fix whose count is unreported loses position. Adds `check_sentinel_sv_count_omits_position_and_navsat` covering 255 alongside 0 and 300. This closes the sentinel gap left after #114's `sv_count > 0` gate.
+
 * **Bounded the "full-range" claim for Items 90/91 (#112 C6):** `transform.hpp`,
   `put_narrow_angle`'s comment in `transform.cpp`, and ADR 0008's prose all said
   Items 90/91 "always" carry the accurate attitude, which overstates them: they

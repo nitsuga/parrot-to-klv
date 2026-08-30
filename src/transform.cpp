@@ -487,6 +487,9 @@ Klv0601Frame to_0601(const TelemetrySnapshot& s, const SessionMetadata* session,
     else coverage.omitted[113] = OmissionReason::SourceAbsent;
 
     // --- Items 123/124, navigation satellites ---
+    // Sentinel VMETA_LOCATION_INVALID_SV_COUNT is handled in telemetry.cpp —
+    // from_v3/from_proto leave sv_count absent at 0xFF, so transform sees only
+    // SourceAbsent via the absent optional. No format-specific sentinel here.
     if (s.sv_count) {
         staging.put_uint(123, *s.sv_count);
         if (*s.sv_count > 0) {

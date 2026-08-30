@@ -22,6 +22,7 @@ _(`type: Reference` — synthesis of an external source, citing the immutable sn
 
 * [Parrot Video Metadata Documentation](./parrot-video-metadata-docs.md) — Official format specs (snapshot withdrawn per ADR 0016; link file + BSD-3 `vmeta.proto` in `../references/`)
 * [libvideo-metadata](./libvideo-metadata.md) — Parrot's C reference implementation (GitHub, not built as dependency)
+* [Parrot vmeta.h — location sentinel](./parrot-vmeta-header.md) — `vmeta.h` vendored at `../references/vmeta.h` at `22f715a` (BSD-3-Clause), defining `VMETA_LOCATION_INVALID_SV_COUNT` and `vmeta_location`
 
 ## Data Formats
 
