@@ -106,9 +106,13 @@ struct TelemetrySnapshot {
     std::optional<uint64_t> monotonic_us;
 
     // --- sensor position ---
-    /// Empty when the frame reports no fix — proto3 gives its scalars no
-    /// presence bit, so "no fix" and "0°N 0°E" are wire-identical; `from_proto`
-    /// tells them apart before this struct is ever populated.
+    /// Empty when the frame reports no fix, by whichever signal its format
+    /// offers: proto3 gives its scalars no presence bit, so "no fix" and
+    /// "0°N 0°E" are wire-identical and `from_proto` tells them apart by the
+    /// zero sentinel, while `from_v3` gates on v3's real `sv_count`. Either
+    /// way the distinction is made before this struct is ever populated.
+    /// Altitude is empty on the same no-fix frames as the pair: it is GPS
+    /// AMSL, not an independent barometric reading.
     std::optional<double> latitude_deg;
     std::optional<double> longitude_deg;
     std::optional<double> altitude_amsl_m;    ///< EGM96

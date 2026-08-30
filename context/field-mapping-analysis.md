@@ -74,9 +74,9 @@ base struct (Bebop 2 / Disco / ANAFI). *Session* = untimed MP4 session metadata.
 | 10 | Platform Designation | session `model` | session `model` | utf8, e.g. `"ANAFI Ai"` |
 | 11 | Image Source Sensor | `camera.spectrum` + `camera.subtype` | thermal ext `0x4534` presence, opt-in only | free-form utf8, not an enum: spectrum gives the stem (`EO` / `IR` / `EO/IR Blended`), subtype qualifies it (`EO Wide`, `IR Tele`). v2/v3 state no spectrum; `--infer-image-source` guesses the stem from whether thermal metadata was written, labeled `(inferred)` — [ADR 0011](./decisions/0011-inferred-image-source-sensor.md) |
 | 12 | Image Coordinate System | — | — | constant `"Geodetic WGS84"` |
-| 13 | Sensor Latitude | `camera.location.latitude` | `latitude` (Q10.22) | direct. Prefer `camera.location` over `drone.location`; fall back when absent |
-| 14 | Sensor Longitude | `camera.location.longitude` | `longitude` (Q10.22) | direct |
-| 15 | Sensor True Altitude | `camera.location.altitude_egm96amsl` | `altitude_and_sv` bits 31..8 (Q16.8) | both sides are EGM96/AMSL — direct. **proto: zero means unknown** |
+| 13 | Sensor Latitude | `camera.location.latitude` | `latitude` (Q10.22) | direct. Prefer `camera.location` over `drone.location`; fall back when absent. **Withheld with no fix**: proto by the zero sentinel, v3 by `sv_count == 0` |
+| 14 | Sensor Longitude | `camera.location.longitude` | `longitude` (Q10.22) | direct; same no-fix gate as Item 13 |
+| 15 | Sensor True Altitude | `camera.location.altitude_egm96amsl` | `altitude_and_sv` bits 31..8 (Q16.8) | both sides are EGM96/AMSL — direct. **proto: zero means unknown**; v3 shares the `altitude_and_sv` word with the count, so it is withheld on the same no-fix frames as 13/14 rather than reporting 0 m |
 | 16 | Sensor Horizontal FOV | `camera.hfov` | `picture_hfov` (Q8.8) | **proto is radians, v2/v3 is degrees** — do not share a code path |
 | 17 | Sensor Vertical FOV | `camera.vfov` | `picture_vfov` (Q8.8) | same asymmetry |
 | 18 | Sensor Relative Azimuth | `camera.quat` ⊖ `drone.quat` → yaw | `frame_*` ⊖ `drone_*` | relative quaternion → Euler, rad→deg, wrap to [0, 360) |

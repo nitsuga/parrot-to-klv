@@ -3,14 +3,20 @@
 ## 2026-08-30
 
 * **v3 no-fix frames no longer fabricate a position (#114):** `from_v3` gates
-  the sensor latitude/longitude on `sv_count > 0`, so a frame recorded before
-  the first GPS fix omits Items 13/14 as `SourceAbsent` instead of emitting a
-  confident 0°N 0°E — the state most flights open in. Barometric altitude still
-  reports, since it does not depend on a fix. This extends to v3 the
-  absent-vs-zero policy the proto sensor path already applied, and closes the
-  one v3 finding from the #112 review; the confirmed proto-side gaps from that
+  the sensor latitude, longitude, and altitude on `sv_count > 0`, so a frame
+  recorded before the first GPS fix omits Items 13/14/15 as `SourceAbsent`
+  instead of emitting a confident 0°N 0°E at sea level — the state most flights
+  open in. Altitude is gated with the pair because v3's is GPS AMSL/EGM96
+  sharing the `altitude_and_sv` word with the count, not an independent
+  barometric reading; review of the first cut caught that an earlier
+  "barometric" rationale was unsupported and would have left Item 15 reporting
+  0 m. This extends to v3 the absent-vs-zero policy the proto sensor path
+  already applied, and closes the one v3 finding from the #112 review;
+  `context/transform-stage.md` and `context/field-mapping-analysis.md` now
+  describe both formats' signals. The confirmed proto-side gaps from that
   review are deferred in #115 and the dual-`mett` diagnostic in #116. The
-  release suite passed with the optional real-data case skipped as designed.
+  release and sanitizer suites passed with the optional real-data case skipped
+  as designed.
 
 * **Refreshed the libmisbklv source pin:** moved the exact `GIT_TAG` from
   `15b0e89` to `a0b9964`, current upstream `main` after #70 and #71. The source
