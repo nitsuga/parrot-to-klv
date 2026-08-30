@@ -16,6 +16,8 @@ word as the count, not a barometric reading. This extends to v3 the
 absent-vs-zero policy the proto sensor path already applied; the remaining
 proto-side gaps are #115.
 
+**Dual Parrot metadata tracks now warn (#116):** `Mp4MetadataExtractor::open` counts Parrot `mett` tracks in one traversal and warns when more than one is present — `Warning: found N Parrot metadata tracks; using track X and ignoring Y other(s)` — while still selecting the first match. A synthetic `parrot_v3_dual_mett.mp4` fixture and hardened test (RAII stderr capture, negative single-mett case, `ignoring` clause) cover it; converting both tracks remains out of scope.
+
 **MP4 track pairing fails closed (#87):** `Mp4MetadataExtractor::open()` rejects
 disagreement between the first-`moov` box scan and minimp4's track count, then
 verifies every indexed handler type before using the metadata index. A synthetic

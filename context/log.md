@@ -2,6 +2,8 @@
 
 ## 2026-08-30
 
+* **Dual Parrot metadata tracks now warn instead of silently dropping the second (#116):** `Mp4MetadataExtractor::open` counts Parrot `mett` tracks in one traversal (`FindResult{index,count}`) and, when more than one is present, warns with how many were found and which index is used (`Warning: found N Parrot metadata tracks; using track X and ignoring Y other(s)`) while still selecting the first match — converting both tracks remains out of scope as #116 specifies. A synthetic `parrot_v3_dual_mett.mp4` fixture (dummy video + two v3 `mett` tracks, no real H.264) and a hardened `mp4_extraction_test` case cover it: RAII `CerrCapture` for stderr, a negative single-`mett` case asserting no warning, and an `ignoring 1 other` assertion. The release and sanitizer suites pass with the real-data case skipped.
+
 * **v3 no-fix frames no longer fabricate a position (#114):** `from_v3` gates
   the sensor latitude, longitude, and altitude on `sv_count > 0`, so a frame
   recorded before the first GPS fix omits Items 13/14/15 as `SourceAbsent`

@@ -15,6 +15,8 @@
 #include <fstream>
 #include <iostream>
 #include <iterator>
+#include <optional>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -23,6 +25,14 @@ using namespace parrot_to_klv;
 namespace {
 
 int g_failures = 0;
+
+struct CerrCapture {
+    std::streambuf* old;
+    std::ostringstream buf;
+    CerrCapture() { old = std::cerr.rdbuf(buf.rdbuf()); }
+    ~CerrCapture() { std::cerr.rdbuf(old); }
+    std::string str() const { return buf.str(); }
+};
 
 void check(bool condition, const std::string& what) {
     if (!condition) {
@@ -273,6 +283,46 @@ void test_track_index_mismatch_is_rejected(const char* dir) {
           "a top-level track that shifts minimp4 indices is rejected");
 }
 
+void test_dual_parrot_metadata_track_warns(const char* dir) {
+    // Two Parrot 'mett' tracks (same MIME type) referencing the same video
+    // track. Mp4MetadataExtractor::open must pick the first and emit a
+    // warning mentioning both the count and the chosen index.
+    std::string err;
+    std::optional<Mp4MetadataExtractor> extractor;
+    {
+        CerrCapture cap;
+        extractor = Mp4MetadataExtractor::open(fixture(dir, "parrot_v3_dual_mett.mp4"));
+        err = cap.str();
+    }
+
+    check(extractor.has_value(), "dual-mett fixture opens");
+    if (!extractor) return;
+    check_eq(extractor->track_info().track_index, 1, "dual-mett picks first meta track (index 1)");
+    auto first = extractor->extract_sample(0);
+    check(first.has_value(), "dual-mett sample 0 extracts");
+    if (first) {
+        check_eq(first->timestamp_us, uint64_t{0}, "dual-mett sample 0 is from first track (timestamp 0)");
+    }
+    check(err.find("Warning") != std::string::npos, "dual-mett warning contains 'Warning'");
+    check(err.find("2 Parrot metadata tracks") != std::string::npos,
+          "dual-mett warning mentions '2 Parrot metadata tracks'");
+    check(err.find("using track") != std::string::npos, "dual-mett warning mentions 'using track'");
+    check(err.find("ignoring 1 other") != std::string::npos,
+          "dual-mett warning mentions 'ignoring 1 other(s)'");
+
+    // Negative case: single-mett fixture must not emit the dual-track warning.
+    {
+        CerrCapture cap;
+        auto single = Mp4MetadataExtractor::open(fixture(dir, "parrot_v3.mp4"));
+        const std::string single_err = cap.str();
+        check(single.has_value(), "single-mett fixture still opens (negative case)");
+        check(single_err.find("Warning") == std::string::npos,
+              "single-mett produces no Warning");
+        check(single_err.find("Parrot metadata tracks") == std::string::npos,
+              "single-mett produces no Parrot metadata tracks warning");
+    }
+}
+
 void test_mime_parsing() {
     // Valid standard MIME strings
     auto v1 = format_from_mime("application/octet-stream;type=com.parrot.videometadata1");
@@ -425,6 +475,7 @@ int main(int argc, char* argv[]) {
     test_hostile_mdhd_duration_is_bounded(dir);
     test_tkhd_version_2_track_id_not_misread(dir);
     test_track_index_mismatch_is_rejected(dir);
+    test_dual_parrot_metadata_track_warns(dir);
     test_malformed_and_truncated_inputs(dir);
 
     if (g_failures > 0) {
