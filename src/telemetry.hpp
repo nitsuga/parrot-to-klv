@@ -14,6 +14,12 @@
 
 namespace parrot_to_klv {
 
+/// Sentinel for "SV count not available" — VMETA_LOCATION_INVALID_SV_COUNT
+/// ((uint8_t)-1) == 0xFF. Defined on the C struct `vmeta_location` where the
+/// header decouples count from `valid`; proto's wire format is presence-based
+/// (omits the field when unavailable) but 255 is implausible either way.
+inline constexpr uint8_t kVmetaInvalidSvCount = 0xFF;
+
 /// Piloting mode, normalized across formats.
 ///
 /// The binary and protobuf schemas number these differently — binary `Manual`

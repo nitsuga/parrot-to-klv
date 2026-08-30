@@ -251,10 +251,10 @@ TelemetrySnapshot from_proto(const ParrotProtoFrame& f) {
     s.altitude_amsl_m = altitude_or_unknown(location.altitude_egm96_m);
     // The reason proto is worth parsing separately: both datums, no geoid model.
     s.altitude_wgs84_m = altitude_or_unknown(location.altitude_wgs84_m);
-    // Single-layer sentinel handling (telemetry, not transform): proto's
-    // vmeta_location uses VMETA_LOCATION_INVALID_SV_COUNT (0xFF) for count
-    // unavailable. Same fail-closed rule as v3 — no validity signal other than
-    // sv_count to trust at 0xFF.
+    // Single-layer sentinel handling (telemetry, not transform): the C header
+    // defines VMETA_LOCATION_INVALID_SV_COUNT (0xFF) for count unavailable
+    // (proto's wire format is presence-based — field omitted when unavailable —
+    // but 255 is implausible either way). Same fail-closed rule as v3.
     if (location.sv_count != kVmetaInvalidSvCount) s.sv_count = location.sv_count;
     // Same proto3 sentinel: a landed drone can genuinely read 0 m AGL, but
     // wire-identical to "not reported", same tradeoff this project already
