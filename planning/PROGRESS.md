@@ -70,9 +70,8 @@ here: [MP4 metadata extraction](../context/mp4-extraction.md),
 surface — flags, output, the scrub and conform workflows — is in
 [`README.md`](../README.md).
 
-**`v0.3.0` is the current published release; `v0.4.0` is being prepared in
-issue #110.** Native x86-64 and `aarch64` bundles and
-container images ship together, each built and smoke-tested on its own
+**`v0.4.0` is the current published release.** Native x86-64 and `aarch64`
+bundles and container images ship together, each built and smoke-tested on its own
 architecture. The Ubuntu 22.04 compatibility floor now comes from the shared
 digest-pinned Jammy build container rather than a retiring runner label, while
 the GLIBC symbol check continues to enforce 2.35. Artifact filenames, inner
@@ -135,10 +134,6 @@ The one substantive feature piece left is **fork 4, Tier 2 geometry fidelity**
 
 ## In progress
 
-- **Preparing `v0.4.0` (#110):** release notes cover the live lifecycle and
-  failure-handling changes now present on `main`; the version bump and notes
-  await review, merge, and a green release candidate.
-
 - **Preparing to make the repository public.** The driver is multi-architecture
   releases: GitHub's free arm64 hosted runners and unmetered Actions minutes are
   public-repo benefits — though **not** arm64 itself, which GitHub made
@@ -165,8 +160,7 @@ The one substantive feature piece left is **fork 4, Tier 2 geometry fidelity**
 
 ## Next
 
-1. Merge the `v0.4.0` release preparation and publish its tag.
-2. Fork 4, Tier 2 geometry fidelity, in [ROADMAP](./ROADMAP.md).
+1. Fork 4, Tier 2 geometry fidelity, in [ROADMAP](./ROADMAP.md).
 
 ## Known gaps
 - **Non-H.264 output carries no ST 0604.** Generation is H.264-only upstream, so
