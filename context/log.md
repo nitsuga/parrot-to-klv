@@ -2,6 +2,18 @@
 
 ## 2026-08-30
 
+* **Bounded the "full-range" claim for Items 90/91 (#112 C6):** `transform.hpp`,
+  `put_narrow_angle`'s comment in `transform.cpp`, and ADR 0008's prose all said
+  Items 90/91 "always" carry the accurate attitude, which overstates them: they
+  are ±90°, and past that they are omitted as `EncodeRejected` — confirmed by
+  probe, where a 120° roll yields no Item 91 rather than a wrong one. The
+  registry declares a `0x80000000` out-of-range sentinel for both, but nothing
+  emits it, so there is no equivalent of Items 6/7's `0x8000` signal here.
+  "Full-range" is the standard's own term, relative to Items 6/7's ±20°/±50°
+  rather than a claim of unbounded range, so the wording is clarified rather
+  than replaced. Comment-only; no behavior change. This closes the last finding
+  from the #112 review.
+
 * **Dual Parrot metadata tracks now warn instead of silently dropping the second (#116):** `Mp4MetadataExtractor::open` counts Parrot `mett` tracks in one traversal (`FindResult{index,count}`) and, when more than one is present, warns with how many were found and which index is used (`Warning: found N Parrot metadata tracks; using track X and ignoring Y other(s)`) while still selecting the first match — converting both tracks remains out of scope as #116 specifies. A synthetic `parrot_v3_dual_mett.mp4` fixture (dummy video + two v3 `mett` tracks, no real H.264) and a hardened `mp4_extraction_test` case cover it: RAII `CerrCapture` for stderr, a negative single-`mett` case asserting no warning, and an `ignoring 1 other` assertion. The release and sanitizer suites pass with the real-data case skipped.
 
 * **v3 no-fix frames no longer fabricate a position (#114):** `from_v3` gates

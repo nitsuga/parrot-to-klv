@@ -151,13 +151,15 @@ private:
 
 /// Items 6/7 are ±20° and ±50°, which a quadcopter exceeds in ordinary flight.
 /// Out of range must be signaled with 0x8000, not clamped — and 90/91 carry
-/// the trustworthy value regardless. `clamp` overrides this for consumers that
-/// can't handle 0x8000 gracefully.
+/// the trustworthy value across their own wider ±90°. `clamp` overrides this
+/// for consumers that can't handle 0x8000 gracefully.
 ///
 /// There is deliberately no third option emitting the true angle. ST 0601 maps
 /// ±limit onto the whole int16 range, so a value past the limit has no encoding
 /// here at all; a flag that claimed otherwise shipped briefly and only ever
-/// produced the clamped value (ADR 0008). Fidelity lives in Items 90/91.
+/// produced the clamped value (ADR 0008). Fidelity lives in Items 90/91, up to
+/// their own ±90°; beyond that even they are omitted as `EncodeRejected`, since
+/// the registry's 0x80000000 out-of-range sentinel is never emitted.
 void put_narrow_angle(Staging& staging, uint16_t tag, double degrees, double limit,
                       bool clamp) {
     if (!std::isfinite(degrees)) {

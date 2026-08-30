@@ -67,9 +67,12 @@ provide are already covered — spec-compliant `0x8000` by default,
 consumer-friendly clamping behind `--clamp-attitude`. Removing it costs no
 capability, because it has none that clamping does not.
 
-Items 90/91 remain what they always were: the full-range pitch and roll, always
-accurate, which is where a consumer wanting the true attitude should read.
-That is the answer this ADR points fidelity-seekers at.
+Items 90/91 remain what they always were: the full-range pitch and roll,
+accurate across their own ±90°, which is where a consumer wanting the true
+attitude should read. That is the answer this ADR points fidelity-seekers at.
+"Full-range" is relative to Items 6/7's ±20°/±50°, not a claim of unbounded
+range — past ±90° these items are omitted as `EncodeRejected` too, so the
+fidelity this ADR points at has a ceiling of its own.
 
 # Alternatives considered
 
