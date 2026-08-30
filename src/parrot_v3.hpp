@@ -13,7 +13,11 @@
 namespace parrot_to_klv {
 
 /// Parrot's sentinel for "SV count not available" — VMETA_LOCATION_INVALID_SV_COUNT
-/// ((uint8_t)-1) == 0xFF, see references/vmeta.h:455 at commit 22f715a.
+/// ((uint8_t)-1) == 0xFF. Header decouples count from valid flag: 0xFF means
+/// count unavailable, not "no fix". v3 packs only altitude+count and offers no
+/// validity signal other than sv_count, so 0xFF leaves nothing to trust — fail
+/// closed (withhold position). Cost: a real fix whose count is unreported loses
+/// position.
 inline constexpr uint8_t kVmetaInvalidSvCount = 0xFF;
 
 /// Identifier of the v3 base structure ('P3').

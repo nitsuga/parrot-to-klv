@@ -877,10 +877,11 @@ void check_nan_attitude_is_invalid_not_out_of_range() {
 }
 
 void check_sentinel_sv_count_omits_position_and_navsat() {
-    // VMETA_LOCATION_INVALID_SV_COUNT = 0xFF (references/vmeta.h:455) is not
-    // 255 satellites — it is Parrot's "not available" sentinel. from_v3 must
-    // treat it as absent, withholding Items 13/14/15 and omitting Item 123/124
-    // as SourceAbsent, not as 255/0x02.
+    // VMETA_LOCATION_INVALID_SV_COUNT = 0xFF — count unavailable, not "no fix"
+    // (header decouples count from valid flag). v3 offers no validity signal
+    // other than sv_count, so 0xFF leaves nothing to trust — fail closed,
+    // withholding Items 13/14/15 and omitting Item 123/124 as SourceAbsent,
+    // not as 255/0x02. Cost: a real fix whose count is unreported loses position.
     ParrotV3Frame frame;
     frame.latitude_deg = 45.5;
     frame.longitude_deg = -73.5;
@@ -917,22 +918,6 @@ void check_sentinel_sv_count_omits_position_and_navsat() {
     check(decoded.reals.count(15) == 0, "sentinel emits no Item 15");
     check(decoded.uints.count(123) == 0, "sentinel emits no Item 123");
     check(decoded.uints.count(124) == 0, "sentinel emits no Item 124");
-
-    // Transform must also treat a raw 255 snapshot as absent — defensive in
-    // case a snapshot is constructed outside from_v3 (e.g. direct assignment or
-    // a future proto path).
-    auto direct = base_v3_snapshot();
-    direct.sv_count = 255;
-    const auto klv2 = to_0601(direct);
-    const auto decoded2 = decode_packet(klv2.packet);
-    check(klv2.coverage.omitted.count(123) == 1 &&
-              klv2.coverage.omitted.at(123) == OmissionReason::SourceAbsent,
-          "raw 255 sv_count: Item 123 omitted as SourceAbsent");
-    check(klv2.coverage.omitted.count(124) == 1 &&
-              klv2.coverage.omitted.at(124) == OmissionReason::SourceAbsent,
-          "raw 255 sv_count: Item 124 omitted as SourceAbsent");
-    check(decoded2.uints.count(123) == 0, "raw 255 emits no Item 123");
-    check(decoded2.uints.count(124) == 0, "raw 255 emits no Item 124");
 }
 
 }  // namespace

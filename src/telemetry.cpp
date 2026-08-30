@@ -156,14 +156,19 @@ TelemetrySnapshot from_v3(const ParrotV3Frame& f) {
     // the EGM96 geoid and rides in the *same* 32-bit word as the count
     // (`altitude_and_sv`, parrot_v3.cpp), so one fix produces or withholds all
     // three. There is no barometric source in v3 to fall back on.
-    // 0xFF is VMETA_LOCATION_INVALID_SV_COUNT (references/vmeta.h:455) — treat
-    // as absent, not a 255-satellite fix.
+    // 0xFF is VMETA_LOCATION_INVALID_SV_COUNT — count unavailable, not "no fix"
+    // (header decouples count from valid flag). v3 offers no validity signal
+    // other than sv_count, so 0xFF leaves nothing to trust — fail closed
+    // (withhold position). Cost: a real fix whose count is unreported loses
+    // position.
     if (f.sv_count != 0 && f.sv_count != kVmetaInvalidSvCount) {
         s.latitude_deg = f.latitude_deg;
         s.longitude_deg = f.longitude_deg;
         s.altitude_amsl_m = f.altitude_amsl_m;
     }
     // No ellipsoid height in v3: Item 75 would need an EGM96 lookup.
+    // VMETA_LOCATION_INVALID_SV_COUNT — same fail-closed rationale as position
+    // gate above: count unavailable, not 255.
     if (f.sv_count != kVmetaInvalidSvCount) s.sv_count = f.sv_count;
     s.ground_distance_m = f.ground_distance_m;
 
@@ -246,7 +251,11 @@ TelemetrySnapshot from_proto(const ParrotProtoFrame& f) {
     s.altitude_amsl_m = altitude_or_unknown(location.altitude_egm96_m);
     // The reason proto is worth parsing separately: both datums, no geoid model.
     s.altitude_wgs84_m = altitude_or_unknown(location.altitude_wgs84_m);
-    s.sv_count = location.sv_count;
+    // Single-layer sentinel handling (telemetry, not transform): proto's
+    // vmeta_location uses VMETA_LOCATION_INVALID_SV_COUNT (0xFF) for count
+    // unavailable. Same fail-closed rule as v3 — no validity signal other than
+    // sv_count to trust at 0xFF.
+    if (location.sv_count != kVmetaInvalidSvCount) s.sv_count = location.sv_count;
     // Same proto3 sentinel: a landed drone can genuinely read 0 m AGL, but
     // wire-identical to "not reported", same tradeoff this project already
     // accepts for altitude, zoom, and the FOVs below.

@@ -487,25 +487,20 @@ Klv0601Frame to_0601(const TelemetrySnapshot& s, const SessionMetadata* session,
     else coverage.omitted[113] = OmissionReason::SourceAbsent;
 
     // --- Items 123/124, navigation satellites ---
-    // 0xFF is VMETA_LOCATION_INVALID_SV_COUNT (references/vmeta.h:455) — not a
-    // 255-satellite fix, treat as absent. Item 123 would otherwise emit 255,
-    // and position Items 13/14/15 are already withheld via from_v3's gate.
+    // Sentinel VMETA_LOCATION_INVALID_SV_COUNT is handled in telemetry.cpp —
+    // from_v3/from_proto leave sv_count absent at 0xFF, so transform sees only
+    // SourceAbsent via the absent optional. No format-specific sentinel here.
     if (s.sv_count) {
-        if (*s.sv_count == kVmetaInvalidSvCount) {
-            coverage.omitted[123] = OmissionReason::SourceAbsent;
-            coverage.omitted[124] = OmissionReason::SourceAbsent;
+        staging.put_uint(123, *s.sv_count);
+        if (*s.sv_count > 0) {
+            // Table 10 bit 1 is NAVSAT-GPS. Parrot does not say which
+            // constellation the fix came from, so only that bit is claimed.
+            staging.put_uint(124, 0x02);
         } else {
-            staging.put_uint(123, *s.sv_count);
-            if (*s.sv_count > 0) {
-                // Table 10 bit 1 is NAVSAT-GPS. Parrot does not say which
-                // constellation the fix came from, so only that bit is claimed.
-                staging.put_uint(124, 0x02);
-            } else {
-                // ST 0601.19 §8.124.1: all bits zero has no meaning and is not
-                // allowed. Zero satellites in use says nothing about which
-                // constellation, so omit rather than emit the forbidden code.
-                coverage.omitted[124] = OmissionReason::UndefinedForFrame;
-            }
+            // ST 0601.19 §8.124.1: all bits zero has no meaning and is not
+            // allowed. Zero satellites in use says nothing about which
+            // constellation, so omit rather than emit the forbidden code.
+            coverage.omitted[124] = OmissionReason::UndefinedForFrame;
         }
     } else {
         coverage.omitted[123] = OmissionReason::SourceAbsent;

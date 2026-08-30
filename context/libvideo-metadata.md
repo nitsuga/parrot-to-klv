@@ -50,7 +50,7 @@ and implement lightweight parsers tailored to our needs.
 - `include/video-metadata/vmeta_frame_v2.h` — v2 format structures
 - `include/video-metadata/vmeta_frame_v3.h` — v3 format structures
 - `include/video-metadata/vmeta_frame_proto.h` — proto format wrapper
-- `include/video-metadata/vmeta.h` — Common types (location, quaternion, euler, etc.)
+- `include/video-metadata/vmeta.h` — Common types (location, quaternion, euler, etc.) — vendored at `../references/vmeta.h` at `22f715a` (BSD-3-Clause)
 - `proto/vmeta.proto` — Protobuf schema for proto format
 
 ### Source (Implementation)
