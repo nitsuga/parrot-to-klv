@@ -172,8 +172,11 @@ struct Klv0601Frame {
 ///
 /// There is no option to emit the true angle here, and there cannot be: ST 0601
 /// maps ±limit onto the whole int16 range, so a larger value has no encoding in
-/// these items (ADR 0008). Items 90/91 always carry accurate full-range values,
-/// which is where a consumer wanting the real attitude should read.
+/// these items (ADR 0008). Items 90/91 are where a consumer wanting the real
+/// attitude should read — they are accurate across their own ±90° range, which
+/// is what "full-range" names: full relative to Items 6/7, not unbounded. Past
+/// ±90° they are omitted as `EncodeRejected` rather than clamped or flagged, so
+/// a tumbling airframe reports no roll at all rather than a wrong one.
 ///
 /// **Item 11 inference**: `TransformOptions::infer_image_source` fills Item 11
 /// for a recording that carries no spectrum field (every v3 recording) by
