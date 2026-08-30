@@ -96,6 +96,14 @@ values are checked as a consumer sees them rather than as we staged them.
   confident wrong time. The same all-zero latitude/longitude pair in v3's
   automation framing target means no target; normalization leaves Items
   40/41/42 absent rather than emitting a confident null-island location.
+- **v3 gates its sensor position on the satellite count.** v3 reaches the same
+  conclusion by a different route: it carries a real `sv_count`, so `from_v3`
+  withholds Items 13/14/15 when the count is zero instead of testing the
+  coordinates for zero the way proto must. Altitude gates with the pair rather
+  than separately — it is GPS AMSL against the EGM96 geoid and shares the
+  `altitude_and_sv` word with the count, so one fix produces or withholds all
+  three, and there is no barometric source to fall back on. Each format uses
+  its own honest signal; the emitted result is the same `SourceAbsent`.
 - **`asin` is clamped** before computing pitch. A v3 quaternion that is barely
   non-unit from fixed-point rounding can push the argument past 1 and yield NaN
   anyway — a NaN pitch/roll that reaches `put_narrow_angle` (Items 6/7) is
