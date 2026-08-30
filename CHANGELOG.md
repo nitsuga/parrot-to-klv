@@ -7,6 +7,45 @@ tell a user nothing.
 The release workflow publishes the section matching the tag, so a heading here
 must be exactly `## vX.Y.Z`.
 
+## v0.4.1
+
+A correctness release for v3 recordings. Every change here is about *not*
+emitting something the recording never established — so a consumer that reads
+Items 13/14/15 will see them absent on frames where earlier versions emitted a
+position. Nothing was added, no flag changed, and the MPEG-TS stream layout and
+proto-format handling are untouched.
+
+### Fixed
+
+- **A v3 frame with no GPS fix no longer reports a position.** Items 13/14/15
+  (sensor latitude, longitude, AMSL altitude) were emitted from whatever the
+  recording held even when the satellite count said there was no fix, which put
+  a confident wrong position into the output. All three are now withheld
+  together — the altitude included, because it is GPS AMSL rather than an
+  independent barometric reading. Frames that do have a fix are unaffected.
+
+- **The satellite count's "unavailable" sentinel is no longer read as 255
+  satellites.** Parrot writes `VMETA_LOCATION_INVALID_SV_COUNT` (`0xFF`) when
+  the count is unavailable. That value was being emitted verbatim as Item 123 —
+  a count no receiver can produce — and was passing the fix check, so it also
+  restored the fabricated position the previous fix had just closed. `0xFF` now
+  withholds Items 13/14/15 and omits Items 123/124, on both the v3 and proto
+  paths.
+
+- **A recording with more than one Parrot metadata track says so.** Conversion
+  still uses the first track found, but now warns which one it took and how many
+  it ignored, instead of choosing silently.
+
+### Changed
+
+- **Items 90/91 are documented as bounded, not unbounded.** The README, the
+  transform API comments, and ADR 0008 all described them as "always" carrying
+  the accurate attitude. They are accurate across their own ±90°; past that they
+  are omitted as `EncodeRejected`, with no out-of-range sentinel emitted. Prose
+  only — the encoder behaved this way already.
+
+- **Dependency:** the pinned libmisbklv commit moves to `a0b9964`.
+
 ## v0.4.0
 
 This release makes live capture practical for unattended and intermittent

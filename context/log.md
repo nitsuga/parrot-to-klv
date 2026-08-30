@@ -2,6 +2,32 @@
 
 ## 2026-08-30
 
+* **Prepared the `v0.4.1` release.** `project(VERSION)` moves `0.4.0` → `0.4.1`
+  and `CHANGELOG.md` gains its `## v0.4.1` section, which the release workflow
+  publishes verbatim for the tag (`release.yml` falls back to generated notes
+  when a section is missing, so an absent heading degrades the release page
+  silently rather than failing — the reason this is checked at prepare time). A
+  patch bump: the four changes since `v0.4.0` are the #114 no-fix position gate,
+  the #118 `0xFF` sentinel, the #116 dual-track warning, and the #112 C6 prose
+  correction, plus the libmisbklv pin at `a0b9964`. It is called out as
+  behavior-visible even so — a consumer reading Items 13/14/15 now sees them
+  absent on frames that previously carried a fabricated position.
+  **Doc drift found and fixed in the same pass**, all in `README.md`, which had
+  been left behind by three merges: it still claimed Items 90/91 "always carry
+  accurate full-range values" — the exact overstatement #112 C6 removed from
+  `transform.hpp`, `transform.cpp` and ADR 0008, at what turned out to be a
+  fourth site that commit missed; it documented nothing about position being
+  withheld on a no-fix or sentinel count (#114/#118); and it did not mention the
+  dual-track warning (#116). `docs/` is still the placeholder it has always
+  been, so `README.md` is the only user-facing document these behaviors could
+  have reached, which is what made the gap worth closing before a tag rather
+  than after. Open issues were reviewed for release blockers and none is one:
+  #88 (`parrot-scrub --alt` accepts out-of-range values, undefined behavior via
+  `std::lround`, silently writes 0 m) is the strongest candidate to fix but is
+  **deferred to a later release** by decision; #67, #89, #115 and #79 are
+  narrower or out of near-term scope. None of the five is a regression from this
+  range — all predate `v0.4.0`.
+
 * **v3 sentinel sv_count 0xFF is now absent, not 255 NAVSATs (#118):** ingested `references/vmeta.h` at `22f715a` (BSD-3-Clause) where `VMETA_LOCATION_INVALID_SV_COUNT ((uint8_t)-1)` defines the sentinel (`vmeta.h` § `VMETA_LOCATION_INVALID_SV_COUNT` / `vmeta_location` — `sv_count` decoupled from `valid`: `0xFF` means count unavailable, not "no fix"). The header decouples count from valid — `0xFF` may appear even when `valid` is set — so it does not mean "no fix". v3 packs only altitude+count and offers no validity signal other than `sv_count`, so `0xFF` leaves nothing to trust — fail closed (withhold position). `from_v3` now gates position on `sv_count != 0 && sv_count != 0xFF`, so Items 13/14/15 are withheld as `SourceAbsent`; `TelemetrySnapshot::sv_count` is left absent for 0xFF and the transform treats it as `SourceAbsent` for Items 123/124 instead of emitting 255 NAVSATs. Cost: a real fix whose count is unreported loses position. Adds `check_sentinel_sv_count_omits_position_and_navsat` covering 255 alongside 0 and 300. This closes the sentinel gap left after #114's `sv_count > 0` gate.
 
 * **Bounded the "full-range" claim for Items 90/91 (#112 C6):** `transform.hpp`,

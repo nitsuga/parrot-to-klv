@@ -112,6 +112,11 @@ normalizes `udp://host:port` → `udp:host:port` and handles bracketed IPv6), an
 KLV emission and `file→srt` the same; add `--repeat` to loop until `SIGINT` (`--repeat-pts reset|continue`, default `reset` — `continue` advances by the recording's full track duration so the next loop starts cleanly past the previous) —
 see [ADR 0015](context/decisions/0015-file-replay-live-output.md).
 
+A recording carrying more than one Parrot metadata track is converted from the
+first one found, and says so: `Warning: found N Parrot metadata tracks; using
+track X and ignoring Y other(s)`. Converting more than one track is out of scope,
+so the warning exists to stop a silent choice between them going unnoticed.
+
 The offline output carries the recording's own video elementary stream plus one
 ST 0601 packet for each successfully decoded and mapped metadata sample;
 malformed or unmappable samples are skipped and counted. The live output carries
@@ -163,10 +168,22 @@ lower PID. See
 `0x8000` "out-of-range" sentinel is emitted; `--clamp-attitude` emits the spec
 limit instead, for consumers that treat a missing value as a parse failure.
 
-**Items 90/91 always carry accurate full-range values**, and are where to read
-the real attitude. There is no option to put the true angle into Items 6/7:
-ST 0601 maps ±limit onto the whole 16-bit range, so a larger value has no
-encoding there at all.
+**Items 90/91 are where to read the real attitude**, accurate across their own
+±90° — which is what "full-range" names: full relative to Items 6/7, not
+unbounded. Past ±90° they are omitted as `EncodeRejected` rather than clamped or
+flagged, so a tumbling airframe reports no roll at all rather than a wrong one.
+There is no option to put the true angle into Items 6/7: ST 0601 maps ±limit
+onto the whole 16-bit range, so a larger value has no encoding there at all.
+
+**Position needs a satellite count to be trusted:** v3 packs the GPS satellite
+count into the same word as the altitude and carries no separate validity flag,
+so the count is the only fix signal there is. A count of `0` (no fix) or Parrot's
+`VMETA_LOCATION_INVALID_SV_COUNT` sentinel (`0xFF`, "count unavailable") withholds
+Items 13/14/15 — sensor latitude, longitude and AMSL altitude — and omits Items
+123/124 rather than reporting a position the recording never established. The
+altitude goes with the pair because it is GPS AMSL, not an independent barometric
+reading. The cost is deliberate: a real fix whose count went unreported loses its
+position too, which beats emitting a confident wrong one.
 
 **Image Source Sensor:** Item 11 names the sensor (`EO`, `IR`, `EO Wide`). The
 proto format states it; **v3 does not**, so the whole ANAFI range omits the item

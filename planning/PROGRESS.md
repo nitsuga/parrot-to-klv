@@ -82,7 +82,7 @@ here: [MP4 metadata extraction](../context/mp4-extraction.md),
 surface — flags, output, the scrub and conform workflows — is in
 [`README.md`](../README.md).
 
-**`v0.4.0` is the current published release.** Native x86-64 and `aarch64`
+**`v0.4.1` is the current published release.** Native x86-64 and `aarch64`
 bundles and container images ship together, each built and smoke-tested on its own
 architecture. The Ubuntu 22.04 compatibility floor now comes from the shared
 digest-pinned Jammy build container rather than a retiring runner label, while
