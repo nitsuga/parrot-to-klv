@@ -134,16 +134,21 @@ bool track_sample_tables_valid(const MP4D_track_t& track) {
     return true;
 }
 
-/// Locate the Parrot metadata track among the scanned descriptions.
-/// Returns the index into `tracks`, or -1.
-int find_parrot_metadata_track(const std::vector<Mp4TrackDescription>& tracks) {
+struct FindResult {
+    int index = -1;
+    int count = 0;
+};
+
+FindResult find_parrot_metadata_track(const std::vector<Mp4TrackDescription>& tracks) {
+    FindResult r;
     for (size_t i = 0; i < tracks.size(); ++i) {
         if (tracks[i].handler_type == kHandlerMeta &&
             format_from_mime(tracks[i].mime_format).has_value()) {
-            return static_cast<int>(i);
+            ++r.count;
+            if (r.index < 0) r.index = static_cast<int>(i);
         }
     }
-    return -1;
+    return r;
 }
 
 /// Report what we did find, so a non-Parrot or unexpected file says why.
@@ -243,24 +248,16 @@ std::optional<Mp4MetadataExtractor> Mp4MetadataExtractor::open(const std::string
         return std::nullopt;
     }
 
-    const int track_idx = find_parrot_metadata_track(tracks);
+    const auto found = find_parrot_metadata_track(tracks);
+    const int track_idx = found.index;
     if (track_idx < 0) {
         std::cerr << "No Parrot metadata track in: " << file_path << "\n";
         report_tracks(tracks);
         return std::nullopt;
     }
-    {
-        int match_count = 0;
-        for (const auto& t : tracks) {
-            if (t.handler_type == kHandlerMeta && format_from_mime(t.mime_format).has_value()) {
-                ++match_count;
-            }
-        }
-        if (match_count > 1) {
-            std::cerr << "Warning: found " << match_count
-                      << " Parrot metadata tracks; using track " << track_idx
-                      << " and ignoring " << (match_count - 1) << " other(s)\n";
-        }
+    if (found.count > 1) {
+        std::cerr << "Warning: found " << found.count << " Parrot metadata tracks; using track "
+                  << track_idx << " and ignoring " << (found.count - 1) << " other(s)\n";
     }
     const auto& described = tracks[static_cast<size_t>(track_idx)];
 

@@ -15,6 +15,7 @@
 #include <fstream>
 #include <iostream>
 #include <iterator>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -24,6 +25,14 @@ using namespace parrot_to_klv;
 namespace {
 
 int g_failures = 0;
+
+struct CerrCapture {
+    std::streambuf* old;
+    std::ostringstream buf;
+    CerrCapture() { old = std::cerr.rdbuf(buf.rdbuf()); }
+    ~CerrCapture() { std::cerr.rdbuf(old); }
+    std::string str() const { return buf.str(); }
+};
 
 void check(bool condition, const std::string& what) {
     if (!condition) {
@@ -278,13 +287,13 @@ void test_dual_parrot_metadata_track_warns(const char* dir) {
     // Two Parrot 'mett' tracks (same MIME type) referencing the same video
     // track. Mp4MetadataExtractor::open must pick the first and emit a
     // warning mentioning both the count and the chosen index.
-    std::ostringstream captured;
-    auto* old_buf = std::cerr.rdbuf(captured.rdbuf());
-
-    auto extractor = Mp4MetadataExtractor::open(fixture(dir, "parrot_v3_dual_mett.mp4"));
-
-    std::cerr.rdbuf(old_buf);
-    const std::string err = captured.str();
+    std::string err;
+    std::optional<Mp4MetadataExtractor> extractor;
+    {
+        CerrCapture cap;
+        extractor = Mp4MetadataExtractor::open(fixture(dir, "parrot_v3_dual_mett.mp4"));
+        err = cap.str();
+    }
 
     check(extractor.has_value(), "dual-mett fixture opens");
     if (!extractor) return;
@@ -298,6 +307,20 @@ void test_dual_parrot_metadata_track_warns(const char* dir) {
     check(err.find("2 Parrot metadata tracks") != std::string::npos,
           "dual-mett warning mentions '2 Parrot metadata tracks'");
     check(err.find("using track") != std::string::npos, "dual-mett warning mentions 'using track'");
+    check(err.find("ignoring 1 other") != std::string::npos,
+          "dual-mett warning mentions 'ignoring 1 other(s)'");
+
+    // Negative case: single-mett fixture must not emit the dual-track warning.
+    {
+        CerrCapture cap;
+        auto single = Mp4MetadataExtractor::open(fixture(dir, "parrot_v3.mp4"));
+        const std::string single_err = cap.str();
+        check(single.has_value(), "single-mett fixture still opens (negative case)");
+        check(single_err.find("Warning") == std::string::npos,
+              "single-mett produces no Warning");
+        check(single_err.find("Parrot metadata tracks") == std::string::npos,
+              "single-mett produces no Parrot metadata tracks warning");
+    }
 }
 
 void test_mime_parsing() {
