@@ -12,6 +12,10 @@
 
 namespace parrot_to_klv {
 
+/// Parrot's sentinel for "SV count not available" — VMETA_LOCATION_INVALID_SV_COUNT
+/// ((uint8_t)-1) == 0xFF, see references/vmeta.h:455 at commit 22f715a.
+inline constexpr uint8_t kVmetaInvalidSvCount = 0xFF;
+
 /// Identifier of the v3 base structure ('P3').
 inline constexpr uint16_t kParrotV3Id = 0x5033;
 

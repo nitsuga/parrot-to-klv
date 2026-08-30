@@ -876,6 +876,65 @@ void check_nan_attitude_is_invalid_not_out_of_range() {
           "Item 7 is not reported emitted with the out-of-range special");
 }
 
+void check_sentinel_sv_count_omits_position_and_navsat() {
+    // VMETA_LOCATION_INVALID_SV_COUNT = 0xFF (references/vmeta.h:455) is not
+    // 255 satellites — it is Parrot's "not available" sentinel. from_v3 must
+    // treat it as absent, withholding Items 13/14/15 and omitting Item 123/124
+    // as SourceAbsent, not as 255/0x02.
+    ParrotV3Frame frame;
+    frame.latitude_deg = 45.5;
+    frame.longitude_deg = -73.5;
+    frame.altitude_amsl_m = 250.0;
+    frame.sv_count = 0xFF;
+    frame.drone_quat = identity();
+    frame.frame_quat = identity();
+    frame.frame_timestamp_us = 33333;
+    const auto snapshot = from_v3(frame);
+    check(!snapshot.latitude_deg.has_value(), "sentinel v3 frame: latitude is absent, not 45.5");
+    check(!snapshot.longitude_deg.has_value(), "sentinel v3 frame: longitude is absent, not -73.5");
+    check(!snapshot.altitude_amsl_m.has_value(),
+          "sentinel v3 frame: altitude is absent, not 250 m");
+    check(!snapshot.sv_count.has_value(), "sentinel v3 frame: sv_count is absent, not 255");
+    const auto klv = to_0601(snapshot);
+    const auto decoded = decode_packet(klv.packet);
+    check(klv.coverage.omitted.count(13) == 1 &&
+              klv.coverage.omitted.at(13) == OmissionReason::SourceAbsent,
+          "sentinel: Item 13 omitted as absent, not fabricated");
+    check(klv.coverage.omitted.count(14) == 1 &&
+              klv.coverage.omitted.at(14) == OmissionReason::SourceAbsent,
+          "sentinel: Item 14 omitted as absent, not fabricated");
+    check(klv.coverage.omitted.count(15) == 1 &&
+              klv.coverage.omitted.at(15) == OmissionReason::SourceAbsent,
+          "sentinel: Item 15 omitted as absent, not fabricated");
+    check(klv.coverage.omitted.count(123) == 1 &&
+              klv.coverage.omitted.at(123) == OmissionReason::SourceAbsent,
+          "sentinel: Item 123 omitted as SourceAbsent, not emitted as 255");
+    check(klv.coverage.omitted.count(124) == 1 &&
+              klv.coverage.omitted.at(124) == OmissionReason::SourceAbsent,
+          "sentinel: Item 124 omitted as SourceAbsent, not emitted");
+    check(decoded.reals.count(13) == 0, "sentinel emits no Item 13");
+    check(decoded.reals.count(14) == 0, "sentinel emits no Item 14");
+    check(decoded.reals.count(15) == 0, "sentinel emits no Item 15");
+    check(decoded.uints.count(123) == 0, "sentinel emits no Item 123");
+    check(decoded.uints.count(124) == 0, "sentinel emits no Item 124");
+
+    // Transform must also treat a raw 255 snapshot as absent — defensive in
+    // case a snapshot is constructed outside from_v3 (e.g. direct assignment or
+    // a future proto path).
+    auto direct = base_v3_snapshot();
+    direct.sv_count = 255;
+    const auto klv2 = to_0601(direct);
+    const auto decoded2 = decode_packet(klv2.packet);
+    check(klv2.coverage.omitted.count(123) == 1 &&
+              klv2.coverage.omitted.at(123) == OmissionReason::SourceAbsent,
+          "raw 255 sv_count: Item 123 omitted as SourceAbsent");
+    check(klv2.coverage.omitted.count(124) == 1 &&
+              klv2.coverage.omitted.at(124) == OmissionReason::SourceAbsent,
+          "raw 255 sv_count: Item 124 omitted as SourceAbsent");
+    check(decoded2.uints.count(123) == 0, "raw 255 emits no Item 123");
+    check(decoded2.uints.count(124) == 0, "raw 255 emits no Item 124");
+}
+
 }  // namespace
 
 int main() {
@@ -903,6 +962,7 @@ int main() {
     check_no_fix_v3_frame_omits_position();
     check_zero_sv_count_omits_item_124();
     check_nan_attitude_is_invalid_not_out_of_range();
+    check_sentinel_sv_count_omits_position_and_navsat();
 
     if (g_failures > 0) {
         std::cerr << g_failures << " check(s) failed\n";

@@ -18,6 +18,8 @@ proto-side gaps are #115.
 
 **Dual Parrot metadata tracks now warn (#116):** `Mp4MetadataExtractor::open` counts Parrot `mett` tracks in one traversal and warns when more than one is present — `Warning: found N Parrot metadata tracks; using track X and ignoring Y other(s)` — while still selecting the first match. A synthetic `parrot_v3_dual_mett.mp4` fixture and hardened test (RAII stderr capture, negative single-mett case, `ignoring` clause) cover it; converting both tracks remains out of scope.
 
+**v3 sentinel sv_count 0xFF is absent, not 255 NAVSATs (#118):** `from_v3` gates position on `sv_count != 0 && sv_count != 0xFF` (VMETA_LOCATION_INVALID_SV_COUNT, `references/vmeta.h:455` at `22f715a`) so 255 no longer counts as a fix and Items 13/14/15 are withheld; Item 123/124 are `SourceAbsent` for 0xFF instead of emitting 255 NAVSATs. Covered alongside 0 and 300.
+
 **MP4 track pairing fails closed (#87):** `Mp4MetadataExtractor::open()` rejects
 disagreement between the first-`moov` box scan and minimp4's track count, then
 verifies every indexed handler type before using the metadata index. A synthetic

@@ -156,13 +156,15 @@ TelemetrySnapshot from_v3(const ParrotV3Frame& f) {
     // the EGM96 geoid and rides in the *same* 32-bit word as the count
     // (`altitude_and_sv`, parrot_v3.cpp), so one fix produces or withholds all
     // three. There is no barometric source in v3 to fall back on.
-    if (f.sv_count > 0) {
+    // 0xFF is VMETA_LOCATION_INVALID_SV_COUNT (references/vmeta.h:455) — treat
+    // as absent, not a 255-satellite fix.
+    if (f.sv_count != 0 && f.sv_count != kVmetaInvalidSvCount) {
         s.latitude_deg = f.latitude_deg;
         s.longitude_deg = f.longitude_deg;
         s.altitude_amsl_m = f.altitude_amsl_m;
     }
     // No ellipsoid height in v3: Item 75 would need an EGM96 lookup.
-    s.sv_count = f.sv_count;
+    if (f.sv_count != kVmetaInvalidSvCount) s.sv_count = f.sv_count;
     s.ground_distance_m = f.ground_distance_m;
 
     s.drone_quat = f.drone_quat;
