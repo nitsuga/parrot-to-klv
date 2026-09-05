@@ -3,7 +3,7 @@
 # Licensed under the Apache License, Version 2.0
 #
 # Build the container image from an already-assembled bundle, and package it as
-# the second release deliverable: the exported image, the launcher, and usage.
+# the second release deliverable: the exported image, launch/setup scripts, and usage.
 #
 #   ./packaging/make-image.sh <bundle-dir> <version> <architecture> <staging-dir>
 #
@@ -66,6 +66,10 @@ sed -e "s|@IMAGE_TAG@|$tag|g" \
 
 sed -e "s|@VERSION@|$VERSION|g" -e "s|@ARCH@|$ARCH|g" -e "s|@IMAGE_TAG@|$tag|g" \
     "$here/.env.example" > "$OUT/.env.example"
+
+sed -e "s|@IMAGE_TAG@|$tag|g" -e "s|@IMAGE_FILE@|$image_file|g" \
+    "$here/setup-live" > "$OUT/setup-live"
+chmod +x "$OUT/setup-live"
 
 cp "$BUNDLE/THIRD-PARTY.md" "$OUT/THIRD-PARTY.md"
 

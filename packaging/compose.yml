@@ -4,23 +4,21 @@
 # as the IMAGE_TAG default (overridable in .env) — the same bake-in the
 # launcher beside this file carries.
 #
-# Copy .env.example to .env, set RTSP_URI and HOST_UID/HOST_GID there (see
-# .env.example), then:
+# Run ./setup-live for guided setup. For manual setup, copy .env.example to
+# .env, set RTSP_URI and HOST_UID/HOST_GID there (see .env.example), then:
 #   mkdir -p ./captures   (or whatever OUTPUT_DIR names — see below)
-#   HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose up -d
-# (pinning per invocation overrides .env; a plain `up -d` only works if .env
-# already carries your IDs — the service has no fallback user).
+#   docker compose up -d
+name: parrot-to-klv
+
 services:
   ingest:
     image: "${IMAGE_TAG:-@IMAGE_TAG@}"
+    pull_policy: never
     # Caller ownership (ADR 0010): the launcher passes --user "$(id -u):$(id -g)"
     # so output belongs to you, not root — this is the compose spelling of the
     # same boundary. HOST_UID/HOST_GID are required with no fallback: set them
-    # in .env (see .env.example) or pin them per invocation with
-    # HOST_UID=$(id -u) HOST_GID=$(id -g). An unset ID fails the render loudly
-    # instead of silently writing captures as the wrong user. The HOST_ names
-    # avoid bash's readonly UID, which `export` cannot set. Documented beside
-    # OUTPUT_DIR in .env.example.
+    # in .env (setup-live fills them from id -u/id -g). An unset ID fails the
+    # render loudly instead of silently writing captures as the wrong user.
     user: "${HOST_UID:?set HOST_UID to your user id, e.g. HOST_UID=$(id -u)}:${HOST_GID:?set HOST_GID to your group id, e.g. HOST_GID=$(id -g)}"
     command:
       - "${RTSP_URI:?set RTSP_URI in .env}"
@@ -39,9 +37,13 @@ services:
       # - "--no-loop"
     volumes:
       # Pre-create this directory on the host (mkdir -p) with your own
-      # ownership: if it does not exist, the daemon creates it root-owned and
-      # the service — running as you, not root — cannot write to it.
-      - "${OUTPUT_DIR:-./captures}:/out"
+      # ownership. create_host_path: false makes a missing path fail at startup
+      # instead of letting the daemon create it as root.
+      - type: bind
+        source: "${OUTPUT_DIR:-./captures}"
+        target: /out
+        bind:
+          create_host_path: false
     # Required for multicast interface selection: --iface must see the host's
     # real NIC names. A bridge exposes only the container's eth0 and cannot
     # select egress on a multi-homed host. Linux only.

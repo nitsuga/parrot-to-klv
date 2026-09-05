@@ -7,7 +7,7 @@ fork: 10
 tags: [decision, packaging, release, docker, ci]
 generated:
   by: openai/gpt-5
-  at: 2026-09-05T14:25:36Z
+  at: 2026-09-05T15:09:08Z
 ---
 
 # Context
@@ -28,7 +28,7 @@ The tarball remains the recommended default.
 # Decision
 
 **Ship an exported container image alongside the tarball**, as a directory
-containing the image, a launcher, and usage:
+containing the image, file and live setup scripts, and usage:
 
 ```
 parrot-to-klv-<version>-linux-x86_64-docker/
@@ -36,6 +36,7 @@ parrot-to-klv-<version>-linux-x86_64-docker/
   parrot-to-klv-<version>-x86_64-image.tar.gz   docker load
   compose.yml                            long-running live ingest (RTSP, --reconnect)
   .env.example                           its settings (copy to .env)
+  setup-live                             guided setup, image load, and service start
   USAGE.md
   THIRD-PARTY.md
 ```
@@ -126,13 +127,17 @@ the audience turns out to be registry-connected.
   applies there: the service runs as `HOST_UID:HOST_GID` (`user:`, the compose
   spelling of the launcher's `--user`), required with no fallback — an unset
   ID fails the render loudly instead of silently writing captures as the
-  wrong user — and the operator creates `OUTPUT_DIR` before
-  the first `up`, since a daemon-created directory would be root-owned and
-  unwritable to the service. `RTSP_URI` is required and an unset or empty value
-  fails the render rather than starting a restart loop with no source. Host
-  networking is required so `--iface` sees the host's real NICs and can select
-  multicast egress on a multi-homed host; this makes the Compose path
-  Linux-only, consistent with the supported targets. Recovery layering stays
+  wrong user — and the operator creates `OUTPUT_DIR` before the first `up`;
+  the bind mount has `create_host_path: false`, so a missing directory fails
+  instead of being daemon-created as root. `RTSP_URI` is required; an unset or
+  empty value fails the render rather than starting a restart loop with no
+  source. Host networking is required so `--iface` sees the host's real NICs
+  and can select multicast egress on a multi-homed host; this makes the Compose path
+  Linux-only, consistent with the supported targets, and removes network
+  isolation. Compose never pulls: the release is registry-free, so a missing
+  image fails rather than consulting a registry. Its stable project name and
+  baked image default keep upgrades from creating a version-named second
+  service or remaining pinned to an old tag. Recovery layering stays
   with the tool — the
   service relaunches after any exit (`restart: unless-stopped`) so it runs
   at boot and as a service — stopping is explicit (`compose stop`/`down`).
@@ -145,6 +150,17 @@ the audience turns out to be registry-connected.
   runtime values, asserts host networking, and asserts no `@VAR@` placeholder
   survived staging — config-only, since no hermetic
   source can drive the staged image without a network.
+- `setup-live` is the recommended path: it explains the host-network, restart,
+  and credential consequences; collects and validates the source, sink, and
+  session bounds; records the caller IDs automatically; creates the capture
+  directory; writes `.env` with mode 0600; loads the bundled image; validates
+  Compose; and optionally starts the service. Re-running it is also the upgrade
+  path: it can retain the existing `.env` settings while clearing a confirmed
+  stale `IMAGE_TAG`, offers to replace the loaded tag, shows and confirms any
+  matching ingest container before a graceful stop and force-recreate,
+  optionally removes older same-architecture image tags, and never removes
+  captures. A daemon-free shell test stages it against a fake Docker CLI and
+  checks that complete path.
 - No shell in the image means no `exec` in to look around when a user reports a
   problem. `Dockerfile.debug` exists for that, and the usage notes say so.
 - The launcher resolves paths on the host before the container starts, so

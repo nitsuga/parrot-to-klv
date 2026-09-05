@@ -305,9 +305,10 @@ jobs:
           cd parrot-to-klv-*-docker/
           test -f compose.yml || { echo "::error::compose.yml missing from the deliverable"; exit 1; }
           test -f .env.example || { echo "::error::.env.example missing from the deliverable"; exit 1; }
+          test -x setup-live || { echo "::error::setup-live missing or not executable"; exit 1; }
           # The staging substitution must be complete: any @VAR@ left is a tag
           # that drifted from the image beside it.
-          if grep -HnE '@[A-Z_]+@' compose.yml .env.example; then
+          if grep -HnE '@[A-Z_]+@' compose.yml .env.example setup-live; then
             echo "::error::unstaged @VAR@ placeholder left in the compose deliverable"; exit 1
           fi
           RTSP_URI=rtsp://127.0.0.1:8554/live HOST_UID=1234 HOST_GID=5678 docker compose config > rendered.yml \
@@ -321,10 +322,18 @@ jobs:
           # would pass `user: root` or a silent 1000:1000 fallback.
           grep -q 'restart: unless-stopped' rendered.yml \
             || { echo "::error::compose service must relaunch after exit"; exit 1; }
+          grep -q 'pull_policy: never' rendered.yml \
+            || { echo "::error::compose service must use the loaded image, never a registry"; exit 1; }
           grep -qE '^[[:space:]]*user: 1234:5678[[:space:]]*$' rendered.yml \
             || { echo "::error::compose service must run as HOST_UID:HOST_GID (expected 1234:5678)"; exit 1; }
           grep -qE '^[[:space:]]*network_mode: host[[:space:]]*$' rendered.yml \
             || { echo "::error::compose service must use host networking for --iface"; exit 1; }
+          grep -qE '^[[:space:]]*create_host_path: false[[:space:]]*$' compose.yml \
+            || { echo "::error::compose must not create a root-owned output directory"; exit 1; }
+          expected_tag=$(sed -n "s/^IMAGE_TAG='\([^']*\)'$/\1/p" parrot-to-klv)
+          actual_tag=$(sed -n 's/^[[:space:]]*image: //p' rendered.yml | tr -d "'\"" | head -1)
+          [ "$actual_tag" = "$expected_tag" ] \
+            || { echo "::error::compose image $actual_tag differs from launcher image $expected_tag"; exit 1; }
           # Required IDs fail loudly: rendering without them must not succeed
           # with a silent default.
           if env -u HOST_UID -u HOST_GID RTSP_URI=rtsp://127.0.0.1:8554/live docker compose config > /dev/null 2>&1; then
@@ -335,7 +344,8 @@ jobs:
           fi
           # The staged .env.example must interpolate too when its required
           # source is supplied; its remaining defaults render on their own.
-          RTSP_URI=rtsp://127.0.0.1:8554/live docker compose --env-file .env.example config > /dev/null \
+          RTSP_URI=rtsp://127.0.0.1:8554/live HOST_UID=1234 HOST_GID=5678 \
+            docker compose --env-file .env.example config > /dev/null \
             || { echo "::error::compose file does not render from .env.example"; exit 1; }
           echo "compose file renders"
 

@@ -2,6 +2,23 @@
 
 ## 2026-09-05
 
+* **Guided live Compose setup (#125, PR 126 review):** the Docker deliverable
+  now stages `setup-live`, an interactive path that explains host networking,
+  restart behavior, and RTSP credential exposure; loads the bundled image;
+  collects the source, sink, and bounds; records caller ownership; creates the
+  capture directory; writes a mode-0600 `.env`; validates Compose; and can
+  start the service. Re-running it also guides upgrades: it can reload the
+  bundled tag while retaining existing `.env` settings and clearing a
+  confirmed stale image pin, shows and confirms an existing ingest container
+  before a graceful stop and force-recreate,
+  optionally removes older same-architecture image tags, and never removes
+  captures. The Docker USAGE leads with a two-command quick start.
+  Compose now has a stable project name, never pulls, refuses to create a
+  missing bind path as root, and lets its baked image tag win when `.env` is
+  reused. A fake-Docker shell test covers the guided path; staging smoke checks
+  the new artifact and invariants. README, ADR 0010, and PROGRESS updated with
+  the same setup and upgrade workflow.
+
 * **Compose requires its source and host network (#125, PR 126 review):**
   `RTSP_URI` is now a required nonempty Compose value, preventing a missing
   source from entering an `unless-stopped` restart loop. The service uses host

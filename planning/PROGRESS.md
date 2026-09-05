@@ -8,25 +8,32 @@ chronological history (what landed when, decision detail) lives in
 
 ## Now
 
-**Long-running live sessions ship a compose file (#125):** the container
-deliverable stages `compose.yml` + `.env.example` through `make-image.sh`
-(tag baked in as the `IMAGE_TAG` default), an `ingest` service capturing RTSP
-with reconnect/idle-timeout/empty-session bounds from the environment into a
-mounted captures directory. The service runs as the caller (`user:
-HOST_UID:HOST_GID`, required with no fallback — set in `.env` or pinned per
-invocation from `id -u`/`id -g`) and relaunches after any exit
+**Long-running live sessions ship guided Compose setup (#125):** the container
+deliverable stages `compose.yml`, `.env.example`, and `setup-live` through
+`make-image.sh` (tag baked in as the `IMAGE_TAG` default), an `ingest` service
+capturing RTSP with reconnect/idle-timeout/empty-session bounds from the
+environment into a mounted captures directory. The service runs as the caller (`user:
+HOST_UID:HOST_GID`, required with no fallback) and relaunches after any exit
 (`restart: unless-stopped`) so it runs at boot as a service — the internal
 `--reconnect` loop owns stream recovery between sessions while Compose owns
 availability across runs, and the empty-session bound covers one process
 lifetime; the
-operator pre-creates `OUTPUT_DIR` so it is not daemon-made root-owned.
+operator pre-creates `OUTPUT_DIR`; Compose refuses to create it as root.
 `RTSP_URI` is required at render time, and the service requires Linux host
 networking so `--iface` can select a real host NIC for multicast egress.
+`setup-live` is the quick path: it explains the network/restart/credential
+tradeoffs, loads the image, collects the settings, records caller IDs, creates
+the directory, writes a mode-0600 `.env`, validates Compose, and can start it.
+Re-running it handles upgrades: it can retain existing `.env` settings while
+clearing a confirmed stale image pin, reload the bundled image, confirm and
+gracefully replace a matching existing service, optionally remove older
+same-architecture image tags, and leave captures untouched.
 `compose stop` (SIGTERM) drains like Ctrl-C — both signals share one handler,
 so no signal change was needed — with a 330-second grace covering the
 300-second upstream finish-drain bound. Validated by a staged render check in
-`smoke-image` (no `@VAR@` left, required values plus
-`restart`/`user:`/host networking asserted); usage lives in
+`smoke-image` (no `@VAR@` left, image identity, local-only pull policy, required
+values, output-path refusal, restart/user/host networking asserted) and a
+daemon-free guided-setup test; usage lives in
 the docker USAGE.
 
 **v3 no-fix frames omit their position (#114):** `from_v3` gates the sensor
