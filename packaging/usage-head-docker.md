@@ -74,14 +74,15 @@ defaults to `/out/capture.ts`, which lands in `./captures` on the host
 captures next to it. `IDLE_TIMEOUT` (default 10, `0` disables) ends a session
 after that long with no video delivered, and `MAX_EMPTY_SESSIONS` (default 5)
 ends the process with exit 1 after that many sessions in a row that opened yet
-delivered nothing — and with `restart: "no"` the run then stays stopped.
+delivered nothing — and with `restart: unless-stopped` the service is then
+relaunched, so the bound covers one process lifetime and the counter resets.
 Sessions that deliver video count as non-empty even with no
 telemetry, so video-only captures are kept.
 
-Recovery from a dropped source is the tool's own `--reconnect` loop, not
-Compose: the service never restarts, so each `up` is one run that ends on its
-bound, an unrecoverable error, or `docker compose stop`. Compose owns nothing;
-the internal loop owns stream recovery.
+Recovery from a dropped source is the tool's own `--reconnect` loop; Compose
+owns availability across runs — the service runs at boot and after any exit,
+and only `docker compose stop` or `down` keeps it stopped. Each bound reached
+is one run ending, not the service ending.
 
 Create `OUTPUT_DIR` before the first `up`: if the directory does not exist,
 the daemon creates it root-owned, and the service — running as you, not as

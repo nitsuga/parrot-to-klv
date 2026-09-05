@@ -2,6 +2,14 @@
 
 ## 2026-09-05
 
+* **Compose restart becomes unless-stopped (#125):** the `ingest` service
+  relaunches after any exit so it runs at boot as a service — stopping is
+  explicit (`compose stop`/`down`). The empty-session bound now covers one
+  process lifetime (a bound-reached run is relaunched with its counter
+  reset); stream recovery between sessions stays with the internal
+  `--reconnect` loop. Compose template, usage, smoke assertion, ADR 0010,
+  and PROGRESS updated together.
+
 * **Compose review fixes (#125, PR 126 review):** five items. The `ingest`
   service now runs as the caller (`user: "${UID:-1000}:${GID:-1000}"`, the
   compose spelling of the launcher's `--user`, with `UID`/`GID` passed from

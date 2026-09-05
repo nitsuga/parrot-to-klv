@@ -312,11 +312,12 @@ jobs:
           fi
           RTSP_URI=rtsp://127.0.0.1:8554/live docker compose config > rendered.yml \
             || { echo "::error::compose file does not render"; exit 1; }
-          # The caller-ownership boundary (ADR 0010) and the no-restart
-          # layering the usage documents: Compose owns nothing, the
-          # --reconnect loop owns stream recovery.
-          grep -q 'restart: "no"' rendered.yml \
-            || { echo "::error::compose service must not restart finished runs"; exit 1; }
+          # The caller-ownership boundary (ADR 0010) and the service
+          # semantics the usage documents: the service runs as the caller
+          # and relaunches after any exit (boot/as-a-service), while the
+          # --reconnect loop owns stream recovery within a run.
+          grep -q 'restart: unless-stopped' rendered.yml \
+            || { echo "::error::compose service must relaunch after exit"; exit 1; }
           grep -q 'user: ' rendered.yml \
             || { echo "::error::compose service must run as the caller"; exit 1; }
           # The staged .env.example must interpolate untouched, too: its

@@ -37,10 +37,13 @@ services:
       # ownership: if it does not exist, the daemon creates it root-owned and
       # the service — running as you, not root — cannot write to it.
       - "${OUTPUT_DIR:-./captures}:/out"
-    # The tool already reconnects internally (--reconnect loop), so Compose
-    # owns nothing: a finished run — bound reached (exit 1), unrecoverable
-    # error, or `compose stop` — stays stopped instead of being relaunched.
-    restart: "no"
+    # Service semantics: this runs at boot and after any exit
+    # (restart: unless-stopped), so stopping is explicit — `compose stop` or
+    # `down`. That means MAX_EMPTY_SESSIONS bounds one process lifetime: a run
+    # that reaches its bound (exit 1) is relaunched and its counter resets.
+    # Stream recovery between sessions is still the internal --reconnect loop;
+    # Compose owns availability across runs.
+    restart: unless-stopped
     logging:
       driver: json-file
       options:

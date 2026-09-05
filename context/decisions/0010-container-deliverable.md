@@ -127,9 +127,11 @@ the audience turns out to be registry-connected.
   of the launcher's `--user`), and the operator creates `OUTPUT_DIR` before
   the first `up`, since a daemon-created directory would be root-owned and
   unwritable to the service. Recovery layering stays with the tool — the
-  service never restarts (`restart: "no"`); the internal `--reconnect` loop
-  owns stream recovery, so a run that reaches its bound (exit 1) stays
-  stopped. The 330-second stop grace covers libmisbklv's 300-second
+  service relaunches after any exit (`restart: unless-stopped`) so it runs
+  at boot and as a service — stopping is explicit (`compose stop`/`down`).
+  The internal `--reconnect` loop still owns stream recovery between
+  sessions, but the empty-session bound now covers one process lifetime:
+  a run that reaches it (exit 1) is relaunched with its counter reset. The 330-second stop grace covers libmisbklv's 300-second
   finish-drain bound (`gst_insert.cpp` `kFinishDrainTimeout`) with headroom,
   and SIGTERM drains like SIGINT through the one shared handler. The smoke
   test renders the staged compose from the staged `.env.example` and asserts
