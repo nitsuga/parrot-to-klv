@@ -28,7 +28,7 @@ FetchContent_Declare(
   # a consumer can fail before its first KLV packet (parrot-to-klv#94); clean
   # EOS is deliberately not reported, since a live insert cannot observe one
   # before close() sends it (libmisbklv ADR 0035).
-  GIT_TAG a0b996415d01519792445c0a9454cf78f0627731
+  GIT_TAG 4da3023c95bc45ef78bf6a1895939e6b043a5eac
 )
 FetchContent_MakeAvailable(misbklv)
 
