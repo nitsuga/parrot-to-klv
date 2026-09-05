@@ -2,6 +2,81 @@
 
 ## 2026-09-05
 
+* **Guided live Compose setup (#125, PR 126 review):** the Docker deliverable
+  now stages `setup-live`, an interactive path that explains host networking,
+  restart behavior, and RTSP credential exposure; loads the bundled image;
+  collects the source, sink, and bounds; records caller ownership; creates the
+  capture directory; writes a mode-0600 `.env`; validates Compose; reports an
+  unreachable Docker daemon directly; and can start the service. Re-running it
+  also guides upgrades: it can reload the
+  bundled tag while retaining existing `.env` settings and clearing a
+  confirmed stale image pin, shows and confirms an existing ingest container
+  before a graceful stop and force-recreate,
+  optionally removes older same-architecture image tags, and never removes
+  captures. The Docker USAGE leads with a two-command quick start.
+  Compose now has a stable project name, never pulls, refuses to create a
+  missing bind path as root, and lets its baked image tag win when `.env` is
+  reused. A fake-Docker shell test covers the guided path; staging smoke checks
+  the new artifact and invariants. README, ADR 0010, and PROGRESS updated with
+  the same setup and upgrade workflow.
+
+* **Compose requires its source and host network (#125, PR 126 review):**
+  `RTSP_URI` is now a required nonempty Compose value, preventing a missing
+  source from entering an `unless-stopped` restart loop. The service uses host
+  networking so `--iface` sees real host NICs and can select multicast egress
+  on a multi-homed host. The template, `.env.example`, docker usage, ADR 0010,
+  PROGRESS, and staged render assertions were updated together.
+
+* **Compose restart becomes unless-stopped (#125):** the `ingest` service
+  relaunches after any exit so it runs at boot as a service — stopping is
+  explicit (`compose stop`/`down`). The empty-session bound now covers one
+  process lifetime (a bound-reached run is relaunched with its counter
+  reset); stream recovery between sessions stays with the internal
+  `--reconnect` loop. Compose template, usage, smoke assertion, ADR 0010,
+  and PROGRESS updated together.
+
+* **Compose review fixes (#125, PR 126 review):** five items. The `ingest`
+  service now runs as the caller (`user: "${HOST_UID:?…}:${HOST_GID:?…}"`,
+  the compose spelling of the launcher's `--user`, with `HOST_UID`/`HOST_GID`
+  required — set in `.env` or pinned per invocation from `id -u`/`id -g`;
+  an unset ID fails the render loudly, and the `HOST_` names avoid bash's
+  readonly `UID`, which `export` cannot set). `OUTPUT_DIR` must be created
+  with `mkdir -p` before the first `up` — a daemon-created directory would be
+  root-owned and unwritable to the service. `restart: unless-stopped` became
+  `restart: "no"`: the internal `--reconnect` loop owns stream recovery, so a
+  run that reaches its bound (exit 1) stays stopped, and the usage now states
+  that layering. `stop_grace_period` is 330 seconds, covering libmisbklv's
+  300-second finish-drain bound (`gst_insert.cpp` `kFinishDrainTimeout`) with
+  headroom; SIGTERM==SIGINT handling verified already true (`main.cpp`
+  one handler for both). [ADR 0010](./decisions/0010-container-deliverable.md)
+  gains the two files in its artifact tree plus the ownership/restart/grace
+  consequences. The smoke compose check now renders the staged compose from
+  the staged `.env.example`, asserts no `@VAR@` survived, and asserts the
+  rendered `restart`/`user:` — still config-only, since the `pipeline:` test
+  source needs elements the bundle omits and no hermetic source can drive the
+  staged image. Verified: `compose config` with and without `.env`,
+  `bash -n`, `ctest -L parrot`.
+
+* **Compose file for long-running live sessions (#125):** the container
+  deliverable now ships `compose.yml` plus `.env.example` — an `ingest`
+  service capturing an RTSP source with `--reconnect`, `--idle-timeout`, and
+  `--max-empty-sessions` from the environment, file output kept in a mounted
+  `./captures` by default, `unless-stopped` restart, json-file log rotation,
+  and a 30-second stop grace. Both stage through `make-image.sh` on the
+  existing `@VAR@` substitution pattern (tag baked in as the `IMAGE_TAG`
+  default, version/arch in `.env.example`'s header), and USAGE.md gains a live
+  section via `usage-head-docker.md`. Signal check: no code change needed —
+  `main` already handles SIGTERM the same as SIGINT, so `compose stop` drains
+  through the same cooperative flag the live loops poll and finalizes the
+  capture rather than killing it mid-write; the entrypoint is the binary
+  itself, so it receives the signal directly as PID 1. CI validates with
+  `docker compose config` in `smoke-image` — config-only, since a live run
+  needs an RTSP peer and nothing hermetic in CI speaks RTSP. No new ADR: this
+  extends the container deliverable ([ADR 0010](./decisions/0010-container-deliverable.md)),
+  not a new deliverable shape or fork, so the register and ROADMAP are
+  untouched. Verified: `bash -n` on the touched scripts, staged templates
+  render through `compose config` with the substitution applied.
+
 * **Live idle watchdog now measures video delivery, not telemetry (#123):**
   `live_ingest` ends a session when `KlvSink::last_video_delivery` goes idle
   for `--idle-timeout` (loop-entry time stands in while nothing has delivered

@@ -3,7 +3,7 @@
 # Licensed under the Apache License, Version 2.0
 #
 # Build the container image from an already-assembled bundle, and package it as
-# the second release deliverable: the exported image, the launcher, and usage.
+# the second release deliverable: the exported image, launch/setup scripts, and usage.
 #
 #   ./packaging/make-image.sh <bundle-dir> <version> <architecture> <staging-dir>
 #
@@ -56,6 +56,21 @@ sed -e "s|@VERSION@|$VERSION|g" -e "s|@ARCH@|$ARCH|g" \
     "$here/usage-head-docker.md" > "$OUT/USAGE.md"
 printf '\n' >> "$OUT/USAGE.md"
 cat "$here/usage-common.md" >> "$OUT/USAGE.md"
+
+# The compose file for long-running live sessions, with this release's tag as
+# the IMAGE_TAG default (overridable in .env) — the same bake-in the launcher
+# above carries. USAGE.md needs no extra step: its compose section lives in
+# usage-head-docker.md, which the lines above already assemble.
+sed -e "s|@IMAGE_TAG@|$tag|g" \
+    "$here/compose.yml" > "$OUT/compose.yml"
+
+sed -e "s|@VERSION@|$VERSION|g" -e "s|@ARCH@|$ARCH|g" -e "s|@IMAGE_TAG@|$tag|g" \
+    "$here/.env.example" > "$OUT/.env.example"
+
+sed -e "s|@IMAGE_TAG@|$tag|g" -e "s|@IMAGE_FILE@|$image_file|g" \
+    "$here/setup-live" > "$OUT/setup-live"
+chmod +x "$OUT/setup-live"
+
 cp "$BUNDLE/THIRD-PARTY.md" "$OUT/THIRD-PARTY.md"
 
 (cd "$OUT" && sha256sum "$image_file" > "$image_file.sha256")

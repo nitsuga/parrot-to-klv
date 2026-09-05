@@ -1,0 +1,70 @@
+# Long-running live session for the parrot-to-klv container deliverable.
+#
+# Staged per release by make-image.sh, which bakes this release's image tag in
+# as the IMAGE_TAG default (overridable in .env) — the same bake-in the
+# launcher beside this file carries.
+#
+# Run ./setup-live for guided setup. For manual setup, copy .env.example to
+# .env, set RTSP_URI and HOST_UID/HOST_GID there (see .env.example), then:
+#   mkdir -p ./captures   (or whatever OUTPUT_DIR names — see below)
+#   docker compose up -d
+name: parrot-to-klv
+
+services:
+  ingest:
+    image: "${IMAGE_TAG:-@IMAGE_TAG@}"
+    pull_policy: never
+    # Caller ownership (ADR 0010): the launcher passes --user "$(id -u):$(id -g)"
+    # so output belongs to you, not root — this is the compose spelling of the
+    # same boundary. HOST_UID/HOST_GID are required with no fallback: set them
+    # in .env (setup-live fills them from id -u/id -g). An unset ID fails the
+    # render loudly instead of silently writing captures as the wrong user.
+    user: "${HOST_UID:?set HOST_UID to your user id, e.g. HOST_UID=$(id -u)}:${HOST_GID:?set HOST_GID to your group id, e.g. HOST_GID=$(id -g)}"
+    command:
+      - "${RTSP_URI:?set RTSP_URI in .env}"
+      - "-o"
+      - "${SINK:-/out/capture.ts}"
+      - "--idle-timeout"
+      - "${IDLE_TIMEOUT:-10}"
+      - "--reconnect"
+      - "--max-empty-sessions"
+      - "${MAX_EMPTY_SESSIONS:-5}"
+      # UDP multicast tuning — uncomment when SINK is a udp: address:
+      # - "--iface"
+      # - "${UDP_IFACE}"
+      # - "--ttl"
+      # - "${UDP_TTL:-1}"
+      # - "--no-loop"
+    volumes:
+      # Pre-create this directory on the host (mkdir -p) with your own
+      # ownership. create_host_path: false makes a missing path fail at startup
+      # instead of letting the daemon create it as root.
+      - type: bind
+        source: "${OUTPUT_DIR:-./captures}"
+        target: /out
+        bind:
+          create_host_path: false
+    # Required for multicast interface selection: --iface must see the host's
+    # real NIC names. A bridge exposes only the container's eth0 and cannot
+    # select egress on a multi-homed host. Linux only.
+    network_mode: host
+    # Service semantics: this runs at boot and after any exit
+    # (restart: unless-stopped), so stopping is explicit — `compose stop` or
+    # `down`. That means MAX_EMPTY_SESSIONS bounds one process lifetime: a run
+    # that reaches its bound (exit 1) is relaunched and its counter resets.
+    # Stream recovery between sessions is still the internal --reconnect loop;
+    # Compose owns availability across runs.
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    # Worst case for a clean stop: closing a session can remux the rest of a
+    # video file after the final KLV packet, which libmisbklv bounds at 300
+    # seconds (gst_insert.cpp kFinishDrainTimeout) — 30 seconds of headroom on
+    # top. SIGTERM is handled the same as SIGINT (main.cpp: one handler for
+    # both), so `compose stop` drains through the same cooperative flag the
+    # live loops poll and finalizes the capture rather than killing it
+    # mid-write.
+    stop_grace_period: 330s

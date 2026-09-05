@@ -26,8 +26,9 @@ target machine, on the [releases page](https://github.com/nitsuga/parrot-to-klv/
 
 - **`…-linux-<architecture>.tar.gz`** — extract and run. Self-contained: no
   GStreamer, no root, nothing installed. This is the recommended one.
-- **`…-linux-<architecture>-docker.tar.gz`** — an exported container image plus
-  a launcher, for hosts that already run containers.
+- **`…-linux-<architecture>-docker.tar.gz`** — an exported container image, a
+  file-conversion launcher, and guided Docker Compose setup for long-running
+  live ingest on Linux.
 
 Each carries a `USAGE.md`. Why they are shaped this way:
 [ADR 0009](context/decisions/0009-release-bundle.md) and

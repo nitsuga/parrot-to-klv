@@ -398,6 +398,13 @@ add_test(NAME packaging_output_guard
          COMMAND ${CMAKE_SOURCE_DIR}/test/packaging_output_guard_test.sh
                  ${CMAKE_SOURCE_DIR})
 
+# The guided live setup runs against a fake Docker CLI in a disposable staged
+# deliverable: image replacement, private env generation, directory creation,
+# and the Compose upgrade/start calls are all observable without a daemon.
+add_test(NAME setup_live
+         COMMAND ${CMAKE_SOURCE_DIR}/test/setup_live_test.sh
+                 ${CMAKE_SOURCE_DIR})
+
 # A recording that vanishes between --scan's directory listing and its
 # per-file stat (here, a dangling symlink -- deterministic and privilege-
 # independent, unlike a permission-denied directory) must be reported by
@@ -427,7 +434,7 @@ add_test(NAME live_rtp COMMAND live_rtp_test ${CMAKE_SOURCE_DIR}/test/fixtures)
 # from CI, so keep the list in step — that is the one thing this arrangement
 # asks for in exchange for not enumerating someone else's tests to exclude.
 #
-# The two shell-script tests below (packaging_output_guard and
+# The shell-script tests below (packaging_output_guard, setup_live, and
 # conformance_real_data) are not compiled by CMake, so ASan/UBSan
 # instrumentation buys them nothing; they keep the plain "parrot" label.
 set_tests_properties(
@@ -451,5 +458,5 @@ set_tests_properties(
   conform_reports_stat_failure live_rtp file_replay
   PROPERTIES LABELS "parrot;parrot-sanitize")
 set_tests_properties(
-  conformance_real_data packaging_output_guard
+  conformance_real_data packaging_output_guard setup_live
   PROPERTIES LABELS "parrot")

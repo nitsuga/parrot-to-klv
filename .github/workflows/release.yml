@@ -288,6 +288,67 @@ jobs:
           [ "$code" -ne 0 ] || { echo "::error::launcher succeeded with no input"; exit 1; }
           echo "exits $code without prompting"
 
+      # The compose file ships in this deliverable; prove the staged files are
+      # complete and render. Config-only on purpose: a live run needs an RTSP
+      # peer and nothing hermetic in CI speaks RTSP, and the repo's pipeline:
+      # test source cannot drive the staged image either — it needs
+      # videotestsrc, videoconvert and an H.264 encoder, elements the bundle
+      # deliberately omits (only the ten conversion and live-path plugins
+      # ship), and the CLI gates pipeline: behind PARROT_TEST_ALLOW_PIPELINE.
+      # So there is no finite-source run to do — these assertions still catch
+      # bad YAML, bad interpolation, a tag substitution that drifted from the
+      # image beside it, and a service that would restart a finished run or
+      # write root-owned captures. Needs no daemon, no network, no pull:
+      # config never touches the image.
+      - name: Check the compose file renders
+        run: |
+          cd parrot-to-klv-*-docker/
+          test -f compose.yml || { echo "::error::compose.yml missing from the deliverable"; exit 1; }
+          test -f .env.example || { echo "::error::.env.example missing from the deliverable"; exit 1; }
+          test -x setup-live || { echo "::error::setup-live missing or not executable"; exit 1; }
+          # The staging substitution must be complete: any @VAR@ left is a tag
+          # that drifted from the image beside it.
+          if grep -HnE '@[A-Z_]+@' compose.yml .env.example setup-live; then
+            echo "::error::unstaged @VAR@ placeholder left in the compose deliverable"; exit 1
+          fi
+          RTSP_URI=rtsp://127.0.0.1:8554/live HOST_UID=1234 HOST_GID=5678 docker compose config > rendered.yml \
+            || { echo "::error::compose file does not render"; exit 1; }
+          # The caller-ownership boundary (ADR 0010) and the service
+          # semantics the usage documents: the service runs as the caller
+          # with host networking (so --iface sees host NICs),
+          # and relaunches after any exit (boot/as-a-service), while the
+          # --reconnect loop owns stream recovery within a run. Assert the
+          # exact IDs rendered, not just a `user: ` prefix — the prefix alone
+          # would pass `user: root` or a silent 1000:1000 fallback.
+          grep -q 'restart: unless-stopped' rendered.yml \
+            || { echo "::error::compose service must relaunch after exit"; exit 1; }
+          grep -q 'pull_policy: never' rendered.yml \
+            || { echo "::error::compose service must use the loaded image, never a registry"; exit 1; }
+          grep -qE '^[[:space:]]*user: 1234:5678[[:space:]]*$' rendered.yml \
+            || { echo "::error::compose service must run as HOST_UID:HOST_GID (expected 1234:5678)"; exit 1; }
+          grep -qE '^[[:space:]]*network_mode: host[[:space:]]*$' rendered.yml \
+            || { echo "::error::compose service must use host networking for --iface"; exit 1; }
+          grep -qE '^[[:space:]]*create_host_path: false[[:space:]]*$' compose.yml \
+            || { echo "::error::compose must not create a root-owned output directory"; exit 1; }
+          expected_tag=$(sed -n "s/^IMAGE_TAG='\([^']*\)'$/\1/p" parrot-to-klv)
+          actual_tag=$(sed -n 's/^[[:space:]]*image: //p' rendered.yml | tr -d "'\"" | head -1)
+          [ "$actual_tag" = "$expected_tag" ] \
+            || { echo "::error::compose image $actual_tag differs from launcher image $expected_tag"; exit 1; }
+          # Required IDs fail loudly: rendering without them must not succeed
+          # with a silent default.
+          if env -u HOST_UID -u HOST_GID RTSP_URI=rtsp://127.0.0.1:8554/live docker compose config > /dev/null 2>&1; then
+            echo "::error::compose file renders without HOST_UID/HOST_GID — IDs must be required"; exit 1
+          fi
+          if env -u RTSP_URI HOST_UID=1234 HOST_GID=5678 docker compose config > /dev/null 2>&1; then
+            echo "::error::compose file renders without RTSP_URI — source must be required"; exit 1
+          fi
+          # The staged .env.example must interpolate too when its required
+          # source is supplied; its remaining defaults render on their own.
+          RTSP_URI=rtsp://127.0.0.1:8554/live HOST_UID=1234 HOST_GID=5678 \
+            docker compose --env-file .env.example config > /dev/null \
+            || { echo "::error::compose file does not render from .env.example"; exit 1; }
+          echo "compose file renders"
+
   publish:
     # Only a tag publishes. A workflow_dispatch run stops after smoke, which is
     # what makes it safe to use for testing the pipeline itself.
