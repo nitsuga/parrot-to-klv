@@ -288,19 +288,41 @@ jobs:
           [ "$code" -ne 0 ] || { echo "::error::launcher succeeded with no input"; exit 1; }
           echo "exits $code without prompting"
 
-      # The compose file ships in this deliverable; prove it renders with the
-      # staged defaults. Config-only on purpose: a live run needs an RTSP peer
-      # and nothing hermetic in CI speaks RTSP, so there is no finite-source
-      # run to do — this still catches bad YAML, bad interpolation, and a tag
-      # substitution that drifted from the image beside it. Needs no daemon,
-      # no network, no pull: config never touches the image.
+      # The compose file ships in this deliverable; prove the staged files are
+      # complete and render. Config-only on purpose: a live run needs an RTSP
+      # peer and nothing hermetic in CI speaks RTSP, and the repo's pipeline:
+      # test source cannot drive the staged image either — it needs
+      # videotestsrc, videoconvert and an H.264 encoder, elements the bundle
+      # deliberately omits (only the ten conversion and live-path plugins
+      # ship), and the CLI gates pipeline: behind PARROT_TEST_ALLOW_PIPELINE.
+      # So there is no finite-source run to do — these assertions still catch
+      # bad YAML, bad interpolation, a tag substitution that drifted from the
+      # image beside it, and a service that would restart a finished run or
+      # write root-owned captures. Needs no daemon, no network, no pull:
+      # config never touches the image.
       - name: Check the compose file renders
         run: |
           cd parrot-to-klv-*-docker/
           test -f compose.yml || { echo "::error::compose.yml missing from the deliverable"; exit 1; }
           test -f .env.example || { echo "::error::.env.example missing from the deliverable"; exit 1; }
-          RTSP_URI=rtsp://127.0.0.1:8554/live docker compose config > /dev/null \
+          # The staging substitution must be complete: any @VAR@ left is a tag
+          # that drifted from the image beside it.
+          if grep -HnE '@[A-Z_]+@' compose.yml .env.example; then
+            echo "::error::unstaged @VAR@ placeholder left in the compose deliverable"; exit 1
+          fi
+          RTSP_URI=rtsp://127.0.0.1:8554/live docker compose config > rendered.yml \
             || { echo "::error::compose file does not render"; exit 1; }
+          # The caller-ownership boundary (ADR 0010) and the no-restart
+          # layering the usage documents: Compose owns nothing, the
+          # --reconnect loop owns stream recovery.
+          grep -q 'restart: "no"' rendered.yml \
+            || { echo "::error::compose service must not restart finished runs"; exit 1; }
+          grep -q 'user: ' rendered.yml \
+            || { echo "::error::compose service must run as the caller"; exit 1; }
+          # The staged .env.example must interpolate untouched, too: its
+          # defaults render on their own.
+          docker compose --env-file .env.example config > /dev/null \
+            || { echo "::error::compose file does not render from .env.example"; exit 1; }
           echo "compose file renders"
 
   publish:

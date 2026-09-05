@@ -2,6 +2,27 @@
 
 ## 2026-09-05
 
+* **Compose review fixes (#125, PR 126 review):** five items. The `ingest`
+  service now runs as the caller (`user: "${UID:-1000}:${GID:-1000}"`, the
+  compose spelling of the launcher's `--user`, with `UID`/`GID` passed from
+  `id -u`/`id -g` via `env` and documented in `.env.example` (`export` cannot
+  set `UID` — it is readonly in bash). `OUTPUT_DIR` must be created
+  with `mkdir -p` before the first `up` — a daemon-created directory would be
+  root-owned and unwritable to the service. `restart: unless-stopped` became
+  `restart: "no"`: the internal `--reconnect` loop owns stream recovery, so a
+  run that reaches its bound (exit 1) stays stopped, and the usage now states
+  that layering. `stop_grace_period` is 330 seconds, covering libmisbklv's
+  300-second finish-drain bound (`gst_insert.cpp` `kFinishDrainTimeout`) with
+  headroom; SIGTERM==SIGINT handling verified already true (`main.cpp`
+  one handler for both). [ADR 0010](./decisions/0010-container-deliverable.md)
+  gains the two files in its artifact tree plus the ownership/restart/grace
+  consequences. The smoke compose check now renders the staged compose from
+  the staged `.env.example`, asserts no `@VAR@` survived, and asserts the
+  rendered `restart`/`user:` — still config-only, since the `pipeline:` test
+  source needs elements the bundle omits and no hermetic source can drive the
+  staged image. Verified: `compose config` with and without `.env`,
+  `bash -n`, `ctest -L parrot`.
+
 * **Compose file for long-running live sessions (#125):** the container
   deliverable now ships `compose.yml` plus `.env.example` — an `ingest`
   service capturing an RTSP source with `--reconnect`, `--idle-timeout`, and

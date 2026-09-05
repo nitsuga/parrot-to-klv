@@ -4,10 +4,19 @@
 # as the IMAGE_TAG default (overridable in .env) — the same bake-in the
 # launcher beside this file carries.
 #
-# Copy .env.example to .env, edit it, then `docker compose up -d`.
+# Copy .env.example to .env, edit it, then:
+#   mkdir -p ./captures   (or whatever OUTPUT_DIR names — see below)
+#   docker compose up -d
 services:
   ingest:
     image: "${IMAGE_TAG:-@IMAGE_TAG@}"
+    # Caller ownership (ADR 0010): the launcher passes --user "$(id -u):$(id -g)"
+    # so output belongs to you, not root — this is the compose spelling of the
+    # same boundary. UID/GID come from your shell environment (pass them with
+    # env UID=$(id -u) GID=$(id -g) to pin them — export cannot set UID, it is
+    # readonly in bash); the 1000 fallbacks cover a shell where they are
+    # unset. Documented beside OUTPUT_DIR in .env.example.
+    user: "${UID:-1000}:${GID:-1000}"
     command:
       - "${RTSP_URI}"
       - "-o"
@@ -24,14 +33,27 @@ services:
       # - "${UDP_TTL:-1}"
       # - "--no-loop"
     volumes:
+      # Pre-create this directory on the host (mkdir -p) with your own
+      # ownership: if it does not exist, the daemon creates it root-owned and
+      # the service — running as you, not root — cannot write to it.
       - "${OUTPUT_DIR:-./captures}:/out"
-    restart: unless-stopped
+    # The tool already reconnects internally (--reconnect loop), so Compose
+    # owns nothing: a finished run — bound reached (exit 1), unrecoverable
+    # error, or `compose stop` — stays stopped instead of being relaunched.
+    restart: "no"
     logging:
       driver: json-file
       options:
         max-size: "10m"
         max-file: "5"
-    stop_grace_period: 30s
+    # Worst case for a clean stop: closing a session can remux the rest of a
+    # video file after the final KLV packet, which libmisbklv bounds at 300
+    # seconds (gst_insert.cpp kFinishDrainTimeout) — 30 seconds of headroom on
+    # top. SIGTERM is handled the same as SIGINT (main.cpp: one handler for
+    # both), so `compose stop` drains through the same cooperative flag the
+    # live loops poll and finalizes the capture rather than killing it
+    # mid-write.
+    stop_grace_period: 330s
     # Bridge networking (the default) handles RTSP ingest and file or unicast
     # output. Multicast egress on a multi-homed host follows the container's
     # routing table — add a static route for the multicast range via the right

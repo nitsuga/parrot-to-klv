@@ -12,9 +12,15 @@ chronological history (what landed when, decision detail) lives in
 deliverable stages `compose.yml` + `.env.example` through `make-image.sh`
 (tag baked in as the `IMAGE_TAG` default), an `ingest` service capturing RTSP
 with reconnect/idle-timeout/empty-session bounds from the environment into a
-mounted captures directory. `compose stop` (SIGTERM) drains like Ctrl-C —
-both signals share one handler, so no signal change was needed. Validated by
-`docker compose config` in `smoke-image`; usage lives in the docker USAGE.
+mounted captures directory. The service runs as the caller (`user: UID:GID`,
+passed from `id -u`/`id -g` via `env`) and never restarts — the internal `--reconnect`
+loop owns stream recovery, so a bound reached (exit 1) stays stopped; the
+operator pre-creates `OUTPUT_DIR` so it is not daemon-made root-owned.
+`compose stop` (SIGTERM) drains like Ctrl-C — both signals share one handler,
+so no signal change was needed — with a 330-second grace covering the
+300-second upstream finish-drain bound. Validated by a staged render check in
+`smoke-image` (no `@VAR@` left, `restart`/`user:` asserted); usage lives in
+the docker USAGE.
 
 **v3 no-fix frames omit their position (#114):** `from_v3` gates the sensor
 latitude, longitude, and altitude on `sv_count > 0`, so the pre-fix opening of a

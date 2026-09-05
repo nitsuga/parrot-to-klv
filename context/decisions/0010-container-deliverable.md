@@ -6,8 +6,8 @@ decision_status: accepted
 fork: 10
 tags: [decision, packaging, release, docker, ci]
 generated:
-  by: claude/opus-5
-  at: 2026-08-26T06:45:50Z
+  by: opencode-go/muse-spark-1.3-contributor
+  at: 2026-09-05T07:27:44Z
 ---
 
 # Context
@@ -34,6 +34,8 @@ containing the image, a launcher, and usage:
 parrot-to-klv-<version>-linux-x86_64-docker/
   parrot-to-klv                          launcher (docker | podman)
   parrot-to-klv-<version>-x86_64-image.tar.gz   docker load
+  compose.yml                            long-running live ingest (RTSP, --reconnect)
+  .env.example                           its settings (copy to .env)
   USAGE.md
   THIRD-PARTY.md
 ```
@@ -119,6 +121,20 @@ the audience turns out to be registry-connected.
 - The image smoke test asserts something the bundle's cannot: that output is
   owned by the invoking user. That is the `--user` regression test, and without
   it the flag could be dropped and nothing would fail.
+- The deliverable also stages `compose.yml` and `.env.example` for a
+  long-running live ingest service, and the same caller-ownership boundary
+  applies there: the service runs as `UID:GID` (`user:`, the compose spelling
+  of the launcher's `--user`), and the operator creates `OUTPUT_DIR` before
+  the first `up`, since a daemon-created directory would be root-owned and
+  unwritable to the service. Recovery layering stays with the tool — the
+  service never restarts (`restart: "no"`); the internal `--reconnect` loop
+  owns stream recovery, so a run that reaches its bound (exit 1) stays
+  stopped. The 330-second stop grace covers libmisbklv's 300-second
+  finish-drain bound (`gst_insert.cpp` `kFinishDrainTimeout`) with headroom,
+  and SIGTERM drains like SIGINT through the one shared handler. The smoke
+  test renders the staged compose from the staged `.env.example` and asserts
+  no `@VAR@` placeholder survived staging — config-only, since no hermetic
+  source can drive the staged image without a network.
 - No shell in the image means no `exec` in to look around when a user reports a
   problem. `Dockerfile.debug` exists for that, and the usage notes say so.
 - The launcher resolves paths on the host before the container starts, so

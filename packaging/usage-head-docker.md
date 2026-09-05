@@ -59,12 +59,13 @@ nothing and is worth keeping.
 
 The directory beside this file also holds `compose.yml` and `.env.example`:
 an `ingest` service that captures an RTSP source around the clock, one
-finalized capture per session, restarting with the machine.
+finalized capture per session.
 
 ```sh
 docker load -i parrot-to-klv-@VERSION@-@ARCH@-image.tar.gz  # once; or run ./parrot-to-klv once
 cp .env.example .env   # then edit RTSP_URI (and SINK if not a file)
-docker compose up -d
+mkdir -p ./captures    # or whatever OUTPUT_DIR names — Compose must not create it (root-owned)
+env UID=$(id -u) GID=$(id -g) docker compose up -d  # so captures belong to you, not root
 ```
 
 `RTSP_URI` has no default — set it in `.env`. Everything else does: `SINK`
@@ -72,9 +73,24 @@ defaults to `/out/capture.ts`, which lands in `./captures` on the host
 (`OUTPUT_DIR`); with `--reconnect` always on, sessions roll to numbered
 captures next to it. `IDLE_TIMEOUT` (default 10, `0` disables) ends a session
 after that long with no video delivered, and `MAX_EMPTY_SESSIONS` (default 5)
-stops the run after that many sessions in a row that opened yet delivered
-nothing. Sessions that deliver video count as non-empty even with no
+ends the process with exit 1 after that many sessions in a row that opened yet
+delivered nothing — and with `restart: "no"` the run then stays stopped.
+Sessions that deliver video count as non-empty even with no
 telemetry, so video-only captures are kept.
+
+Recovery from a dropped source is the tool's own `--reconnect` loop, not
+Compose: the service never restarts, so each `up` is one run that ends on its
+bound, an unrecoverable error, or `docker compose stop`. Compose owns nothing;
+the internal loop owns stream recovery.
+
+Create `OUTPUT_DIR` before the first `up`: if the directory does not exist,
+the daemon creates it root-owned, and the service — running as you, not as
+root — cannot write to it. Like the launcher, the service runs as your user
+(`user: UID:GID`, the compose spelling of the launcher's
+`--user "$(id -u):$(id -g)"`), so captures belong to you. `UID` and `GID` come
+from your shell environment with a 1000 fallback when unset; passing them via
+`env` from `id -u`/`id -g` as above pins them exactly (`export` cannot set
+`UID` — it is readonly in bash).
 
 Bridge networking (the default) handles RTSP ingest and file or unicast
 output. Multicast egress on a multi-homed host follows the container's routing
@@ -84,9 +100,12 @@ in `.env`). If neither fits, the commented `network_mode: host` fallback
 removes the isolation instead — Linux only.
 
 Stopping drains, it does not cut mid-capture: `docker compose stop` sends
-SIGTERM, which the tool handles the same as Ctrl-C (SIGINT) — the loops
-notice within milliseconds and each session finalizes its capture before the
-process exits. `stop_grace_period` gives that 30 seconds. Logs go to the
+SIGTERM, which the tool handles the same as Ctrl-C (SIGINT) — one handler for
+both signals, so the loops notice within milliseconds and each session
+finalizes its capture before the process exits. `stop_grace_period` gives that
+330 seconds: closing a session can remux the rest of a video file after the
+final KLV packet, which libmisbklv bounds at 300 seconds
+(`gst_insert.cpp` `kFinishDrainTimeout`), with 30 seconds of headroom. Logs go to the
 service's json-file log (`docker compose logs ingest`, kept to five 10 MB
 files); captures stay in `OUTPUT_DIR`.
 
