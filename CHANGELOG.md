@@ -55,9 +55,11 @@ errors. File-to-file conversion and the MPEG-TS stream layout are unchanged.
 ### Added
 
 - **Live runs finish when a source goes idle.** An RTSP capture now ends after
-  `--idle-timeout` seconds without Parrot telemetry (default 10); set it to `0`
+  `--idle-timeout` seconds without delivered video (default 10); set it to `0`
   to wait for `SIGINT`/`SIGTERM` instead. An unattended capture can therefore
   finalize when a sortie ends instead of idling against a dead pipeline.
+  Video-only sources stay up as long as their video flows, and a session that
+  never delivers video ends with a backend error rather than a capture.
 
 - **Reconnect across repeated sorties.** `--reconnect` keeps one invocation
   polling for a source every `--reconnect-interval` seconds (default 3),
@@ -65,8 +67,8 @@ errors. File-to-file conversion and the MPEG-TS stream layout are unchanged.
   File outputs are numbered (`flight_0000.ts`, `flight_0001.ts`, …) without
   overwriting captures already on disk; UDP/SRT outputs reuse their address.
   `--max-empty-sessions` (default 5, or `0` to disable) stops a run after that
-  many consecutive opened sessions carry no telemetry, while a source that is
-  simply absent can remain unavailable until it returns.
+  many consecutive opened sessions deliver neither video nor telemetry, while a
+  source that is simply absent can remain unavailable until it returns.
 
 ### Changed
 

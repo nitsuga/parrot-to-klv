@@ -759,11 +759,11 @@ static bool test_live_pipeline_error_without_telemetry() {
     return true;
 }
 
-// --- ADR 0018: the idle timeout is the primary end-of-source signal ---------
+// --- ADR 0018: video-delivery idleness is the primary end-of-source signal -
 
-// A live source that connects and then never delivers telemetry must end on the
+// A live source that connects and then never delivers video must end on the
 // idle timeout rather than hanging. This is the case the watchdog would silently
-// miss if its timer armed at the first sample instead of at drive-loop entry.
+// miss if its timer armed at the first delivery instead of at drive-loop entry.
 static bool test_idle_timeout_ends_a_source_that_never_delivers() {
     std::cout << "test_idle_timeout_ends_a_source_that_never_delivers\n";
     parrot_to_klv::parrot_extension_clear();
@@ -776,11 +776,13 @@ static bool test_idle_timeout_ends_a_source_that_never_delivers() {
     const std::string out = "/tmp/live_idle_never_delivers.ts";
     std::filesystem::remove(out);
     parrot_to_klv::LiveIngestConfig cfg;
-    // Video with no Parrot header extensions: the pipeline stays healthy, so
-    // only the idle timeout can end this run.
+    // Video that never reaches the muxer: identity drops every buffer, so the
+    // pipeline stays healthy (no backend error to end the run) while
+    // last_video_delivery stays nullopt and only the idle timeout can end it.
     cfg.rtsp_uri = "pipeline:videotestsrc is-live=true ! videoconvert ! "
                    "video/x-raw,width=320,height=240,framerate=30/1 ! " +
-                   enc + (h265 ? " ! h265parse" : " ! h264parse");
+                   enc + (h265 ? " ! h265parse" : " ! h264parse") +
+                   " ! identity drop-probability=1.0";
     cfg.udp_sink = "file:" + out;
     // A deadline well past the timeout: the watchdog is what should end this
     // run, but without a backstop a regression would hang the suite instead of
@@ -794,25 +796,38 @@ static bool test_idle_timeout_ends_a_source_that_never_delivers() {
                              std::chrono::steady_clock::now() - t0)
                              .count();
     bool ok = true;
-    if (!r) {
-        std::cerr << "  expected a clean end, got error " << static_cast<int>(r.error()) << "\n";
+    // Nothing is ever delivered, so there is nothing to finalize: the idle
+    // timeout ends the drive, and close() reports Backend because no video
+    // ever flowed (the partial output is discarded, so none remains).
+    if (r) {
+        std::cerr << "  expected a backend error for a source that never delivers, got ok\n";
+        ok = false;
+    } else if (r.error() != misbklv::Error::Backend) {
+        std::cerr << "  expected Backend, got " << static_cast<int>(r.error()) << "\n";
         ok = false;
     }
-    // Bounded above: without the watchdog this run never returns at all.
-    if (elapsed < 1000 || elapsed >= 8000) {
-        std::cerr << "  idle timeout did not end the run on schedule: " << elapsed << " ms\n";
+    // Bounded above by the backstop and below by the two timeouts in series
+    // (idle, then close's first-delivery wait): without the watchdog this run
+    // never returns at all.
+    if (elapsed < 1500 || elapsed >= 8000) {
+        std::cerr << "  source that never delivers did not end on schedule: " << elapsed << " ms\n";
         ok = false;
     }
-    if (ok) std::cout << "  ok (clean end after " << elapsed << " ms)\n";
+    if (ok) std::cout << "  ok (backend error after " << elapsed << " ms, no output kept)\n";
+    if (std::filesystem::exists(out)) {
+        std::cerr << "  undelivered session left output behind\n";
+        ok = false;
+    }
     std::filesystem::remove(out);
     parrot_to_klv::parrot_extension_clear();
     return ok;
 }
 
-// Telemetry that arrives and then stops must also end the run, and must not end
-// it while telemetry is still flowing.
-static bool test_idle_timeout_ends_after_telemetry_stops() {
-    std::cout << "test_idle_timeout_ends_after_telemetry_stops\n";
+// Delivery that stops must also end the run: a finite video source plays out
+// and then goes quiet, and the run must survive the video and end on the
+// timeout that follows it.
+static bool test_idle_timeout_ends_after_delivery_stops() {
+    std::cout << "test_idle_timeout_ends_after_delivery_stops\n";
     parrot_to_klv::parrot_extension_clear();
     std::string enc = pick_encoder();
     if (enc.empty()) {
@@ -837,14 +852,15 @@ static bool test_idle_timeout_ends_after_telemetry_stops() {
     const std::string out = "/tmp/live_idle_after_stop.ts";
     std::filesystem::remove(out);
     parrot_to_klv::LiveIngestConfig cfg;
-    cfg.rtsp_uri = "pipeline:videotestsrc is-live=true ! videoconvert ! "
+    // Thirty buffers at 30 fps: about a second of video, then silence.
+    cfg.rtsp_uri = "pipeline:videotestsrc is-live=true num-buffers=30 ! videoconvert ! "
                    "video/x-raw,width=320,height=240,framerate=30/1 ! " +
                    enc + (h265 ? " ! h265parse" : " ! h264parse");
     cfg.udp_sink = "file:" + out;
     cfg.run_duration = std::chrono::milliseconds(8000);  // backstop, as above
     cfg.idle_timeout = std::chrono::seconds(1);
     // One sample, then silence: the run must survive the sample and end on the
-    // timeout that follows it.
+    // timeout that follows the last delivered video.
     cfg.test_injected_extensions.push_back(
         make_cap(std::span<const uint8_t>(s0->data.data(), s0->data.size()), 1'000'000'000ULL));
 
@@ -858,7 +874,9 @@ static bool test_idle_timeout_ends_after_telemetry_stops() {
         std::cerr << "  expected a clean end, got error " << static_cast<int>(r.error()) << "\n";
         ok = false;
     }
-    if (elapsed < 1000 || elapsed >= 8000) {
+    // About a second of video plus a second of silence: well past the video
+    // alone, well short of the backstop.
+    if (elapsed < 1500 || elapsed >= 8000) {
         std::cerr << "  idle timeout did not end the run on schedule: " << elapsed << " ms\n";
         ok = false;
     }
@@ -867,6 +885,72 @@ static bool test_idle_timeout_ends_after_telemetry_stops() {
         ok = false;
     }
     if (ok) std::cout << "  ok (clean end after " << elapsed << " ms, output kept)\n";
+    std::filesystem::remove(out);
+    parrot_to_klv::parrot_extension_clear();
+    return ok;
+}
+
+// Video without telemetry must outlast telemetry silence: with the watchdog
+// armed, a video-only run survives past the idle threshold on video delivery
+// alone — a telemetry-idle watchdog would end it at the threshold itself.
+// Only a floor is asserted: how long video keeps flowing past that point
+// depends on the source, so the run may end on a later delivery stall (slow
+// hermetic encoders) or on the deadline (a healthy source).
+//
+// Uses x265enc explicitly (skipping when absent, like the H.265 regression
+// test): H.265 rides unstamped with no SEI probe, so this exercises the
+// delivery signal alone. H.264 video-only is covered on the reconnect side by
+// test_reconnect_retains_video_only_sessions.
+static bool test_idle_timeout_video_only_runs_past_threshold() {
+    std::cout << "test_idle_timeout_video_only_runs_past_threshold\n";
+    parrot_to_klv::parrot_extension_clear();
+    {
+        GstElementFactory* f = gst_element_factory_find("x265enc");
+        if (!f) {
+            std::cout << "  SKIP: x265enc not available\n";
+            return true;
+        }
+        gst_object_unref(f);
+    }
+    const std::string out = "/tmp/live_idle_video_only.ts";
+    std::filesystem::remove(out);
+    parrot_to_klv::LiveIngestConfig cfg;
+    // Live video with no Parrot header extensions ever arriving. Finite but
+    // long: 240 buffers at 30 fps is about 8 s of video, so a healthy source
+    // ends on the delivery stall that follows the playout (~9 s), while a
+    // source that stalls early still ends well past the threshold.
+    cfg.rtsp_uri =
+        "pipeline:videotestsrc is-live=true num-buffers=240 ! videoconvert ! "
+        "video/x-raw,format=I420,width=320,height=240,framerate=30/1 ! x265enc ! h265parse";
+    cfg.udp_sink = "file:" + out;
+    cfg.run_duration = std::chrono::milliseconds(12000);  // backstop, as above
+    cfg.idle_timeout = std::chrono::seconds(1);
+
+    const auto t0 = std::chrono::steady_clock::now();
+    auto r = parrot_to_klv::live_ingest(cfg);
+    const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+                             std::chrono::steady_clock::now() - t0)
+                             .count();
+    bool ok = true;
+    if (!r) {
+        std::cerr << "  expected a clean end, got error " << static_cast<int>(r.error()) << "\n";
+        ok = false;
+    }
+    // Must survive well past the 1 s threshold: with no extension ever
+    // arriving, only video delivery can have kept the run up that long.
+    if (elapsed < 1500) {
+        std::cerr << "  video-only run ended on telemetry silence: " << elapsed << " ms\n";
+        ok = false;
+    }
+    if (elapsed >= 12000) {
+        std::cerr << "  video-only run hit its backstop: " << elapsed << " ms\n";
+        ok = false;
+    }
+    if (ok && !std::filesystem::exists(out)) {
+        std::cerr << "  clean end left no output\n";
+        ok = false;
+    }
+    if (ok) std::cout << "  ok (ran past threshold, " << elapsed << " ms)\n";
     std::filesystem::remove(out);
     parrot_to_klv::parrot_extension_clear();
     return ok;
@@ -1003,11 +1087,12 @@ static bool test_first_free_index_skips_existing() {
     return ok;
 }
 
-// A reconnect run that never receives telemetry must leave no capture behind and
-// must not consume an index: an endpoint that accepts and then stalls would
-// otherwise fill the directory, unattended and forever.
-static bool test_reconnect_discards_sessions_without_telemetry() {
-    std::cout << "test_reconnect_discards_sessions_without_telemetry\n";
+// A reconnect run whose sessions deliver nothing — neither video nor
+// telemetry — must leave no capture behind and must not consume an index: an
+// endpoint that accepts and then stalls would otherwise fill the directory,
+// unattended and forever.
+static bool test_reconnect_discards_sessions_without_delivery() {
+    std::cout << "test_reconnect_discards_sessions_without_delivery\n";
     parrot_to_klv::parrot_extension_clear();
     std::string enc = pick_encoder();
     if (enc.empty()) {
@@ -1021,9 +1106,12 @@ static bool test_reconnect_discards_sessions_without_telemetry() {
     std::filesystem::create_directories(dir, ec);
 
     parrot_to_klv::LiveIngestConfig cfg;
+    // Opens fine but delivers nothing: every buffer is dropped before the
+    // muxer, so no session carries video or telemetry.
     cfg.rtsp_uri = "pipeline:videotestsrc is-live=true ! videoconvert ! "
                    "video/x-raw,width=320,height=240,framerate=30/1 ! " +
-                   enc + (h265 ? " ! h265parse" : " ! h264parse");
+                   enc + (h265 ? " ! h265parse" : " ! h264parse") +
+                   " ! identity drop-probability=1.0";
     cfg.udp_sink = "file:" + dir + "/flight.ts";
     cfg.run_duration = std::chrono::milliseconds(6000);  // backstop per session
     cfg.idle_timeout = std::chrono::seconds(1);
@@ -1050,8 +1138,8 @@ static bool test_reconnect_discards_sessions_without_telemetry() {
         std::cerr << "  expected a clean end, got error " << static_cast<int>(r.error()) << "\n";
         ok = false;
     }
-    // Several sessions will have run in that window; none carried telemetry, so
-    // none may have left a file.
+    // Several sessions will have run in that window; none delivered anything,
+    // so none may have left a file.
     size_t left = 0;
     for (const auto& e : std::filesystem::directory_iterator(dir, ec)) {
         ++left;
@@ -1059,6 +1147,72 @@ static bool test_reconnect_discards_sessions_without_telemetry() {
     }
     if (left != 0) ok = false;
     if (ok) std::cout << "  ok (no captures left behind)\n";
+    std::filesystem::remove_all(dir, ec);
+    parrot_to_klv::parrot_extension_clear();
+    return ok;
+}
+
+// A video-only session delivers video but no telemetry: its capture is kept
+// and it does not consume the empty-session budget.
+static bool test_reconnect_retains_video_only_sessions() {
+    std::cout << "test_reconnect_retains_video_only_sessions\n";
+    parrot_to_klv::parrot_extension_clear();
+    std::string enc = pick_encoder();
+    if (enc.empty()) {
+        std::cout << "  SKIP: no encoder available\n";
+        return true;
+    }
+    if (parrot_to_klv::is_mux_interrupted()) {
+        std::cout << "  SKIP: already interrupted (no reset)\n";
+        return true;
+    }
+    const bool h265 = enc == "x265enc";
+    const std::string dir = "/tmp/parrot_reconnect_video_only";
+    std::error_code ec;
+    std::filesystem::remove_all(dir, ec);
+    std::filesystem::create_directories(dir, ec);
+
+    parrot_to_klv::LiveIngestConfig cfg;
+    // Live video with no Parrot header extensions ever arriving.
+    cfg.rtsp_uri = "pipeline:videotestsrc is-live=true ! videoconvert ! "
+                   "video/x-raw,width=320,height=240,framerate=30/1 ! " +
+                   enc + (h265 ? " ! h265parse" : " ! h264parse");
+    cfg.udp_sink = "file:" + dir + "/flight.ts";
+    cfg.run_duration = std::chrono::milliseconds(6000);  // per-session backstop
+    cfg.idle_timeout = std::chrono::seconds(2);
+    cfg.reconnect = true;
+    cfg.reconnect_interval = std::chrono::seconds(1);
+    cfg.max_empty_sessions = 1;  // would stop the run if video-only miscounted
+
+    // The session outlives the window (video keeps flowing, so no idle end),
+    // and only the interrupt ends the run.
+    std::thread stopper([] {
+        std::this_thread::sleep_for(std::chrono::milliseconds(3500));
+        parrot_to_klv::request_mux_interrupt();
+    });
+    auto r = parrot_to_klv::live_ingest(cfg);
+    stopper.join();
+    parrot_to_klv::reset_mux_interrupt_for_test();
+
+    bool ok = true;
+    // Only the interrupt may end this run. An error means the bound counted a
+    // session that delivered video.
+    if (!r) {
+        std::cerr << "  video-only run stopped with error " << static_cast<int>(r.error())
+                  << "; the bound counted a session that delivered video\n";
+        ok = false;
+    }
+    // The session's capture is retained, not discarded as empty.
+    std::vector<std::string> names;
+    for (const auto& e : std::filesystem::directory_iterator(dir, ec)) {
+        names.push_back(e.path().filename().string());
+    }
+    if (names.size() != 1 || names[0] != "flight_0000.ts") {
+        std::cerr << "  expected one retained capture flight_0000.ts, got " << names.size() << "\n";
+        for (const auto& n : names) std::cerr << "    leftover: " << n << "\n";
+        ok = false;
+    }
+    if (ok) std::cout << "  ok (video-only capture retained, bound untouched)\n";
     std::filesystem::remove_all(dir, ec);
     parrot_to_klv::parrot_extension_clear();
     return ok;
@@ -1099,12 +1253,21 @@ static bool test_reconnect_rolls_numbered_captures() {
     std::filesystem::create_directories(dir, ec);
 
     parrot_to_klv::LiveIngestConfig cfg;
+    // Endless video: under the video-delivery watchdog this never goes idle on
+    // its own, so each session ends on its per-session deadline below — never
+    // on a delivery stall. The rollover count is then wall-clock arithmetic,
+    // not stall luck.
     cfg.rtsp_uri = "pipeline:videotestsrc is-live=true ! videoconvert ! "
                    "video/x-raw,width=320,height=240,framerate=30/1 ! " +
                    enc + (h265 ? " ! h265parse" : " ! h264parse");
     cfg.udp_sink = "file:" + dir + "/flight.ts";
-    cfg.run_duration = std::chrono::milliseconds(6000);  // per-session backstop
-    cfg.idle_timeout = std::chrono::seconds(1);
+    // Short per-session deadline: each session ends cleanly ~1.5 s after it
+    // starts, well inside the interrupt window, so at least two numbered
+    // captures land regardless of encoder pacing.
+    cfg.run_duration = std::chrono::milliseconds(1500);
+    // Past the deadline so the deadline — not a stall — is the sole session
+    // ender. A stall would only add sessions, never remove them.
+    cfg.idle_timeout = std::chrono::seconds(2);
     cfg.reconnect = true;
     cfg.reconnect_interval = std::chrono::seconds(1);
     // Injected afresh each session, so every session emits and therefore counts.
@@ -1112,7 +1275,7 @@ static bool test_reconnect_rolls_numbered_captures() {
         make_cap(std::span<const uint8_t>(s0->data.data(), s0->data.size()), 1'000'000'000ULL));
 
     std::thread stopper([] {
-        std::this_thread::sleep_for(std::chrono::milliseconds(5000));
+        std::this_thread::sleep_for(std::chrono::milliseconds(5500));
         parrot_to_klv::request_mux_interrupt();
     });
     auto r = parrot_to_klv::live_ingest(cfg);
@@ -1278,10 +1441,13 @@ static bool test_reconnect_bounds_consecutive_empty_sessions() {
     std::filesystem::create_directories(dir, ec);
 
     parrot_to_klv::LiveIngestConfig cfg;
-    // Opens fine, never carries telemetry: every session is an empty one.
+    // Opens fine but delivers nothing — no video, no telemetry: every session
+    // is an empty one. (A video-only source would deliver video and neither
+    // count nor be discarded; see test_reconnect_retains_video_only_sessions.)
     cfg.rtsp_uri = "pipeline:videotestsrc is-live=true ! videoconvert ! "
                    "video/x-raw,width=320,height=240,framerate=30/1 ! " +
-                   enc + (h265 ? " ! h265parse" : " ! h264parse");
+                   enc + (h265 ? " ! h265parse" : " ! h264parse") +
+                   " ! identity drop-probability=1.0";
     cfg.udp_sink = "file:" + dir + "/flight.ts";
     cfg.run_duration = std::chrono::milliseconds(6000);
     cfg.idle_timeout = std::chrono::seconds(1);
@@ -1960,11 +2126,13 @@ int main(int argc, char* argv[]) {
     ok &= test_continuous_live();
     ok &= test_live_pipeline_error_without_telemetry();
     ok &= test_idle_timeout_ends_a_source_that_never_delivers();
-    ok &= test_idle_timeout_ends_after_telemetry_stops();
+    ok &= test_idle_timeout_ends_after_delivery_stops();
+    ok &= test_idle_timeout_video_only_runs_past_threshold();
     ok &= test_idle_timeout_zero_disables();
     ok &= test_roll_sink_spec_naming();
     ok &= test_first_free_index_skips_existing();
-    ok &= test_reconnect_discards_sessions_without_telemetry();
+    ok &= test_reconnect_discards_sessions_without_delivery();
+    ok &= test_reconnect_retains_video_only_sessions();
     ok &= test_reconnect_rolls_numbered_captures();
     ok &= test_reconnect_does_not_retry_a_fatal_sink();
     ok &= test_reconnect_does_not_retry_an_unsupported_config();

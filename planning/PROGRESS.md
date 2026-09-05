@@ -40,11 +40,12 @@ the source scheme, so a configuration that cannot run stops the run instead of
 spinning.
 
 **Live runs end when the source goes idle (#100):** `live_ingest` ends the
-session when no Parrot telemetry has arrived for `--idle-timeout` seconds
+session when no video has been delivered for `--idle-timeout` seconds
 (default 10, `0` disables), the primary end-of-source signal under
-[ADR 0018](../context/decisions/0018-live-eos-modes.md). A clean EOS early exit
-and video-only captures both await
-[libmisbklv#60](https://github.com/nitsuga/libmisbklv/issues/60).
+[ADR 0018](../context/decisions/0018-live-eos-modes.md). The signal is
+`KlvSink::last_video_delivery`, so a video-only stream stays up as long as
+its video flows, and a reconnect session counts as non-empty when it delivers
+video even with no telemetry.
 
 **Live pipeline terminal failures are returned (#94):** `live_ingest` polls
 libmisbklv's nonblocking `KlvSink::poll()` and returns a backend error

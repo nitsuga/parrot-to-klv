@@ -223,10 +223,12 @@ namespace {
 
 // One live session: build a pipeline against `sink_spec`, drive it until the
 // source stops, and close. `emitted_out` receives the number of real telemetry
-// packets emitted, which is what decides whether a reconnect counted (ADR 0018).
+// packets emitted and `video_flowed_out` whether any video buffer reached the
+// muxer, which together decide whether a reconnect counted (ADR 0018).
 misbklv::Result<std::monostate> run_one_session(const LiveIngestConfig& cfg,
                                                 const std::string& sink_spec,
-                                                size_t* emitted_out, bool* opened_out) {
+                                                size_t* emitted_out, bool* opened_out,
+                                                bool* video_flowed_out = nullptr) {
     // Clear any residual captures from prior sessions or late RTSP pushes after
     // the previous close() so they do not bleed across sessions.
     parrot_extension_clear();
@@ -278,6 +280,19 @@ misbklv::Result<std::monostate> run_one_session(const LiveIngestConfig& cfg,
     // session that had produced nothing.
     size_t emitted_local = 0;
     size_t& emitted_real = emitted_out ? *emitted_out : emitted_local;
+    // Mirrors emitted_real so an early error return still reports whether
+    // video flowed before the failure.
+    bool video_local = false;
+    bool& video_flowed = video_flowed_out ? *video_flowed_out : video_local;
+    video_flowed = false;
+    // Serialized with poll()/emit()/close() on this same thread: every read
+    // below runs here, so no cross-thread coordination beyond the accessor's
+    // own atomicity is needed.
+    auto note_delivery = [&] {
+        const auto last = sink.last_video_delivery();
+        if (last) video_flowed = true;
+        return last;
+    };
     std::vector<std::byte> proto_coalesce;
     uint64_t proto_coalesce_pts = GST_CLOCK_TIME_NONE;
 
@@ -302,30 +317,46 @@ misbklv::Result<std::monostate> run_one_session(const LiveIngestConfig& cfg,
         deadline = std::chrono::steady_clock::now() + *cfg.run_duration;
     }
     bool dummy_emitted = false;
-    // Armed here, not at the first sample: a source that connects and never
+    // Armed here, not at the first delivery: a source that connects and never
     // delivers is the same failure as one that stops, and arming late would
-    // leave exactly the hang this watchdog removes (ADR 0018).
-    auto last_telemetry = std::chrono::steady_clock::now();
+    // leave exactly the hang this watchdog removes (ADR 0018). While the sink
+    // reports no delivery yet, loop-entry time stands in so the timeout still
+    // fires for a source that never delivers.
+    const auto start_time = std::chrono::steady_clock::now();
 
     while (!is_mux_interrupted()) {
         if (deadline && std::chrono::steady_clock::now() >= *deadline) break;
-        if (cfg.idle_timeout.count() > 0 &&
-            std::chrono::steady_clock::now() - last_telemetry >= cfg.idle_timeout) {
-            break;
+        // Idleness is measured on video delivery (KlvSink::last_video_delivery),
+        // serialized here with poll()/emit()/close() on this same thread.
+        // Telemetry arrivals are decoded and emitted below but no longer drive
+        // this timer: telemetry rides inside the video stream, so video covers
+        // it, and the converse — a video-only stream — now stays up.
+        if (cfg.idle_timeout.count() > 0) {
+            const auto last_delivery = note_delivery();
+            const auto idle_since = last_delivery ? *last_delivery : start_time;
+            if (std::chrono::steady_clock::now() - idle_since >= cfg.idle_timeout) {
+                break;
+            }
+        } else {
+            // Disabled watchdog still tracks delivery for the reconnect count.
+            note_delivery();
         }
 
         auto pipeline_status = sink.poll();
         if (!pipeline_status) {
+            note_delivery();
             return misbklv::Result<std::monostate>::err(pipeline_status.error());
         }
 
         bool had = false;
         while (auto cap = parrot_extension_pop_next()) {
             had = true;
-            last_telemetry = std::chrono::steady_clock::now();
             auto emitted = try_decode_and_emit(*cap, sink, session_ptr, cfg.transform_options,
                                                 emitted_real, proto_coalesce, proto_coalesce_pts);
-            if (!emitted) return misbklv::Result<std::monostate>::err(emitted.error());
+            if (!emitted) {
+                note_delivery();
+                return misbklv::Result<std::monostate>::err(emitted.error());
+            }
             if (*emitted) {
                 ++emitted_real;
             }
@@ -342,22 +373,28 @@ misbklv::Result<std::monostate> run_one_session(const LiveIngestConfig& cfg,
                 std::this_thread::sleep_for(std::chrono::milliseconds(50));
                 pipeline_status = sink.poll();
                 if (!pipeline_status) {
+                    note_delivery();
                     return misbklv::Result<std::monostate>::err(pipeline_status.error());
                 }
                 bool late_arrival = false;
                 while (auto cap = parrot_extension_pop_next()) {
                     late_arrival = true;
-                    last_telemetry = std::chrono::steady_clock::now();
                     auto emitted = try_decode_and_emit(*cap, sink, session_ptr,
                                                         cfg.transform_options, emitted_real,
                                                         proto_coalesce, proto_coalesce_pts);
-                    if (!emitted) return misbklv::Result<std::monostate>::err(emitted.error());
+                    if (!emitted) {
+                        note_delivery();
+                        return misbklv::Result<std::monostate>::err(emitted.error());
+                    }
                     if (*emitted) {
                         ++emitted_real;
                     }
                 }
                 if (emitted_real == 0 && !late_arrival) {
-                    if (auto r = emit_dummy_batch(sink, session_ptr, cfg.transform_options); !r) return r;
+                    if (auto r = emit_dummy_batch(sink, session_ptr, cfg.transform_options); !r) {
+                        note_delivery();
+                        return r;
+                    }
                 }
                 dummy_emitted = true;
                 continue;
@@ -370,17 +407,22 @@ misbklv::Result<std::monostate> run_one_session(const LiveIngestConfig& cfg,
         // Indefinite sources run until SIGINT, the deadline, or the idle
         // timeout. sink.poll() ends the loop only on a backend failure: a live
         // insert cannot observe a clean EOS before close() sends it
-        // (libmisbklv ADR 0035), which is why idleness is the primary
-        // end-of-source signal rather than EOS (ADR 0018).
+        // (libmisbklv ADR 0035), which is why video-delivery idleness is the
+        // primary end-of-source signal rather than EOS (ADR 0018).
     }
 
     if (emitted_real == 0 && !dummy_emitted && is_pipeline &&
         cfg.run_duration.has_value()) {
-        if (auto r = emit_dummy_batch(sink, session_ptr, cfg.transform_options); !r) return r;
+        if (auto r = emit_dummy_batch(sink, session_ptr, cfg.transform_options); !r) {
+            note_delivery();
+            return r;
+        }
     }
 
     // For RTSP with no metadata, no dummy is emitted — just close (video
     // only). The loop reached SIGINT, its deadline, or the idle timeout.
+    // A video-only session counts as a flowing one through video_flowed, so
+    // reconnect retains its capture rather than discarding it as empty.
     // Deliberately NOT cancellable, unlike file replay. libmisbklv discards the
     // sink file on a cancelled drain (ADR 0022 — no output unless the session
     // succeeded), so forwarding the interrupt here would delete the capture the
@@ -388,7 +430,12 @@ misbklv::Result<std::monostate> run_one_session(const LiveIngestConfig& cfg,
     // shutdown, so this waits for the drain instead. The exposure is a stalled
     // pipeline holding shutdown until libmisbklv's drain timeout; losing a
     // sortie is the worse failure.
-    return sink.close();
+    // Sample delivery once more: the upstream value freezes after close(), so
+    // the post-close read is the last chance to report video that flowed. On
+    // close failure the refresh still runs against the last known value.
+    auto close_res = sink.close();
+    note_delivery();
+    return close_res;
 }
 
 }  // namespace
@@ -413,14 +460,16 @@ misbklv::Result<std::monostate> live_ingest(const LiveIngestConfig& cfg) {
     //   - an interrupt (SIGINT/SIGTERM), the ordinary way an operator stops it;
     //   - a failure that retrying cannot fix — anything at open time that is
     //     not SourceUnavailable;
-    //   - max_empty_sessions consecutive sessions that opened and carried no
-    //     telemetry, which is how a broken output stops the run;
+    //   - max_empty_sessions consecutive sessions that opened and delivered
+    //     neither video nor telemetry, which is how a broken output stops
+    //     the run;
     //   - exhausting the capture index, when every _000n name is taken.
     // A source that is merely absent matches none of these and is waited on
     // for as long as the run is up.
 
-    // Consecutive sessions that opened and produced nothing. Reset by any
-    // session that emits, so a flaky link costs attempts rather than the run.
+    // Consecutive sessions that opened and delivered nothing — neither video
+    // nor telemetry. Reset by any session that delivers, so a flaky link
+    // costs attempts rather than the run.
     unsigned empty_sessions = 0;
     misbklv::Error last_empty_error = misbklv::Error::Backend;
     while (!is_mux_interrupted()) {
@@ -435,7 +484,8 @@ misbklv::Result<std::monostate> live_ingest(const LiveIngestConfig& cfg) {
         const std::string sink_spec = live_detail::roll_sink_spec(cfg.udp_sink, *index);
         size_t emitted = 0;
         bool opened = false;
-        auto r = run_one_session(cfg, sink_spec, &emitted, &opened);
+        bool video_flowed = false;
+        auto r = run_one_session(cfg, sink_spec, &emitted, &opened, &video_flowed);
         if (!r) {
             // A session that never opened and reports SourceUnavailable is a
             // source that is not back yet — the normal state between sorties.
@@ -458,16 +508,17 @@ misbklv::Result<std::monostate> live_ingest(const LiveIngestConfig& cfg) {
             std::fprintf(stderr, "live: session ended with error %d; retrying\n",
                          static_cast<int>(r.error()));
             last_empty_error = r.error();
-        } else if (emitted == 0 && sink_spec.starts_with("file:")) {
-            // A source that connected and then said nothing must not leave a
-            // near-empty capture behind, nor consume an index — otherwise an
+        } else if (emitted == 0 && !video_flowed && sink_spec.starts_with("file:")) {
+            // A source that connected and then delivered nothing must not leave
+            // a near-empty capture behind, nor consume an index — otherwise an
             // endpoint that accepts and stalls fills the directory unattended.
             // Removing it also makes the next scan reuse this same index.
+            // A video-only session delivered video, so its capture is kept.
             std::error_code ec;
             std::filesystem::remove(sink_spec.substr(5), ec);
         }
 
-        if (emitted > 0) {
+        if (emitted > 0 || video_flowed) {
             empty_sessions = 0;
         } else if (opened && cfg.max_empty_sessions > 0 &&
                    ++empty_sessions >= cfg.max_empty_sessions) {
@@ -475,7 +526,7 @@ misbklv::Result<std::monostate> live_ingest(const LiveIngestConfig& cfg) {
             // never opens, and must keep retrying for as long as the operator
             // leaves the run up — that is the flying-day case this mode is for.
             std::fprintf(stderr,
-                         "live: %u consecutive sessions produced no telemetry; stopping\n",
+                         "live: %u consecutive sessions delivered no video or telemetry; stopping\n",
                          empty_sessions);
             return misbklv::Result<std::monostate>::err(last_empty_error);
         }

@@ -6,8 +6,8 @@ decision_status: accepted
 fork: 16
 tags: [decision, live, cli, rtsp, reconnect, streaming, timeout]
 generated:
-  by: claude/opus-5
-  at: 2026-08-29T07:45:52Z
+  by: opencode-go/muse-spark-1.3-contributor
+  at: 2026-09-05T04:53:13Z
 sources:
   - id: parrot-to-klv-94
     resource: https://github.com/nitsuga/parrot-to-klv/issues/94
@@ -18,6 +18,9 @@ sources:
   - id: libmisbklv-59
     resource: https://github.com/nitsuga/libmisbklv/pull/59
     title: libmisbklv#59 — review establishing that pipeline EOS is unobservable before close()
+  - id: libmisbklv-adr-0038
+    resource: https://github.com/nitsuga/libmisbklv/blob/4da3023c95bc45ef78bf6a1895939e6b043a5eac/context/decisions/0038-live-video-delivery-timestamp.md
+    title: libmisbklv ADR 0038 — Live video liveness uses a last-delivery timestamp (libmisbklv#74)
 ---
 
 # Context
@@ -62,22 +65,27 @@ modes.
 
 A live session ends when any of these occurs, whichever comes first:
 
-1. **Idle timeout (primary).** No telemetry has arrived for
+1. **Idle timeout (primary).** No video has been delivered for
    `--idle-timeout` seconds. This is the only signal guaranteed to fire, and it
    covers the cases the others miss — power loss, a hard link failure, a source
-   that stops without saying so.
+   that stops without saying so. The signal is `KlvSink::last_video_delivery`:
+   telemetry rides inside the video stream, so video idleness covers telemetry
+   idleness, and a video-only stream stays up as long as its video flows.
 
-   **The timer arms at drive-loop entry, not at the first sample.** A source
+   **The timer arms at drive-loop entry, not at the first delivery.** A source
    that connects and then never delivers is the same failure as one that stops,
    and arming late would leave exactly the hang this decision exists to remove.
-   One timeout covers both: by the time the loop runs, `open_insert` has already
-   built and prerolled the pipeline, so the budget is for first telemetry alone
-   and no separate, longer startup timeout is warranted.
+   While the sink reports no delivery yet, loop-entry time stands in, so the
+   timeout still fires for a source that never delivers. One timeout covers
+   both: by the time the loop runs, `open_insert` has already built and
+   prerolled the pipeline, so the budget is for first delivery alone and no
+   separate, longer startup timeout is warranted. A session that never delivers
+   ends with a backend error from `close()` rather than a capture — there is
+   nothing to finalize.
 2. **EOS (future early exit).** A clean RTSP teardown would end the session immediately
    rather than waiting out the timeout. An optimization, never the sole
    mechanism — and not implementable today: the accepted upstream `poll()` is
-   failure-only, so parrot has no EOS signal to act on. It arrives with the same
-   libmisbklv fork that closes the video-only gap, and the idle timeout covers
+   failure-only, so parrot has no EOS signal to act on. The idle timeout covers
    the case correctly, if less promptly, until then.
 3. **Backend error.** Already implemented; unchanged by this proposal.
 4. **`SIGINT`/`SIGTERM`.** Unchanged.
@@ -91,7 +99,7 @@ an RTSP server's session timeout.
 Making idleness primary also removes this design's only unmeasured dependency.
 Whether an EOS *event* survives telemetry and video stopping together under
 muxer backpressure is unknown; a watchdog on elapsed time since the last
-telemetry sample does not care. The current implementation cannot observe EOS
+delivered video buffer does not care. The current implementation cannot observe EOS
 before `close()`, so the timeout is the operative end-of-source signal. If a
 future upstream status API exposes EOS, it can fire sooner.
 
@@ -118,7 +126,7 @@ default 3 seconds, configurable — indefinitely, until either:
   and ingest resumes.
 
 **A run also stops on its own when it is achieving nothing.** Consecutive
-sessions that connect and then carry no telemetry are bounded by
+sessions that connect and then deliver neither video nor telemetry are bounded by
 `--max-empty-sessions` (default 5, `0` never stops), after which the run ends
 with the last error. This is a deliberate narrowing of "only an interrupt ends
 it", added because the failures a long unattended run actually meets — a full
@@ -129,20 +137,22 @@ serve.
 
 The bound counts only sessions that **opened**. A source that is merely absent
 never connects, is never counted, and is waited on indefinitely — the flying-day
-case is untouched. A session that emits telemetry and then fails resets the
-count, so a link dropping mid-sortie costs an attempt rather than the run.
+case is untouched. A session that delivers video or emits telemetry and then
+fails resets the count, so a link dropping mid-sortie costs an attempt rather
+than the run.
 
 Reconnect is a fresh `KlvSink` and a fresh `open_insert`, not a repair of the
 old one. The previous session is already finalized before polling starts, so a
 completed sortie is never held hostage to the next one.
 
-**A session counts as successful once it emits one telemetry sample.** If it
-ends having emitted none, its output file is deleted and the counter does not
-advance. `open_insert` succeeding is not enough on its own: the file sink
-creates its file as soon as the pipeline is built, so a source that accepts
-connections and then stays silent would otherwise deposit one near-empty TS per
-idle-timeout cycle, indefinitely and unattended. A live output has no file to
-clean up, so the same rule costs nothing there.
+**A session counts as successful once it delivers video or emits one telemetry
+sample.** If it ends having delivered neither, its output file is deleted and
+the counter does not advance. `open_insert` succeeding is not enough on its own:
+the file sink creates its file as soon as the pipeline is built, so a source
+that accepts connections and then stays silent would otherwise deposit one
+near-empty TS per idle-timeout cycle, indefinitely and unattended. A live
+output has no file to clean up, so the same rule costs nothing there. A
+video-only session keeps its capture: it delivered video, so it is not empty.
 
 Output naming on reconnect:
 
@@ -173,23 +183,16 @@ done
 
 ## Where the watchdog lives
 
-Preferred: **in `live_ingest`**, measuring elapsed time since the last captured
-Parrot RTP header extension. The invariant this rests on runs one way only:
-telemetry rides inside the video stream's header extensions, so telemetry
-arriving implies video arriving. The converse does not hold — video can flow
-with no extensions at all, which is exactly the video-only gap below. Telemetry
-idleness is therefore a sound proxy for a *Parrot* stream having stopped, not a
-measure of video liveness. The drive loop already polls
-`parrot_extension_pop_next()` on a 10 ms cadence. That makes the watchdog a
-timestamp and a comparison in code this project already owns — no upstream
-change, no pad probe, and no dependence on the EOS question above.
-
-The gap is a video-only RTSP capture, which the current code supports ("For
-RTSP with no metadata, no dummy is emitted — just close (video only)"). There,
-telemetry-idle would fire while video is still flowing. Covering it needs
-libmisbklv to expose time-since-last-video-delivery, which its `VideoCtx`
-delivery probe already has the ingredient for — but that is a separate upstream
-fork, and it should not block the telemetry case.
+In `live_ingest`, measuring elapsed time since the last delivered video buffer
+(`KlvSink::last_video_delivery`). Telemetry rides inside the video stream's
+header extensions, so video idleness covers telemetry idleness, and the
+converse — a video-only stream — stays up as long as its video flows. The drive
+loop already polls on a 10 ms cadence, so the watchdog is a timestamp and a
+comparison in code this project already owns — no pad probe, and no dependence
+on the EOS question above. The delivery signal itself is a small upstream
+addition (libmisbklv#74): the `VideoCtx` delivery probe already tracked the
+last delivery for the live close, and #74 exposes it as
+`KlvSink::last_video_delivery()`.[^libmisbklv-adr-0038]
 
 # Alternatives considered
 
@@ -240,28 +243,26 @@ fork, and it should not block the telemetry case.
   is the tuning knob, and `0` disables the behavior outright.
 - Reconnect mode does not exit on its own while it is working — that is the
   point, and it must be supervised for shutdown. It does stop once
-  `--max-empty-sessions` consecutive connected sessions carry no telemetry,
-  which is the difference between waiting for an aircraft and spinning on a
-  broken output.
+  `--max-empty-sessions` consecutive connected sessions deliver neither video
+  nor telemetry, which is the difference between waiting for an aircraft and
+  spinning on a broken output.
 - File output in reconnect mode produces a variable number of files whose names
   depend on how often the source dropped. Anything consuming them must glob
   rather than expect one path.
-- A video-only RTSP capture is not covered by the telemetry watchdog until the
-  upstream video-delivery signal exists. Until then such a run behaves as it
-  does today.
+- A session that never delivers video ends with a backend error from `close()`
+  rather than a capture: there is nothing to finalize, so the run reports the
+  failure instead of writing an empty output.
 
 # Assumptions / open questions
 
-- **Video-only captures are a recorded gap, not a blocker.** The watchdog
-  measures telemetry, so a stream carrying video without Parrot header
-  extensions keeps today's run-until-`SIGINT` behavior. This was weighed and
-  accepted: the video-only cases in the suite are `pipeline:videotestsrc`
-  sources with no telemetry by construction, behind
-  `PARROT_TEST_ALLOW_PIPELINE`, and a real Parrot RTSP stream always carries
-  telemetry. Genuine production video-only means a non-Parrot camera or a
-  failed extmap negotiation. Closing the gap needs libmisbklv to expose
-  time-since-last-video-delivery, which its `VideoCtx` delivery probe has the
-  ingredient for — a separate upstream fork, to open when a real case appears.
+- **Video-only captures are covered, not a gap.** The watchdog measures video
+  delivery, so a stream carrying video without Parrot header extensions stays
+  up as long as its video flows and counts as non-empty on reconnect. The
+  earlier telemetry-only form left such runs out of reach; the upstream
+  video-delivery signal (libmisbklv#74) closed that fork, and the pin carries
+  it. Genuine production video-only still means a non-Parrot camera or a
+  failed extmap negotiation — a real Parrot RTSP stream always carries
+  telemetry.
 - **The empty-session bound is the settled answer, not a placeholder.** Once a
   session opens, libmisbklv reports a dead source and a dead sink alike as
   `Backend`, so the bound infers from "connected but produced nothing" what a
@@ -278,14 +279,16 @@ fork, and it should not block the telemetry case.
   sink-subtree attribution.
 - **Startup semantics are settled**, not open: the timer arms at drive-loop
   entry, so a source that connects and never delivers ends on the same timeout
-  as one that stops. Recorded here because the reverse choice — arming at the
-  first sample — silently preserves the hang this decision removes, and is an
+  as one that stops, with loop-entry time standing in while the sink reports no
+  delivery yet. Recorded here because the reverse choice — arming at the
+  first delivery — silently preserves the hang this decision removes, and is an
   easy thing to reintroduce.
-- **Interaction with existing tests, confirmed 2026-08-29.** A `pipeline:` run
-  that injects one telemetry sample and then goes quiet ends after the idle
-  timeout rather than running to its deadline. The current indefinite tests
-  interrupt well inside 10 seconds, and the live project test suite passes with
-  this behavior.
+- **Interaction with existing tests, confirmed 2026-08-29, re-confirmed on the
+  video-delivery switch.** A `pipeline:` run whose video plays out and then goes
+  quiet ends after the idle timeout rather than running to its deadline; a
+  video-only run outlasts the threshold it would previously have died on. The
+  current indefinite tests interrupt well inside 10 seconds, and the live
+  project test suite passes with this behavior.
 
 # Citations
 
@@ -298,3 +301,8 @@ fork, and it should not block the telemetry case.
 [^libmisbklv-59]: [libmisbklv#59](https://github.com/nitsuga/libmisbklv/pull/59)
     — the review thread carrying the `gst-launch-1.0` traces behind the EOS
     delivery and muxer-backpressure findings.
+[^libmisbklv-adr-0038]: [libmisbklv ADR 0038](https://github.com/nitsuga/libmisbklv/blob/4da3023c95bc45ef78bf6a1895939e6b043a5eac/context/decisions/0038-live-video-delivery-timestamp.md)
+    — the upstream delivery-timestamp contract behind the watchdog signal
+    (libmisbklv#74): monotonic last-video-delivery time, `std::nullopt`
+    before the first delivery, caller-owned idle threshold, no video-branch
+    EOS.

@@ -1,5 +1,22 @@
 # Knowledge Bundle Log
 
+## 2026-09-05
+
+* **Live idle watchdog now measures video delivery, not telemetry (#123):**
+  `live_ingest` ends a session when `KlvSink::last_video_delivery` goes idle
+  for `--idle-timeout` (loop-entry time stands in while nothing has delivered
+  yet, so a source that never delivers still times out), which the upstream
+  pin `4da3023` (libmisbklv#74) newly exposes. Telemetry arrivals are still
+  decoded and emitted but no longer drive the timer. A reconnect session
+  counts as non-empty when video flowed even with no telemetry, so video-only
+  captures are retained instead of discarded; sessions that deliver nothing
+  still are. A session that never delivers ends with a backend error from
+  `close()` (nothing to finalize) rather than a capture. ADR 0018 now records
+  video-delivery as the signal and the video-only gap as closed. Verified:
+  video-only outlasts the threshold, a played-out source ends after delivery
+  stops, a never-delivering source ends on the timeout, `0` still disables,
+  and the live suite passes.
+
 ## 2026-08-30
 
 * **Prepared the `v0.4.1` release.** `project(VERSION)` moves `0.4.0` → `0.4.1`
