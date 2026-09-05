@@ -285,6 +285,14 @@ misbklv::Result<std::monostate> run_one_session(const LiveIngestConfig& cfg,
     bool video_local = false;
     bool& video_flowed = video_flowed_out ? *video_flowed_out : video_local;
     video_flowed = false;
+    // Serialized with poll()/emit()/close() on this same thread: every read
+    // below runs here, so no cross-thread coordination beyond the accessor's
+    // own atomicity is needed.
+    auto note_delivery = [&] {
+        const auto last = sink.last_video_delivery();
+        if (last) video_flowed = true;
+        return last;
+    };
     std::vector<std::byte> proto_coalesce;
     uint64_t proto_coalesce_pts = GST_CLOCK_TIME_NONE;
 
@@ -324,19 +332,19 @@ misbklv::Result<std::monostate> run_one_session(const LiveIngestConfig& cfg,
         // this timer: telemetry rides inside the video stream, so video covers
         // it, and the converse — a video-only stream — now stays up.
         if (cfg.idle_timeout.count() > 0) {
-            const auto last_delivery = sink.last_video_delivery();
-            if (last_delivery) video_flowed = true;
+            const auto last_delivery = note_delivery();
             const auto idle_since = last_delivery ? *last_delivery : start_time;
             if (std::chrono::steady_clock::now() - idle_since >= cfg.idle_timeout) {
                 break;
             }
-        } else if (sink.last_video_delivery()) {
+        } else {
             // Disabled watchdog still tracks delivery for the reconnect count.
-            video_flowed = true;
+            note_delivery();
         }
 
         auto pipeline_status = sink.poll();
         if (!pipeline_status) {
+            note_delivery();
             return misbklv::Result<std::monostate>::err(pipeline_status.error());
         }
 
@@ -345,7 +353,10 @@ misbklv::Result<std::monostate> run_one_session(const LiveIngestConfig& cfg,
             had = true;
             auto emitted = try_decode_and_emit(*cap, sink, session_ptr, cfg.transform_options,
                                                 emitted_real, proto_coalesce, proto_coalesce_pts);
-            if (!emitted) return misbklv::Result<std::monostate>::err(emitted.error());
+            if (!emitted) {
+                note_delivery();
+                return misbklv::Result<std::monostate>::err(emitted.error());
+            }
             if (*emitted) {
                 ++emitted_real;
             }
@@ -362,6 +373,7 @@ misbklv::Result<std::monostate> run_one_session(const LiveIngestConfig& cfg,
                 std::this_thread::sleep_for(std::chrono::milliseconds(50));
                 pipeline_status = sink.poll();
                 if (!pipeline_status) {
+                    note_delivery();
                     return misbklv::Result<std::monostate>::err(pipeline_status.error());
                 }
                 bool late_arrival = false;
@@ -370,13 +382,19 @@ misbklv::Result<std::monostate> run_one_session(const LiveIngestConfig& cfg,
                     auto emitted = try_decode_and_emit(*cap, sink, session_ptr,
                                                         cfg.transform_options, emitted_real,
                                                         proto_coalesce, proto_coalesce_pts);
-                    if (!emitted) return misbklv::Result<std::monostate>::err(emitted.error());
+                    if (!emitted) {
+                        note_delivery();
+                        return misbklv::Result<std::monostate>::err(emitted.error());
+                    }
                     if (*emitted) {
                         ++emitted_real;
                     }
                 }
                 if (emitted_real == 0 && !late_arrival) {
-                    if (auto r = emit_dummy_batch(sink, session_ptr, cfg.transform_options); !r) return r;
+                    if (auto r = emit_dummy_batch(sink, session_ptr, cfg.transform_options); !r) {
+                        note_delivery();
+                        return r;
+                    }
                 }
                 dummy_emitted = true;
                 continue;
@@ -395,7 +413,10 @@ misbklv::Result<std::monostate> run_one_session(const LiveIngestConfig& cfg,
 
     if (emitted_real == 0 && !dummy_emitted && is_pipeline &&
         cfg.run_duration.has_value()) {
-        if (auto r = emit_dummy_batch(sink, session_ptr, cfg.transform_options); !r) return r;
+        if (auto r = emit_dummy_batch(sink, session_ptr, cfg.transform_options); !r) {
+            note_delivery();
+            return r;
+        }
     }
 
     // For RTSP with no metadata, no dummy is emitted — just close (video
@@ -409,7 +430,12 @@ misbklv::Result<std::monostate> run_one_session(const LiveIngestConfig& cfg,
     // shutdown, so this waits for the drain instead. The exposure is a stalled
     // pipeline holding shutdown until libmisbklv's drain timeout; losing a
     // sortie is the worse failure.
-    return sink.close();
+    // Sample delivery once more: the upstream value freezes after close(), so
+    // the post-close read is the last chance to report video that flowed. On
+    // close failure the refresh still runs against the last known value.
+    auto close_res = sink.close();
+    note_delivery();
+    return close_res;
 }
 
 }  // namespace

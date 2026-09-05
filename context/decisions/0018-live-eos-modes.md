@@ -6,8 +6,8 @@ decision_status: accepted
 fork: 16
 tags: [decision, live, cli, rtsp, reconnect, streaming, timeout]
 generated:
-  by: claude/opus-5
-  at: 2026-08-29T07:45:52Z
+  by: opencode-go/muse-spark-1.3-contributor
+  at: 2026-09-05T04:53:13Z
 sources:
   - id: parrot-to-klv-94
     resource: https://github.com/nitsuga/parrot-to-klv/issues/94
@@ -18,6 +18,9 @@ sources:
   - id: libmisbklv-59
     resource: https://github.com/nitsuga/libmisbklv/pull/59
     title: libmisbklv#59 — review establishing that pipeline EOS is unobservable before close()
+  - id: libmisbklv-adr-0038
+    resource: https://github.com/nitsuga/libmisbklv/blob/4da3023c95bc45ef78bf6a1895939e6b043a5eac/context/decisions/0038-live-video-delivery-timestamp.md
+    title: libmisbklv ADR 0038 — Live video liveness uses a last-delivery timestamp (libmisbklv#74)
 ---
 
 # Context
@@ -189,7 +192,7 @@ comparison in code this project already owns — no pad probe, and no dependence
 on the EOS question above. The delivery signal itself is a small upstream
 addition (libmisbklv#74): the `VideoCtx` delivery probe already tracked the
 last delivery for the live close, and #74 exposes it as
-`KlvSink::last_video_delivery()`.
+`KlvSink::last_video_delivery()`.[^libmisbklv-adr-0038]
 
 # Alternatives considered
 
@@ -298,3 +301,8 @@ last delivery for the live close, and #74 exposes it as
 [^libmisbklv-59]: [libmisbklv#59](https://github.com/nitsuga/libmisbklv/pull/59)
     — the review thread carrying the `gst-launch-1.0` traces behind the EOS
     delivery and muxer-backpressure findings.
+[^libmisbklv-adr-0038]: [libmisbklv ADR 0038](https://github.com/nitsuga/libmisbklv/blob/4da3023c95bc45ef78bf6a1895939e6b043a5eac/context/decisions/0038-live-video-delivery-timestamp.md)
+    — the upstream delivery-timestamp contract behind the watchdog signal
+    (libmisbklv#74): monotonic last-video-delivery time, `std::nullopt`
+    before the first delivery, caller-owned idle threshold, no video-branch
+    EOS.
