@@ -1,0 +1,40 @@
+# Long-running live session for the parrot-to-klv container deliverable.
+#
+# Staged per release by make-image.sh, which bakes this release's image tag in
+# as the IMAGE_TAG default (overridable in .env) — the same bake-in the
+# launcher beside this file carries.
+#
+# Copy .env.example to .env, edit it, then `docker compose up -d`.
+services:
+  ingest:
+    image: "${IMAGE_TAG:-@IMAGE_TAG@}"
+    command:
+      - "${RTSP_URI}"
+      - "-o"
+      - "${SINK:-/out/capture.ts}"
+      - "--idle-timeout"
+      - "${IDLE_TIMEOUT:-10}"
+      - "--reconnect"
+      - "--max-empty-sessions"
+      - "${MAX_EMPTY_SESSIONS:-5}"
+      # UDP multicast tuning — uncomment when SINK is a udp: address:
+      # - "--iface"
+      # - "${UDP_IFACE}"
+      # - "--ttl"
+      # - "${UDP_TTL:-1}"
+      # - "--no-loop"
+    volumes:
+      - "${OUTPUT_DIR:-./captures}:/out"
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    stop_grace_period: 30s
+    # Bridge networking (the default) handles RTSP ingest and file or unicast
+    # output. Multicast egress on a multi-homed host follows the container's
+    # routing table — add a static route for the multicast range via the right
+    # interface, or pin it with --iface above. If neither fits, host
+    # networking is the fallback — Linux only:
+    # network_mode: host

@@ -288,6 +288,21 @@ jobs:
           [ "$code" -ne 0 ] || { echo "::error::launcher succeeded with no input"; exit 1; }
           echo "exits $code without prompting"
 
+      # The compose file ships in this deliverable; prove it renders with the
+      # staged defaults. Config-only on purpose: a live run needs an RTSP peer
+      # and nothing hermetic in CI speaks RTSP, so there is no finite-source
+      # run to do — this still catches bad YAML, bad interpolation, and a tag
+      # substitution that drifted from the image beside it. Needs no daemon,
+      # no network, no pull: config never touches the image.
+      - name: Check the compose file renders
+        run: |
+          cd parrot-to-klv-*-docker/
+          test -f compose.yml || { echo "::error::compose.yml missing from the deliverable"; exit 1; }
+          test -f .env.example || { echo "::error::.env.example missing from the deliverable"; exit 1; }
+          RTSP_URI=rtsp://127.0.0.1:8554/live docker compose config > /dev/null \
+            || { echo "::error::compose file does not render"; exit 1; }
+          echo "compose file renders"
+
   publish:
     # Only a tag publishes. A workflow_dispatch run stops after smoke, which is
     # what makes it safe to use for testing the pipeline itself.

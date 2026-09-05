@@ -55,6 +55,41 @@ docker run --rm --network none \
 `--network none` is not required — the tool never uses the network, so it costs
 nothing and is worth keeping.
 
+## Long-running live sessions (compose)
+
+The directory beside this file also holds `compose.yml` and `.env.example`:
+an `ingest` service that captures an RTSP source around the clock, one
+finalized capture per session, restarting with the machine.
+
+```sh
+docker load -i parrot-to-klv-@VERSION@-@ARCH@-image.tar.gz  # once; or run ./parrot-to-klv once
+cp .env.example .env   # then edit RTSP_URI (and SINK if not a file)
+docker compose up -d
+```
+
+`RTSP_URI` has no default — set it in `.env`. Everything else does: `SINK`
+defaults to `/out/capture.ts`, which lands in `./captures` on the host
+(`OUTPUT_DIR`); with `--reconnect` always on, sessions roll to numbered
+captures next to it. `IDLE_TIMEOUT` (default 10, `0` disables) ends a session
+after that long with no video delivered, and `MAX_EMPTY_SESSIONS` (default 5)
+stops the run after that many sessions in a row that opened yet delivered
+nothing. Sessions that deliver video count as non-empty even with no
+telemetry, so video-only captures are kept.
+
+Bridge networking (the default) handles RTSP ingest and file or unicast
+output. Multicast egress on a multi-homed host follows the container's routing
+table: add a static route for the multicast range via the right interface, or
+pin it with the commented `--iface` lines in `compose.yml` (with `UDP_IFACE`
+in `.env`). If neither fits, the commented `network_mode: host` fallback
+removes the isolation instead — Linux only.
+
+Stopping drains, it does not cut mid-capture: `docker compose stop` sends
+SIGTERM, which the tool handles the same as Ctrl-C (SIGINT) — the loops
+notice within milliseconds and each session finalizes its capture before the
+process exits. `stop_grace_period` gives that 30 seconds. Logs go to the
+service's json-file log (`docker compose logs ingest`, kept to five 10 MB
+files); captures stay in `OUTPUT_DIR`.
+
 ## Troubleshooting
 
 The image has no shell, which keeps it small and its attack surface minimal. If

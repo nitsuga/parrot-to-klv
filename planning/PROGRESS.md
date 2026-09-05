@@ -8,6 +8,14 @@ chronological history (what landed when, decision detail) lives in
 
 ## Now
 
+**Long-running live sessions ship a compose file (#125):** the container
+deliverable stages `compose.yml` + `.env.example` through `make-image.sh`
+(tag baked in as the `IMAGE_TAG` default), an `ingest` service capturing RTSP
+with reconnect/idle-timeout/empty-session bounds from the environment into a
+mounted captures directory. `compose stop` (SIGTERM) drains like Ctrl-C —
+both signals share one handler, so no signal change was needed. Validated by
+`docker compose config` in `smoke-image`; usage lives in the docker USAGE.
+
 **v3 no-fix frames omit their position (#114):** `from_v3` gates the sensor
 latitude, longitude, and altitude on `sv_count > 0`, so the pre-fix opening of a
 flight reports no Items 13/14/15 rather than a confident 0°N 0°E at sea level.

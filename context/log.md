@@ -2,6 +2,26 @@
 
 ## 2026-09-05
 
+* **Compose file for long-running live sessions (#125):** the container
+  deliverable now ships `compose.yml` plus `.env.example` — an `ingest`
+  service capturing an RTSP source with `--reconnect`, `--idle-timeout`, and
+  `--max-empty-sessions` from the environment, file output kept in a mounted
+  `./captures` by default, `unless-stopped` restart, json-file log rotation,
+  and a 30-second stop grace. Both stage through `make-image.sh` on the
+  existing `@VAR@` substitution pattern (tag baked in as the `IMAGE_TAG`
+  default, version/arch in `.env.example`'s header), and USAGE.md gains a live
+  section via `usage-head-docker.md`. Signal check: no code change needed —
+  `main` already handles SIGTERM the same as SIGINT, so `compose stop` drains
+  through the same cooperative flag the live loops poll and finalizes the
+  capture rather than killing it mid-write; the entrypoint is the binary
+  itself, so it receives the signal directly as PID 1. CI validates with
+  `docker compose config` in `smoke-image` — config-only, since a live run
+  needs an RTSP peer and nothing hermetic in CI speaks RTSP. No new ADR: this
+  extends the container deliverable ([ADR 0010](./decisions/0010-container-deliverable.md)),
+  not a new deliverable shape or fork, so the register and ROADMAP are
+  untouched. Verified: `bash -n` on the touched scripts, staged templates
+  render through `compose config` with the substitution applied.
+
 * **Live idle watchdog now measures video delivery, not telemetry (#123):**
   `live_ingest` ends a session when `KlvSink::last_video_delivery` goes idle
   for `--idle-timeout` (loop-entry time stands in while nothing has delivered
