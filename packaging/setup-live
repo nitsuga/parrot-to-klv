@@ -57,6 +57,7 @@ esac
 [ "$(uname -s)" = Linux ] || fail "the live Compose service requires Linux host networking"
 command -v docker >/dev/null 2>&1 || fail "docker is not installed"
 docker compose version >/dev/null 2>&1 || fail "the Docker Compose plugin is not installed"
+docker info >/dev/null 2>&1 || fail "cannot reach the Docker daemon; start Docker and check your access"
 
 cd "$HERE"
 

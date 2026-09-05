@@ -23,7 +23,8 @@ operator pre-creates `OUTPUT_DIR`; Compose refuses to create it as root.
 networking so `--iface` can select a real host NIC for multicast egress.
 `setup-live` is the quick path: it explains the network/restart/credential
 tradeoffs, loads the image, collects the settings, records caller IDs, creates
-the directory, writes a mode-0600 `.env`, validates Compose, and can start it.
+the directory, writes a mode-0600 `.env`, validates Compose, checks daemon
+reachability, and can start it.
 Re-running it handles upgrades: it can retain existing `.env` settings while
 clearing a confirmed stale image pin, reload the bundled image, confirm and
 gracefully replace a matching existing service, optionally remove older

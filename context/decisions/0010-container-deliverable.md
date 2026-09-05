@@ -7,7 +7,7 @@ fork: 10
 tags: [decision, packaging, release, docker, ci]
 generated:
   by: openai/gpt-5
-  at: 2026-09-05T15:09:08Z
+  at: 2026-09-05T15:21:10Z
 ---
 
 # Context
@@ -154,13 +154,13 @@ the audience turns out to be registry-connected.
   and credential consequences; collects and validates the source, sink, and
   session bounds; records the caller IDs automatically; creates the capture
   directory; writes `.env` with mode 0600; loads the bundled image; validates
-  Compose; and optionally starts the service. Re-running it is also the upgrade
-  path: it can retain the existing `.env` settings while clearing a confirmed
-  stale `IMAGE_TAG`, offers to replace the loaded tag, shows and confirms any
-  matching ingest container before a graceful stop and force-recreate,
-  optionally removes older same-architecture image tags, and never removes
-  captures. A daemon-free shell test stages it against a fake Docker CLI and
-  checks that complete path.
+  Compose; checks daemon reachability explicitly; and optionally starts the
+  service. Re-running it is also the upgrade path: it can retain the existing
+  `.env` settings while clearing a confirmed stale `IMAGE_TAG`, offers to
+  replace the loaded tag, shows and confirms any matching ingest container
+  before a graceful stop and force-recreate, optionally removes older
+  same-architecture image tags, and never removes captures. A daemon-free shell
+  test stages it against a fake Docker CLI and checks that complete path.
 - No shell in the image means no `exec` in to look around when a user reports a
   problem. `Dockerfile.debug` exists for that, and the usage notes say so.
 - The launcher resolves paths on the host before the container starts, so

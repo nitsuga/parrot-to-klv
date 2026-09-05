@@ -6,8 +6,9 @@
   now stages `setup-live`, an interactive path that explains host networking,
   restart behavior, and RTSP credential exposure; loads the bundled image;
   collects the source, sink, and bounds; records caller ownership; creates the
-  capture directory; writes a mode-0600 `.env`; validates Compose; and can
-  start the service. Re-running it also guides upgrades: it can reload the
+  capture directory; writes a mode-0600 `.env`; validates Compose; reports an
+  unreachable Docker daemon directly; and can start the service. Re-running it
+  also guides upgrades: it can reload the
   bundled tag while retaining existing `.env` settings and clearing a
   confirmed stale image pin, shows and confirms an existing ingest container
   before a graceful stop and force-recreate,

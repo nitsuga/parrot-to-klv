@@ -28,6 +28,10 @@ touch "$stage/$image_file"
 cat > "$fakebin/docker" <<'EOF'
 #!/bin/sh
 printf '%s\n' "$*" >> "$DOCKER_LOG"
+if [ "$1" = info ]; then
+  [ "${DOCKER_INFO_FAIL-}" = 1 ] && exit 1
+  exit 0
+fi
 if [ "$1 $2" = 'image inspect' ]; then
   if [ "${3-}" = --format ]; then
     if [ -f "$DOCKER_STATE" ]; then echo sha256:new; else echo sha256:old; fi
@@ -51,6 +55,14 @@ case "$1 $2" in
 esac
 EOF
 chmod +x "$fakebin/docker"
+
+if PATH="$fakebin:$PATH" DOCKER_LOG="$tmp/docker.log" DOCKER_INFO_FAIL=1 \
+  "$stage/setup-live" > "$tmp/daemon-output.log" 2>&1; then
+  fail "setup continued with an unreachable Docker daemon"
+fi
+grep -Fq 'cannot reach the Docker daemon' "$tmp/daemon-output.log" ||
+  fail "daemon failure was not explained"
+: > "$tmp/docker.log"
 
 capture_dir="$tmp/captures"
 printf '%s\n' \
@@ -77,6 +89,7 @@ grep -Fqx "HOST_UID=$(id -u)" "$stage/.env" || fail "caller UID was not written"
 grep -Fqx "HOST_GID=$(id -g)" "$stage/.env" || fail "caller GID was not written"
 grep -Fqx "load -i $stage/$image_file" "$tmp/docker.log" || fail "image was not reloaded"
 grep -Fqx 'compose config' "$tmp/docker.log" || fail "compose was not validated"
+grep -Fqx 'info' "$tmp/docker.log" || fail "Docker daemon was not checked"
 grep -Fqx 'stop --timeout 330 old123' "$tmp/docker.log" || fail "old service was not stopped"
 grep -Fqx 'rm old123' "$tmp/docker.log" || fail "old service was not removed"
 grep -Fqx 'compose up -d --force-recreate' "$tmp/docker.log" || fail "service was not recreated"
