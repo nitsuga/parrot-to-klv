@@ -20,10 +20,13 @@ invocation from `id -u`/`id -g`) and relaunches after any exit
 availability across runs, and the empty-session bound covers one process
 lifetime; the
 operator pre-creates `OUTPUT_DIR` so it is not daemon-made root-owned.
+`RTSP_URI` is required at render time, and the service requires Linux host
+networking so `--iface` can select a real host NIC for multicast egress.
 `compose stop` (SIGTERM) drains like Ctrl-C — both signals share one handler,
 so no signal change was needed — with a 330-second grace covering the
 300-second upstream finish-drain bound. Validated by a staged render check in
-`smoke-image` (no `@VAR@` left, `restart`/`user:` asserted); usage lives in
+`smoke-image` (no `@VAR@` left, required values plus
+`restart`/`user:`/host networking asserted); usage lives in
 the docker USAGE.
 
 **v3 no-fix frames omit their position (#114):** `from_v3` gates the sensor

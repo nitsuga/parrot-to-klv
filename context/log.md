@@ -2,6 +2,13 @@
 
 ## 2026-09-05
 
+* **Compose requires its source and host network (#125, PR 126 review):**
+  `RTSP_URI` is now a required nonempty Compose value, preventing a missing
+  source from entering an `unless-stopped` restart loop. The service uses host
+  networking so `--iface` sees real host NICs and can select multicast egress
+  on a multi-homed host. The template, `.env.example`, docker usage, ADR 0010,
+  PROGRESS, and staged render assertions were updated together.
+
 * **Compose restart becomes unless-stopped (#125):** the `ingest` service
   relaunches after any exit so it runs at boot as a service — stopping is
   explicit (`compose stop`/`down`). The empty-session bound now covers one

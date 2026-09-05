@@ -95,12 +95,11 @@ as above. An unset ID fails `docker compose config` loudly instead of
 silently writing captures as the wrong user. The `HOST_` names avoid bash's
 readonly `UID`, which `export` cannot set.
 
-Bridge networking (the default) handles RTSP ingest and file or unicast
-output. Multicast egress on a multi-homed host follows the container's routing
-table: add a static route for the multicast range via the right interface, or
-pin it with the commented `--iface` lines in `compose.yml` (with `UDP_IFACE`
-in `.env`). If neither fits, the commented `network_mode: host` fallback
-removes the isolation instead — Linux only.
+The service requires host networking so `--iface` can name a real host NIC;
+bridge networking exposes only the container's `eth0` and cannot select egress
+on a multi-homed host. Uncomment the `--iface` lines in `compose.yml` and set
+`UDP_IFACE` to the host interface in `.env` when multicast output needs an
+explicit route. Host networking is Linux-only, matching the supported targets.
 
 Stopping drains, it does not cut mid-capture: `docker compose stop` sends
 SIGTERM, which the tool handles the same as Ctrl-C (SIGINT) — one handler for

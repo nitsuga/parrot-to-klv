@@ -23,7 +23,7 @@ services:
     # OUTPUT_DIR in .env.example.
     user: "${HOST_UID:?set HOST_UID to your user id, e.g. HOST_UID=$(id -u)}:${HOST_GID:?set HOST_GID to your group id, e.g. HOST_GID=$(id -g)}"
     command:
-      - "${RTSP_URI}"
+      - "${RTSP_URI:?set RTSP_URI in .env}"
       - "-o"
       - "${SINK:-/out/capture.ts}"
       - "--idle-timeout"
@@ -42,6 +42,10 @@ services:
       # ownership: if it does not exist, the daemon creates it root-owned and
       # the service — running as you, not root — cannot write to it.
       - "${OUTPUT_DIR:-./captures}:/out"
+    # Required for multicast interface selection: --iface must see the host's
+    # real NIC names. A bridge exposes only the container's eth0 and cannot
+    # select egress on a multi-homed host. Linux only.
+    network_mode: host
     # Service semantics: this runs at boot and after any exit
     # (restart: unless-stopped), so stopping is explicit — `compose stop` or
     # `down`. That means MAX_EMPTY_SESSIONS bounds one process lifetime: a run
@@ -62,9 +66,3 @@ services:
     # live loops poll and finalizes the capture rather than killing it
     # mid-write.
     stop_grace_period: 330s
-    # Bridge networking (the default) handles RTSP ingest and file or unicast
-    # output. Multicast egress on a multi-homed host follows the container's
-    # routing table — add a static route for the multicast range via the right
-    # interface, or pin it with --iface above. If neither fits, host
-    # networking is the fallback — Linux only:
-    # network_mode: host

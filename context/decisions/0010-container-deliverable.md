@@ -6,8 +6,8 @@ decision_status: accepted
 fork: 10
 tags: [decision, packaging, release, docker, ci]
 generated:
-  by: opencode-go/muse-spark-1.3-contributor
-  at: 2026-09-05T07:27:44Z
+  by: openai/gpt-5
+  at: 2026-09-05T14:25:36Z
 ---
 
 # Context
@@ -128,7 +128,12 @@ the audience turns out to be registry-connected.
   ID fails the render loudly instead of silently writing captures as the
   wrong user — and the operator creates `OUTPUT_DIR` before
   the first `up`, since a daemon-created directory would be root-owned and
-  unwritable to the service. Recovery layering stays with the tool — the
+  unwritable to the service. `RTSP_URI` is required and an unset or empty value
+  fails the render rather than starting a restart loop with no source. Host
+  networking is required so `--iface` sees the host's real NICs and can select
+  multicast egress on a multi-homed host; this makes the Compose path
+  Linux-only, consistent with the supported targets. Recovery layering stays
+  with the tool — the
   service relaunches after any exit (`restart: unless-stopped`) so it runs
   at boot and as a service — stopping is explicit (`compose stop`/`down`).
   The internal `--reconnect` loop still owns stream recovery between
@@ -136,8 +141,9 @@ the audience turns out to be registry-connected.
   a run that reaches it (exit 1) is relaunched with its counter reset. The 330-second stop grace covers libmisbklv's 300-second
   finish-drain bound (`gst_insert.cpp` `kFinishDrainTimeout`) with headroom,
   and SIGTERM drains like SIGINT through the one shared handler. The smoke
-  test renders the staged compose from the staged `.env.example` and asserts
-  no `@VAR@` placeholder survived staging — config-only, since no hermetic
+  test renders the staged compose with the staged `.env.example` and required
+  runtime values, asserts host networking, and asserts no `@VAR@` placeholder
+  survived staging — config-only, since no hermetic
   source can drive the staged image without a network.
 - No shell in the image means no `exec` in to look around when a user reports a
   problem. `Dockerfile.debug` exists for that, and the usage notes say so.

@@ -314,6 +314,7 @@ jobs:
             || { echo "::error::compose file does not render"; exit 1; }
           # The caller-ownership boundary (ADR 0010) and the service
           # semantics the usage documents: the service runs as the caller
+          # with host networking (so --iface sees host NICs),
           # and relaunches after any exit (boot/as-a-service), while the
           # --reconnect loop owns stream recovery within a run. Assert the
           # exact IDs rendered, not just a `user: ` prefix — the prefix alone
@@ -322,14 +323,19 @@ jobs:
             || { echo "::error::compose service must relaunch after exit"; exit 1; }
           grep -qE '^[[:space:]]*user: 1234:5678[[:space:]]*$' rendered.yml \
             || { echo "::error::compose service must run as HOST_UID:HOST_GID (expected 1234:5678)"; exit 1; }
+          grep -qE '^[[:space:]]*network_mode: host[[:space:]]*$' rendered.yml \
+            || { echo "::error::compose service must use host networking for --iface"; exit 1; }
           # Required IDs fail loudly: rendering without them must not succeed
           # with a silent default.
           if env -u HOST_UID -u HOST_GID RTSP_URI=rtsp://127.0.0.1:8554/live docker compose config > /dev/null 2>&1; then
             echo "::error::compose file renders without HOST_UID/HOST_GID — IDs must be required"; exit 1
           fi
-          # The staged .env.example must interpolate untouched, too: its
-          # defaults render on their own.
-          docker compose --env-file .env.example config > /dev/null \
+          if env -u RTSP_URI HOST_UID=1234 HOST_GID=5678 docker compose config > /dev/null 2>&1; then
+            echo "::error::compose file renders without RTSP_URI — source must be required"; exit 1
+          fi
+          # The staged .env.example must interpolate too when its required
+          # source is supplied; its remaining defaults render on their own.
+          RTSP_URI=rtsp://127.0.0.1:8554/live docker compose --env-file .env.example config > /dev/null \
             || { echo "::error::compose file does not render from .env.example"; exit 1; }
           echo "compose file renders"
 
