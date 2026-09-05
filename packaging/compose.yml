@@ -4,19 +4,24 @@
 # as the IMAGE_TAG default (overridable in .env) — the same bake-in the
 # launcher beside this file carries.
 #
-# Copy .env.example to .env, edit it, then:
+# Copy .env.example to .env, set RTSP_URI and HOST_UID/HOST_GID there (see
+# .env.example), then:
 #   mkdir -p ./captures   (or whatever OUTPUT_DIR names — see below)
-#   docker compose up -d
+#   HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose up -d
+# (pinning per invocation overrides .env; a plain `up -d` only works if .env
+# already carries your IDs — the service has no fallback user).
 services:
   ingest:
     image: "${IMAGE_TAG:-@IMAGE_TAG@}"
     # Caller ownership (ADR 0010): the launcher passes --user "$(id -u):$(id -g)"
     # so output belongs to you, not root — this is the compose spelling of the
-    # same boundary. UID/GID come from your shell environment (pass them with
-    # env UID=$(id -u) GID=$(id -g) to pin them — export cannot set UID, it is
-    # readonly in bash); the 1000 fallbacks cover a shell where they are
-    # unset. Documented beside OUTPUT_DIR in .env.example.
-    user: "${UID:-1000}:${GID:-1000}"
+    # same boundary. HOST_UID/HOST_GID are required with no fallback: set them
+    # in .env (see .env.example) or pin them per invocation with
+    # HOST_UID=$(id -u) HOST_GID=$(id -g). An unset ID fails the render loudly
+    # instead of silently writing captures as the wrong user. The HOST_ names
+    # avoid bash's readonly UID, which `export` cannot set. Documented beside
+    # OUTPUT_DIR in .env.example.
+    user: "${HOST_UID:?set HOST_UID to your user id, e.g. HOST_UID=$(id -u)}:${HOST_GID:?set HOST_GID to your group id, e.g. HOST_GID=$(id -g)}"
     command:
       - "${RTSP_URI}"
       - "-o"

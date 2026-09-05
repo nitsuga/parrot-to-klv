@@ -11,10 +11,11 @@
   and PROGRESS updated together.
 
 * **Compose review fixes (#125, PR 126 review):** five items. The `ingest`
-  service now runs as the caller (`user: "${UID:-1000}:${GID:-1000}"`, the
-  compose spelling of the launcher's `--user`, with `UID`/`GID` passed from
-  `id -u`/`id -g` via `env` and documented in `.env.example` (`export` cannot
-  set `UID` — it is readonly in bash). `OUTPUT_DIR` must be created
+  service now runs as the caller (`user: "${HOST_UID:?…}:${HOST_GID:?…}"`,
+  the compose spelling of the launcher's `--user`, with `HOST_UID`/`HOST_GID`
+  required — set in `.env` or pinned per invocation from `id -u`/`id -g`;
+  an unset ID fails the render loudly, and the `HOST_` names avoid bash's
+  readonly `UID`, which `export` cannot set). `OUTPUT_DIR` must be created
   with `mkdir -p` before the first `up` — a daemon-created directory would be
   root-owned and unwritable to the service. `restart: unless-stopped` became
   `restart: "no"`: the internal `--reconnect` loop owns stream recovery, so a

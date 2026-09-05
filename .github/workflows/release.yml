@@ -310,16 +310,23 @@ jobs:
           if grep -HnE '@[A-Z_]+@' compose.yml .env.example; then
             echo "::error::unstaged @VAR@ placeholder left in the compose deliverable"; exit 1
           fi
-          RTSP_URI=rtsp://127.0.0.1:8554/live docker compose config > rendered.yml \
+          RTSP_URI=rtsp://127.0.0.1:8554/live HOST_UID=1234 HOST_GID=5678 docker compose config > rendered.yml \
             || { echo "::error::compose file does not render"; exit 1; }
           # The caller-ownership boundary (ADR 0010) and the service
           # semantics the usage documents: the service runs as the caller
           # and relaunches after any exit (boot/as-a-service), while the
-          # --reconnect loop owns stream recovery within a run.
+          # --reconnect loop owns stream recovery within a run. Assert the
+          # exact IDs rendered, not just a `user: ` prefix — the prefix alone
+          # would pass `user: root` or a silent 1000:1000 fallback.
           grep -q 'restart: unless-stopped' rendered.yml \
             || { echo "::error::compose service must relaunch after exit"; exit 1; }
-          grep -q 'user: ' rendered.yml \
-            || { echo "::error::compose service must run as the caller"; exit 1; }
+          grep -qE '^[[:space:]]*user: 1234:5678[[:space:]]*$' rendered.yml \
+            || { echo "::error::compose service must run as HOST_UID:HOST_GID (expected 1234:5678)"; exit 1; }
+          # Required IDs fail loudly: rendering without them must not succeed
+          # with a silent default.
+          if env -u HOST_UID -u HOST_GID RTSP_URI=rtsp://127.0.0.1:8554/live docker compose config > /dev/null 2>&1; then
+            echo "::error::compose file renders without HOST_UID/HOST_GID — IDs must be required"; exit 1
+          fi
           # The staged .env.example must interpolate untouched, too: its
           # defaults render on their own.
           docker compose --env-file .env.example config > /dev/null \

@@ -123,8 +123,10 @@ the audience turns out to be registry-connected.
   it the flag could be dropped and nothing would fail.
 - The deliverable also stages `compose.yml` and `.env.example` for a
   long-running live ingest service, and the same caller-ownership boundary
-  applies there: the service runs as `UID:GID` (`user:`, the compose spelling
-  of the launcher's `--user`), and the operator creates `OUTPUT_DIR` before
+  applies there: the service runs as `HOST_UID:HOST_GID` (`user:`, the compose
+  spelling of the launcher's `--user`), required with no fallback — an unset
+  ID fails the render loudly instead of silently writing captures as the
+  wrong user — and the operator creates `OUTPUT_DIR` before
   the first `up`, since a daemon-created directory would be root-owned and
   unwritable to the service. Recovery layering stays with the tool — the
   service relaunches after any exit (`restart: unless-stopped`) so it runs

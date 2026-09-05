@@ -12,8 +12,9 @@ chronological history (what landed when, decision detail) lives in
 deliverable stages `compose.yml` + `.env.example` through `make-image.sh`
 (tag baked in as the `IMAGE_TAG` default), an `ingest` service capturing RTSP
 with reconnect/idle-timeout/empty-session bounds from the environment into a
-mounted captures directory. The service runs as the caller (`user: UID:GID`,
-passed from `id -u`/`id -g` via `env`) and relaunches after any exit
+mounted captures directory. The service runs as the caller (`user:
+HOST_UID:HOST_GID`, required with no fallback — set in `.env` or pinned per
+invocation from `id -u`/`id -g`) and relaunches after any exit
 (`restart: unless-stopped`) so it runs at boot as a service — the internal
 `--reconnect` loop owns stream recovery between sessions while Compose owns
 availability across runs, and the empty-session bound covers one process

@@ -63,9 +63,9 @@ finalized capture per session.
 
 ```sh
 docker load -i parrot-to-klv-@VERSION@-@ARCH@-image.tar.gz  # once; or run ./parrot-to-klv once
-cp .env.example .env   # then edit RTSP_URI (and SINK if not a file)
+cp .env.example .env   # then edit RTSP_URI (and SINK if not a file) and set HOST_UID/HOST_GID to your IDs
 mkdir -p ./captures    # or whatever OUTPUT_DIR names — Compose must not create it (root-owned)
-env UID=$(id -u) GID=$(id -g) docker compose up -d  # so captures belong to you, not root
+HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose up -d  # so captures belong to you, not root
 ```
 
 `RTSP_URI` has no default — set it in `.env`. Everything else does: `SINK`
@@ -87,11 +87,13 @@ is one run ending, not the service ending.
 Create `OUTPUT_DIR` before the first `up`: if the directory does not exist,
 the daemon creates it root-owned, and the service — running as you, not as
 root — cannot write to it. Like the launcher, the service runs as your user
-(`user: UID:GID`, the compose spelling of the launcher's
-`--user "$(id -u):$(id -g)"`), so captures belong to you. `UID` and `GID` come
-from your shell environment with a 1000 fallback when unset; passing them via
-`env` from `id -u`/`id -g` as above pins them exactly (`export` cannot set
-`UID` — it is readonly in bash).
+(`user: HOST_UID:HOST_GID`, the compose spelling of the launcher's
+`--user "$(id -u):$(id -g)"`), so captures belong to you. `HOST_UID` and
+`HOST_GID` are required with no fallback: set them in `.env` (replace the
+example values with the output of `id -u`/`id -g`) or pin them per invocation
+as above. An unset ID fails `docker compose config` loudly instead of
+silently writing captures as the wrong user. The `HOST_` names avoid bash's
+readonly `UID`, which `export` cannot set.
 
 Bridge networking (the default) handles RTSP ingest and file or unicast
 output. Multicast egress on a multi-homed host follows the container's routing
