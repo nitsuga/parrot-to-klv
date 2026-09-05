@@ -102,7 +102,7 @@ oversized automation payloads plus truncated extension tails are reported and
 cleared, with synthetic regression fixtures; valid extension behavior is
 unchanged.
 
-**Ctrl-C now cuts the file→live replay drain short (#63):** `replay_file_to_live` bridges the SIGINT flag to a `stop_source` and passes its token to every `KlvSink::close()`; the libmisbklv pin carries the cancellable `close()` (upstream ADR 0032), the Generate encoder-shift fix (ADR 0033), and both halves of the live-RTSP Generate teardown use-after-free (this repo's #57): the SEI-probe fix (upstream #38) and the request-pad drain that closed the residual (upstream #40). The pipeline runs end to end — `parrot-to-klv in.mp4 -o out.ts` writes an MPEG-TS carrying the recording's own video plus a synchronous ST 0601 KLV stream. What remains is depth, not plumbing.
+**Ctrl-C now cuts the file→live replay drain short (#63):** `replay_file_to_live` bridges the SIGINT flag to a `stop_source` and passes its token to every `KlvSink::close()`; the libmisbklv pin carries the cancellable `close()` (upstream ADR 0032), the Generate encoder-shift fix (ADR 0033), and both halves of the live-RTSP Generate teardown use-after-free (this repo's #57): the SEI-probe fix (upstream #38) and the request-pad drain that closed the residual (upstream #40). The pipeline runs end to end — `parrot-to-klv in.mp4 -o out.ts` writes an MPEG-TS carrying the recording's own video plus a synchronous ST 0601 KLV stream.
 
 What each stage does, and why, is owned by its concept rather than restated
 here: [MP4 metadata extraction](../context/mp4-extraction.md),
@@ -112,7 +112,7 @@ here: [MP4 metadata extraction](../context/mp4-extraction.md),
 surface — flags, output, the scrub and conform workflows — is in
 [`README.md`](../README.md).
 
-**`v0.4.1` is the current published release.** Native x86-64 and `aarch64`
+**`v0.5.0` is the current published release.** Native x86-64 and `aarch64`
 bundles and container images ship together, each built and smoke-tested on its own
 architecture. The Ubuntu 22.04 compatibility floor now comes from the shared
 digest-pinned Jammy build container rather than a retiring runner label, while

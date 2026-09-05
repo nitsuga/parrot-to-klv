@@ -7,6 +7,45 @@ tell a user nothing.
 The release workflow publishes the section matching the tag, so a heading here
 must be exactly `## vX.Y.Z`.
 
+## v0.5.0
+
+This release makes live RTSP ingest straightforward to install and operate as a
+long-running Linux service, and fixes idle detection for video-only streams.
+File conversion, CLI flags, and MPEG-TS stream layout are unchanged.
+
+### Added
+
+- **The container deliverable now includes a Docker Compose live-ingest
+  service.** It runs RTSP ingest across source and process failures, writes
+  numbered captures for a file sink or streams directly to UDP/SRT, runs as the
+  caller so captures are not root-owned, and rotates its logs. The service is
+  Linux-only and requires host networking so `--iface` can select a real host
+  NIC; this also means it does not have Docker's network isolation.
+
+- **`setup-live` guides both installation and upgrades.** It explains the
+  networking, restart, and credential-exposure consequences; collects and
+  validates the settings; records the caller's IDs; creates the capture
+  directory; writes a private `.env`; loads the bundled image; and can start
+  the service. On upgrade it can retain existing settings, reload the image,
+  gracefully replace a running ingest container, and remove older
+  same-architecture image tags. Captures are never removed.
+
+### Changed
+
+- **Live idleness is now measured from delivered video, not telemetry.** A
+  video-only source stays live while its video flows and its capture is kept;
+  a session that delivers neither video nor telemetry remains empty and counts
+  toward `--max-empty-sessions`.
+
+- **The Compose service owns process availability.** It restarts after an exit
+  until explicitly stopped, while the tool's `--reconnect` loop owns source
+  recovery within each process. Consequently, `MAX_EMPTY_SESSIONS` bounds one
+  process lifetime and resets after Compose restarts it. A clean stop or upgrade
+  may take up to 5 minutes 30 seconds so an in-progress capture can drain.
+
+- **Dependency:** the pinned libmisbklv commit moves to `4da3023`, providing
+  the video-delivery timestamp used by live idle detection.
+
 ## v0.4.1
 
 A correctness release for v3 recordings. Every change here is about *not*
@@ -55,11 +94,9 @@ errors. File-to-file conversion and the MPEG-TS stream layout are unchanged.
 ### Added
 
 - **Live runs finish when a source goes idle.** An RTSP capture now ends after
-  `--idle-timeout` seconds without delivered video (default 10); set it to `0`
+  `--idle-timeout` seconds without Parrot telemetry (default 10); set it to `0`
   to wait for `SIGINT`/`SIGTERM` instead. An unattended capture can therefore
   finalize when a sortie ends instead of idling against a dead pipeline.
-  Video-only sources stay up as long as their video flows, and a session that
-  never delivers video ends with a backend error rather than a capture.
 
 - **Reconnect across repeated sorties.** `--reconnect` keeps one invocation
   polling for a source every `--reconnect-interval` seconds (default 3),
@@ -67,8 +104,8 @@ errors. File-to-file conversion and the MPEG-TS stream layout are unchanged.
   File outputs are numbered (`flight_0000.ts`, `flight_0001.ts`, …) without
   overwriting captures already on disk; UDP/SRT outputs reuse their address.
   `--max-empty-sessions` (default 5, or `0` to disable) stops a run after that
-  many consecutive opened sessions deliver neither video nor telemetry, while a
-  source that is simply absent can remain unavailable until it returns.
+  many consecutive opened sessions carry no telemetry, while a source that is
+  simply absent can remain unavailable until it returns.
 
 ### Changed
 

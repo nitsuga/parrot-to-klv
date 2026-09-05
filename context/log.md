@@ -2,6 +2,19 @@
 
 ## 2026-09-05
 
+* **Prepared the `v0.5.0` release.** `project(VERSION)` moves `0.4.1` → `0.5.0`
+  and `CHANGELOG.md` gains the section the tag workflow publishes. This is a
+  minor release because the Docker deliverable gains a guided, long-running
+  Compose service; it also carries the video-delivery liveness change and the
+  libmisbklv pin at `4da3023`. The pre-release doc lint found one historical
+  drift: the liveness commit had rewritten the `v0.4.0` changelog as though
+  video-based idleness shipped in that release. That section again describes
+  its original telemetry-based behavior, while the change is now recorded
+  under `v0.5.0`. The pin rationale in `CMakeLists.txt` and the current-release
+  marker in PROGRESS were updated; current README, Docker usage, ADRs, ROADMAP,
+  and CI docs otherwise agree on the released behavior. Existing open issues
+  predate this range and do not block the release.
+
 * **Guided live Compose setup (#125, PR 126 review):** the Docker deliverable
   now stages `setup-live`, an interactive path that explains host networking,
   restart behavior, and RTSP credential exposure; loads the bundled image;

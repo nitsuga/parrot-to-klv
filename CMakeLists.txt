@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(parrot-to-klv VERSION 0.4.1 LANGUAGES CXX)
+project(parrot-to-klv VERSION 0.5.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -21,7 +21,9 @@ include(FetchContent)
 FetchContent_Declare(
   misbklv
   GIT_REPOSITORY https://github.com/nitsuga/libmisbklv.git
-  # Distinguishes a live source that is absent right now (SourceUnavailable,
+  # Exposes the live video-delivery timestamp used by --idle-timeout, so a
+  # video-only stream remains live while video is flowing (libmisbklv ADR 0038).
+  # Also distinguishes a live source that is absent right now (SourceUnavailable,
   # worth retrying) from a configuration that can never run (Unsupported), so
   # reconnect no longer has to infer intent from the source scheme
   # (libmisbklv ADR 0036). Prior: nonblocking polling for a backend failure so
