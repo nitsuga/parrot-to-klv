@@ -52,16 +52,15 @@ struct LiveIngestConfig {
     // poll (previous behavior), use a small run_duration like 600ms.
     std::optional<std::chrono::milliseconds> run_duration{std::chrono::milliseconds(2000)};
 
-    // End the session when no Parrot RTP header extension has arrived for this
+    // End the session when no video buffer has been delivered for this
     // long. The primary end-of-source signal (ADR 0018): a clean RTSP teardown
     // is the polite ending, but power loss and hard link failures send no
     // TEARDOWN at all, so idleness is the only signal guaranteed to fire.
-    // The timer arms at drive-loop entry, not at the first sample, so a source
+    // The timer arms at drive-loop entry, not at the first delivery, so a source
     // that connects and never delivers ends the same way as one that stops.
     // Zero disables it, restoring a run that ends only on its deadline or
-    // SIGINT. Telemetry rides inside the video stream's header extensions, so
-    // telemetry arriving implies video arriving — the converse does not hold,
-    // which is why a video-only stream is out of this watchdog's reach.
+    // SIGINT. The signal is video delivery (KlvSink::last_video_delivery),
+    // so a video-only stream stays up as long as its video flows.
     std::chrono::seconds idle_timeout{10};
 
     // Reconnect mode (ADR 0018 mode 2): when a session ends, finalize it and
@@ -75,7 +74,7 @@ struct LiveIngestConfig {
     std::chrono::seconds reconnect_interval{3};
 
     // Give up after this many consecutive sessions that opened and then
-    // produced no telemetry. A source that is merely absent fails to *open*,
+    // delivered nothing — neither video nor telemetry. A source that is merely absent fails to *open*,
     // which is not counted and is waited on for as long as the run is up —
     // that is the flying-day case this mode exists for. But a session that opens and then fails, over and
     // over with nothing to show, means something retrying cannot fix: a full
@@ -83,7 +82,7 @@ struct LiveIngestConfig {
     // libmisbklv reports those as a generic Backend error, indistinguishable
     // from a source dying, so a bound is the only defense (see ADR 0018).
     // A link that drops mid-sortie resets the count, because that session
-    // emitted telemetry before it died. Zero disables the guard.
+    // delivered video before it died. Zero disables the guard.
     unsigned max_empty_sessions = 5;
 };
 

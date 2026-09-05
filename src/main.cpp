@@ -216,7 +216,7 @@ void print_usage(std::ostream& out, const char* program) {
         << "  --loop            enable multicast loopback for udp: output\n"
         << "                    (default).\n"
         << "  --no-loop         disable multicast loopback for udp: output.\n"
-        << "  --idle-timeout <s> end a live run when no telemetry has arrived\n"
+        << "  --idle-timeout <s> end a live run when no video has been delivered\n"
         << "                    for <s> seconds (default 10; 0 disables). Only\n"
         << "                    with a live input.\n"
         << "  --reconnect       after a live source stops, keep polling for it\n"
@@ -228,10 +228,10 @@ void print_usage(std::ostream& out, const char* program) {
         << "  --reconnect-interval <s>  how often to poll for the source in\n"
         << "                    --reconnect (default 3).\n"
         << "  --max-empty-sessions <n>  in --reconnect, stop after <n>\n"
-        << "                    consecutive sessions that connect but carry no\n"
-        << "                    telemetry (default 5; 0 never stops). A source\n"
-        << "                    that is simply absent never connects and is not\n"
-        << "                    counted.\n"
+        << "                    consecutive sessions that connect but deliver\n"
+        << "                    neither video nor telemetry (default 5; 0 never\n"
+        << "                    stops). A source that is simply absent never\n"
+        << "                    connects and is not counted.\n"
         << "  --repeat          loop file replay to a live sink until SIGINT\n"
         << "                    (only with -i file.mp4 -o udp:/srt:).\n"
         << "  --repeat-pts <m>  how PTS behaves when looping: reset (each\n"
@@ -335,7 +335,7 @@ int main(int argc, char* argv[]) {
     bool has_ttl = false;
     bool has_loop = false;
     bool udp_loop = true;
-    // Live-input only: end the run after this long with no telemetry (ADR 0018).
+    // Live-input only: end the run after this long with no video delivered (ADR 0018).
     std::chrono::seconds idle_timeout{10};
     bool has_idle_timeout = false;
     bool reconnect = false;
