@@ -7,12 +7,16 @@
 #include <cstdint>
 #include <cstdio>
 #include <filesystem>
+#include <fcntl.h>
 #include <iostream>
 #include <optional>
+#include <poll.h>
+#include <mutex>
 #include <span>
 #include <string>
 #include <utility>
 #include <vector>
+#include <unistd.h>
 
 #include "misbklv/message.hpp"
 #include "misbklv/stream.hpp"
@@ -34,6 +38,24 @@ namespace {
 /// `convert_all()`'s loop, which is the only place a long conversion actually
 /// spends time.
 volatile std::sig_atomic_t g_interrupt_requested = 0;
+int g_interrupt_pipe[2] = {-1, -1};
+volatile std::sig_atomic_t g_interrupt_pipe_ready = 0;
+std::once_flag g_interrupt_pipe_once;
+
+void wake_interrupt_waiters() {
+    if (!g_interrupt_pipe_ready) return;
+    const char byte = 0;
+    (void)::write(g_interrupt_pipe[1], &byte, 1);
+}
+
+void open_interrupt_pipe() {
+    if (::pipe(g_interrupt_pipe) != 0) return;
+    for (int fd : g_interrupt_pipe) {
+        const int flags = ::fcntl(fd, F_GETFL);
+        if (flags >= 0) (void)::fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+    }
+    g_interrupt_pipe_ready = 1;
+}
 
 /// True for the sample entry formats that hold H.264.
 ///
@@ -110,12 +132,28 @@ void convert_all(Mp4MetadataExtractor& extractor, const SessionMetadata& session
 
 }  // namespace
 
-void request_mux_interrupt() { g_interrupt_requested = 1; }
+void request_mux_interrupt() {
+    g_interrupt_requested = 1;
+    wake_interrupt_waiters();
+}
 bool is_mux_interrupted() { return g_interrupt_requested != 0; }
 // Test-only: the flag has no reset in production (an interrupt ends the
 // process), but file_replay_test runs two interrupt scenarios in one process
 // and the second would otherwise skip. Never call this from a signal handler.
 void reset_mux_interrupt_for_test() { g_interrupt_requested = 0; }
+
+void wait_for_mux_interrupt(std::stop_token stop) {
+    if (is_mux_interrupted() || stop.stop_requested()) return;
+    std::call_once(g_interrupt_pipe_once, open_interrupt_pipe);
+    if (!g_interrupt_pipe_ready) return;
+    std::stop_callback on_stop(stop, [] { wake_interrupt_waiters(); });
+    pollfd fd{g_interrupt_pipe[0], POLLIN, 0};
+    while (!is_mux_interrupted() && !stop.stop_requested()) {
+        if (::poll(&fd, 1, -1) < 0) continue;
+        char bytes[64];
+        while (::read(g_interrupt_pipe[0], bytes, sizeof(bytes)) > 0) {}
+    }
+}
 
 MuxReport mux_to_ts(const std::string& input, const std::string& output,
                     const TransformOptions& options) {

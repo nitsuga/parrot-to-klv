@@ -5,6 +5,7 @@
 
 #include <cstdint>
 #include <string>
+#include <stop_token>
 
 #include "transform.hpp"
 
@@ -80,5 +81,10 @@ bool is_mux_interrupted();
 /// interrupt scenario in one process. Not async-signal-safe; never call it
 /// from production code or a handler.
 void reset_mux_interrupt_for_test();
+/// Block until an interrupt is requested or `stop` is requested.
+///
+/// The interrupt side is safe from a signal handler; the waiter is used by
+/// replay to cancel a blocking output drain without periodic polling.
+void wait_for_mux_interrupt(std::stop_token stop);
 
 }  // namespace parrot_to_klv
