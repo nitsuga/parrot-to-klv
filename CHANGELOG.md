@@ -7,6 +7,44 @@ tell a user nothing.
 The release workflow publishes the section matching the tag, so a heading here
 must be exactly `## vX.Y.Z`.
 
+## v0.5.1
+
+This is a hardening release. It makes conversion, inspection, scrubbing, and
+live-service setup more conservative when metadata or input is missing,
+malformed, or unsafe. Existing valid file conversion and MPEG-TS stream layout
+are unchanged.
+
+### Fixed
+
+- **Location, attitude, target, and time data are omitted when the recording
+  does not establish them.** Takeoff geotags require `--with-location`, not
+  `--with-identity`; absent or invalid proto quaternions no longer become a
+  plausible level attitude; pixel-only proto targets no longer become 0,0,0;
+  and an unusable proto clock is reported as invalid rather than as needing
+  session data.
+
+- **File output and scrubbing fail closed.** `-o file:<path>` and
+  `file://<path>` use the requested filesystem path, while empty file URIs are
+  rejected. `parrot-scrub --alt` and its C++ API now reject non-finite and
+  unrepresentable coordinates instead of risking an invalid altitude encoding.
+
+- **Large and hostile MP4 files are handled safely.** MP4 scanning now uses
+  64-bit file offsets and overflow-safe bounds checks, so files over 2 GiB and
+  malformed 64-bit box sizes do not truncate, wrap, or seek backward.
+
+- **Live-service setup preserves valid credentials safely.** `setup-live`
+  rejects control characters in interactive values and correctly writes single
+  quotes in Docker Compose dotenv values.
+
+- **Conformance reports retain a genuine zero timestamp delta.** Duplicate or
+  decreasing timestamps now remain visible as a 0 microsecond minimum instead
+  of being overwritten by a later positive delta.
+
+### Changed
+
+- **Dependency:** the pinned libmisbklv commit moves to `e5f0ccd`, adding
+  stalled-video queue eviction and clearer truncated BER diagnostics.
+
 ## v0.5.0
 
 This release makes live RTSP ingest straightforward to install and operate as a

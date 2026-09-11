@@ -2,6 +2,16 @@
 
 ## 2026-09-11
 
+* **Declared `v0.5.1` for release:** patch release for the hardening batch
+  merged after `v0.5.0`: fail-closed location/identity disclosure and proto
+  absent-value handling; safe file-output URI routing and scrub coordinate
+  bounds; 64-bit, overflow-safe MP4 scanning; safe Compose dotenv setup;
+  correct zero timestamp deltas in conformance reports; and the `e5f0ccd`
+  libmisbklv pin. `CHANGELOG.md` carries the hand-written notes that
+  `release.yml` publishes with the architecture-specific deliverables. The
+  release audit restored `planning/PROGRESS.md` to present state and documented
+  pixel-only proto LFIC omission in the field mapping.
+
 * **Conformance report preserves zero timestamp delta minimum (#89):**
   `run_conformance()` previously used 0 as an unset sentinel for `timestamp_delta_min`,
   causing any legitimate 0 µs delta (from duplicate or non-increasing timestamps) to
