@@ -8,7 +8,29 @@
 #include <string>
 #include <vector>
 
+#if !defined(_WIN32)
+#include <sys/types.h>
+#endif
+
 namespace parrot_to_klv {
+
+/// Portable 64-bit file seeking and offset query. Uses fseeko/ftello on POSIX
+/// (where _FILE_OFFSET_BITS=64 ensures 64-bit off_t) and _fseeki64/_ftelli64 on Windows.
+#if defined(_WIN32)
+inline int fseek64(FILE* f, int64_t offset, int whence) {
+    return _fseeki64(f, offset, whence);
+}
+inline int64_t ftell64(FILE* f) {
+    return _ftelli64(f);
+}
+#else
+inline int fseek64(FILE* f, int64_t offset, int whence) {
+    return ::fseeko(f, static_cast<off_t>(offset), whence);
+}
+inline int64_t ftell64(FILE* f) {
+    return ::ftello(f);
+}
+#endif
 
 /// Pack a four-character box/handler code big-endian, e.g. fourcc("meta").
 constexpr uint32_t fourcc(const char (&s)[5]) {

@@ -8,6 +8,12 @@ chronological history (what landed when, decision detail) lives in
 
 ## Now
 
+**MP4 container scanning bounds and 64-bit file offsets hardened (#129):**
+subtraction-based bounds checks eliminate signed integer overflow UB on hostile
+64-bit largesize boxes and prevent backward seek loops, while project-wide
+`_FILE_OFFSET_BITS=64` and `fseek64`/`ftell64` enable seeking and extraction on
+media files larger than 2 GiB.
+
 **CLI disclosure and file-output routing are fail-closed (#128):** takeoff
 geotags are location data, disclosed only with `--with-location`, while serials
 remain identity data. `-o file:<path>` or `file://<path>` normalizes to the

@@ -5,6 +5,10 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# Enable 64-bit file offsets across all targets so fseeko/ftello and off_t
+# can address files larger than 2 GiB on 32-bit platforms and Linux.
+add_compile_definitions(_FILE_OFFSET_BITS=64)
+
 # Fetch libmisbklv from GitHub, pinned to an exact commit.
 #
 # Not a branch: FetchContent does not re-fetch an already-populated dependency,

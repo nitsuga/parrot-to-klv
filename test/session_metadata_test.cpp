@@ -12,6 +12,7 @@
 
 #include <cstdint>
 #include <cstdio>
+#include <fstream>
 #include <iostream>
 #include <string>
 
@@ -205,6 +206,57 @@ void check_hostile_largesize_is_rejected(const std::string& fixture_dir) {
           "the real tag before the hostile box still parses");
     check(!session.friendly_name.has_value(),
           "a box with a wrapping largesize is not read as a valid '©ART'");
+}
+
+void check_top_level_hostile_largesize_is_rejected() {
+    const std::string tmp_path = "/tmp/parrot_hostile_toplevel_largesize.mp4";
+
+    // 1. Box with size=1 and 64-bit largesize > INT64_MAX (e.g. UINT64_MAX).
+    // In unhardened code, static_cast<int64_t>(size) wraps negative (-1), causing
+    // pos += -1 backwards seek.
+    {
+        std::ofstream f(tmp_path, std::ios::binary);
+        const uint8_t box[24] = {
+            0x00, 0x00, 0x00, 0x01,  // size = 1 (64-bit largesize follows)
+            'f',  'r',  'e',  'e',
+            0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,  // UINT64_MAX
+            0x00, 0x00, 0x00, 0x08,
+            'f',  'r',  'e',  'e'
+        };
+        f.write(reinterpret_cast<const char*>(box), sizeof(box));
+    }
+
+    FILE* file = std::fopen(tmp_path.c_str(), "rb");
+    check(file != nullptr, "hostile toplevel largesize temp file opens");
+    if (file) {
+        const SessionMetadata session = parse_session_metadata(file);
+        std::fclose(file);
+        check(session.empty(), "hostile UINT64_MAX largesize terminates parse cleanly");
+    }
+
+    // 2. Box with size=1 and 64-bit largesize near INT64_MAX.
+    // In unhardened code, pos + static_cast<int64_t>(size) overflows signed int64_t (UB).
+    {
+        std::ofstream f(tmp_path, std::ios::binary);
+        const uint8_t box[24] = {
+            0x00, 0x00, 0x00, 0x01,
+            'f',  'r',  'e',  'e',
+            0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xF0,  // INT64_MAX - 15
+            0x00, 0x00, 0x00, 0x08,
+            'f',  'r',  'e',  'e'
+        };
+        f.write(reinterpret_cast<const char*>(box), sizeof(box));
+    }
+
+    file = std::fopen(tmp_path.c_str(), "rb");
+    check(file != nullptr, "hostile toplevel near-INT64_MAX largesize temp file opens");
+    if (file) {
+        const SessionMetadata session = parse_session_metadata(file);
+        std::fclose(file);
+        check(session.empty(), "hostile near-INT64_MAX largesize terminates parse cleanly");
+    }
+
+    std::remove(tmp_path.c_str());
 }
 
 void check_pre_epoch_date(const std::string& fixture_dir) {
@@ -436,6 +488,7 @@ int main(int argc, char** argv) {
     check_pre_epoch_date(argv[1]);
     check_padded_date(argv[1]);
     check_hostile_largesize_is_rejected(argv[1]);
+    check_top_level_hostile_largesize_is_rejected();
     check_anchoring();
     check_v3_absent_data(argv[1]);
     check_session_items();

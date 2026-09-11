@@ -87,7 +87,7 @@ SampleScrubResult scrub_v3_sample(std::vector<uint8_t>& s, const ScrubValues& v,
         if (zero_unknown && bytes > 0) {
             // Blank the bytes that are actually present but keep id and length,
             // so the extension remains structurally visible and skippable.
-            std::fill_n(s.begin() + static_cast<long>(begin), bytes, uint8_t{0});
+            std::fill_n(s.begin() + static_cast<std::ptrdiff_t>(begin), bytes, uint8_t{0});
             ++result.unknown_payloads_zeroed;
         }
     };
@@ -288,8 +288,8 @@ ScrubReport scrub_file(const std::string& input, const std::string& output,
             report.error = "sample " + std::to_string(i) + " lies outside the file";
             return report;
         }
-        std::vector<uint8_t> sample(file.begin() + static_cast<long>(offset),
-                                    file.begin() + static_cast<long>(offset + size));
+        std::vector<uint8_t> sample(file.begin() + static_cast<std::ptrdiff_t>(offset),
+                                    file.begin() + static_cast<std::ptrdiff_t>(offset + size));
         if (!parse_v3(sample)) {
             report.error = "sample " + std::to_string(i) + " is not decodable v3";
             return report;
@@ -307,7 +307,7 @@ ScrubReport scrub_file(const std::string& input, const std::string& output,
                 report.unknown_extension_ids.push_back(id);
             }
         }
-        std::copy(sample.begin(), sample.end(), file.begin() + static_cast<long>(offset));
+        std::copy(sample.begin(), sample.end(), file.begin() + static_cast<std::ptrdiff_t>(offset));
         ++report.samples_rewritten;
     }
 

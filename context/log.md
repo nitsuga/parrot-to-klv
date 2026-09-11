@@ -2,14 +2,23 @@
 
 ## 2026-09-11
 
+* **MP4 box largesize bounds and 64-bit file seeking (#129):** top-level and
+  nested box header scanners now use non-overflowing subtraction bounds checks
+  (`size > parent_end - begin`), preventing signed integer overflow UB on
+  hostile 64-bit largesize boxes near `INT64_MAX` and guarding against negative
+  `pos` backwards seeking. `_FILE_OFFSET_BITS=64` is enabled project-wide, and
+  low-level file seeking/telling is unified under portable 64-bit `fseek64`/`ftell64`
+  wrappers (`fseeko`/`ftello` / `_fseeki64`/`_ftelli64`), supporting drone media
+  files larger than 2 GiB across all architectures. Position query error returns
+  (`< 0`) are guarded prior to subtraction, and the 3 GiB seek test probes
+  filesystem sparse-file capability with graceful fallback.
+
 * **CLI location disclosure and `file:` outputs (#128):** takeoff geotags now
   require `--with-location`, independent of the airframe-identity flag; help
   describes the distinction. The CLI strips `file:` or `file://` before
   routing, rejects an empty normalized URI, and sends offline/live file output
   to the requested filesystem path. The end-to-end CLI test covers both
   disclosure combinations and each URI form.
-
-## 2026-09-11
 
 * **Live test waits and replay cancellation (#130):** live test configuration
   now accepts millisecond idle/reconnect intervals while retaining its
