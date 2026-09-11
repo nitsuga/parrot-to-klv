@@ -3,6 +3,7 @@
 
 #include "mux.hpp"
 
+#include <cerrno>
 #include <csignal>
 #include <cstdint>
 #include <cstdio>
@@ -48,11 +49,21 @@ void wake_interrupt_waiters() {
     if (::write(g_interrupt_pipe[1], &byte, 1) < 0) return;
 }
 
+void drain_interrupt_pipe() {
+    if (!g_interrupt_pipe_ready) return;
+    char bytes[64];
+    while (::read(g_interrupt_pipe[0], bytes, sizeof(bytes)) > 0) {}
+}
+
 void open_interrupt_pipe() {
     if (::pipe(g_interrupt_pipe) != 0) return;
     for (int fd : g_interrupt_pipe) {
         const int flags = ::fcntl(fd, F_GETFL);
         if (flags >= 0) (void)::fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+        const int descriptor_flags = ::fcntl(fd, F_GETFD);
+        if (descriptor_flags >= 0) {
+            (void)::fcntl(fd, F_SETFD, descriptor_flags | FD_CLOEXEC);
+        }
     }
     g_interrupt_pipe_ready = 1;
 }
@@ -140,7 +151,10 @@ bool is_mux_interrupted() { return g_interrupt_requested != 0; }
 // Test-only: the flag has no reset in production (an interrupt ends the
 // process), but file_replay_test runs two interrupt scenarios in one process
 // and the second would otherwise skip. Never call this from a signal handler.
-void reset_mux_interrupt_for_test() { g_interrupt_requested = 0; }
+void reset_mux_interrupt_for_test() {
+    g_interrupt_requested = 0;
+    drain_interrupt_pipe();
+}
 
 void wait_for_mux_interrupt(std::stop_token stop) {
     if (is_mux_interrupted() || stop.stop_requested()) return;
@@ -149,9 +163,13 @@ void wait_for_mux_interrupt(std::stop_token stop) {
     std::stop_callback on_stop(stop, [] { wake_interrupt_waiters(); });
     pollfd fd{g_interrupt_pipe[0], POLLIN, 0};
     while (!is_mux_interrupted() && !stop.stop_requested()) {
-        if (::poll(&fd, 1, -1) < 0) continue;
-        char bytes[64];
-        while (::read(g_interrupt_pipe[0], bytes, sizeof(bytes)) > 0) {}
+        const int ready = ::poll(&fd, 1, -1);
+        if (ready < 0) {
+            if (errno == EINTR) continue;
+            break;
+        }
+        if (ready == 0 || (fd.revents & POLLIN) == 0) break;
+        drain_interrupt_pipe();
     }
 }
 

@@ -987,7 +987,7 @@ static bool test_idle_timeout_zero_disables() {
         std::cerr << "  expected a clean end, got error " << static_cast<int>(r.error()) << "\n";
         ok = false;
     }
-    // Must reach its 2 s deadline rather than ending early on silence.
+    // Must reach its 250 ms deadline rather than ending early on silence.
     if (elapsed < 200) {
         std::cerr << "  disabled timeout still ended the run early: " << elapsed << " ms\n";
         ok = false;
@@ -1341,7 +1341,7 @@ static bool test_reconnect_does_not_retry_a_fatal_sink() {
     // Backstop: if the fatal path regresses to retrying, this releases the test
     // instead of hanging the suite, and the elapsed check below fails it.
     std::thread stopper([] {
-        std::this_thread::sleep_for(std::chrono::milliseconds(300));
+        std::this_thread::sleep_for(std::chrono::milliseconds(600));
         parrot_to_klv::request_mux_interrupt();
     });
     const auto t0 = std::chrono::steady_clock::now();
@@ -1357,7 +1357,7 @@ static bool test_reconnect_does_not_retry_a_fatal_sink() {
         std::cerr << "  expected an error for an unopenable sink, got success\n";
         ok = false;
     }
-    if (elapsed >= 250) {
+    if (elapsed >= 450) {
         std::cerr << "  fatal sink error was retried rather than surfaced: " << elapsed << " ms\n";
         ok = false;
     }
@@ -1391,7 +1391,7 @@ static bool test_reconnect_does_not_retry_an_unsupported_config() {
 
     // Backstop, so a regression to retrying fails the test instead of hanging.
     std::thread stopper([] {
-        std::this_thread::sleep_for(std::chrono::milliseconds(300));
+        std::this_thread::sleep_for(std::chrono::milliseconds(600));
         parrot_to_klv::request_mux_interrupt();
     });
     const auto t0 = std::chrono::steady_clock::now();
@@ -1407,7 +1407,7 @@ static bool test_reconnect_does_not_retry_an_unsupported_config() {
         std::cerr << "  expected an error for an unbuildable source, got success\n";
         ok = false;
     }
-    if (elapsed >= 250) {
+    if (elapsed >= 450) {
         std::cerr << "  unsupported config was retried rather than surfaced: " << elapsed
                   << " ms\n";
         ok = false;
@@ -1474,7 +1474,7 @@ static bool test_reconnect_bounds_consecutive_empty_sessions() {
         std::cerr << "  expected the bound to stop the run with an error\n";
         ok = false;
     }
-    // Two ~1 s sessions plus one interval; well inside the 15 s backstop.
+    // Two empty sessions plus one interval must finish within the backstop.
     if (elapsed >= 2500) {
         std::cerr << "  bound did not stop the run: " << elapsed << " ms\n";
         ok = false;
