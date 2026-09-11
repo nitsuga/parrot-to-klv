@@ -454,6 +454,77 @@ void test_malformed_and_truncated_inputs(const char* dir) {
     }
 }
 
+void test_largesize_signed_overflow_rejected() {
+    const std::string tmp_path = "/tmp/parrot_largesize_overflow.mp4";
+    {
+        std::ofstream f(tmp_path, std::ios::binary);
+        // Box 1 (normal ftyp): 16 bytes
+        const uint8_t ftyp[16] = {
+            0x00, 0x00, 0x00, 0x10,
+            'f',  't',  'y',  'p',
+            'i',  's',  'o',  'm',
+            0x00, 0x00, 0x02, 0x00
+        };
+        f.write(reinterpret_cast<const char*>(ftyp), sizeof(ftyp));
+
+        // Box 2 (moov with 64-bit largesize near INT64_MAX):
+        // begin = 16. In unhardened code, begin + size = 16 + (INT64_MAX - 5)
+        // overflows signed int64_t (UB).
+        const uint8_t moov_hdr[16] = {
+            0x00, 0x00, 0x00, 0x01,  // size = 1 (largesize follows)
+            'm',  'o',  'o',  'v',
+            0x7F, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFA   // INT64_MAX - 5
+        };
+        f.write(reinterpret_cast<const char*>(moov_hdr), sizeof(moov_hdr));
+    }
+
+    FILE* file = std::fopen(tmp_path.c_str(), "rb");
+    check(file != nullptr, "largesize overflow test file opens");
+    if (file) {
+        auto tracks = scan_mp4_tracks(file);
+        std::fclose(file);
+        check(tracks.empty(), "hostile near-INT64_MAX largesize box rejected without overflow");
+    }
+    std::remove(tmp_path.c_str());
+}
+
+void test_large_file_offset_seeking() {
+    const std::string tmp_path = "/tmp/parrot_large_offset_test.bin";
+    const int64_t target_offset = 3LL * 1024 * 1024 * 1024;  // 3 GiB
+    const uint8_t payload[8] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08};
+
+    // Create a sparse file with bytes placed at 3 GiB
+    FILE* out = std::fopen(tmp_path.c_str(), "wb");
+    check(out != nullptr, "large file offset test file opens for write");
+    if (!out) return;
+
+    check_eq(fseek64(out, target_offset, SEEK_SET), 0, "fseek64 seeks to 3 GiB");
+    check_eq(std::fwrite(payload, 1, sizeof(payload), out), sizeof(payload),
+             "wrote payload at 3 GiB");
+    std::fclose(out);
+
+    // Read back and verify 64-bit seek and tell
+    FILE* in = std::fopen(tmp_path.c_str(), "rb");
+    check(in != nullptr, "large file offset test file opens for read");
+    if (in) {
+        check_eq(fseek64(in, 0, SEEK_END), 0, "fseek64 seeks to EOF");
+        const int64_t file_size = ftell64(in);
+        check_eq(file_size, target_offset + static_cast<int64_t>(sizeof(payload)),
+                 "ftell64 reports file size > 3 GiB");
+
+        check_eq(fseek64(in, target_offset, SEEK_SET), 0, "fseek64 seeks to 3 GiB for read");
+        check_eq(ftell64(in), target_offset, "ftell64 matches target offset > 2 GiB");
+
+        uint8_t read_buf[8] = {};
+        check_eq(std::fread(read_buf, 1, sizeof(read_buf), in), sizeof(read_buf),
+                 "read payload from 3 GiB");
+        check(std::memcmp(read_buf, payload, sizeof(payload)) == 0,
+              "payload at 3 GiB matches expected bytes");
+        std::fclose(in);
+    }
+    std::remove(tmp_path.c_str());
+}
+
 }  // namespace
 
 int main(int argc, char* argv[]) {
@@ -477,6 +548,8 @@ int main(int argc, char* argv[]) {
     test_track_index_mismatch_is_rejected(dir);
     test_dual_parrot_metadata_track_warns(dir);
     test_malformed_and_truncated_inputs(dir);
+    test_largesize_signed_overflow_rejected();
+    test_large_file_offset_seeking();
 
     if (g_failures > 0) {
         std::cerr << "\n" << g_failures << " check(s) failed\n";

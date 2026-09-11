@@ -61,7 +61,7 @@ bool read_u64(FILE* file, uint64_t& out) {
 /// Consumes the terminator. Returns false if the box ends without one.
 bool read_c_string(FILE* file, int64_t box_end, std::string& out) {
     out.clear();
-    while (std::ftell(file) < box_end && out.size() < kMaxStringBytes) {
+    while (ftell64(file) < box_end && out.size() < kMaxStringBytes) {
         int c = std::fgetc(file);
         if (c == EOF) {
             return false;
@@ -83,8 +83,8 @@ struct BoxHeader {
 /// Read one box header at the current position. `parent_end` bounds it.
 /// Returns false at a clean end-of-range or on a malformed header.
 bool read_box_header(FILE* file, int64_t parent_end, BoxHeader& out) {
-    const int64_t begin = std::ftell(file);
-    if (begin < 0 || begin + 8 > parent_end) {
+    const int64_t begin = ftell64(file);
+    if (begin < 0 || parent_end < begin || parent_end - begin < 8) {
         return false;
     }
 
@@ -106,8 +106,10 @@ bool read_box_header(FILE* file, int64_t parent_end, BoxHeader& out) {
         size = parent_end - begin;
     }
 
-    const int64_t header_bytes = std::ftell(file) - begin;
-    if (size < header_bytes || begin + size > parent_end) {
+    const int64_t header_bytes = ftell64(file) - begin;
+    // `begin + size > parent_end` can wrap for a hostile 64-bit largesize near
+    // INT64_MAX. Safe subtraction `size > parent_end - begin` prevents signed overflow.
+    if (size < header_bytes || size > parent_end - begin) {
         return false;
     }
 
@@ -117,7 +119,7 @@ bool read_box_header(FILE* file, int64_t parent_end, BoxHeader& out) {
 }
 
 void parse_tkhd(FILE* file, const BoxHeader& box, Mp4TrackDescription& track) {
-    if (std::fseek(file, box.body_begin, SEEK_SET) != 0) {
+    if (fseek64(file, box.body_begin, SEEK_SET) != 0) {
         return;
     }
     uint32_t version_and_flags = 0;
@@ -134,10 +136,10 @@ void parse_tkhd(FILE* file, const BoxHeader& box, Mp4TrackDescription& track) {
         return;
     }
     const int64_t times_bytes = version == 1 ? 16 : 8;
-    if (std::fseek(file, times_bytes, SEEK_CUR) != 0) {
+    if (fseek64(file, times_bytes, SEEK_CUR) != 0) {
         return;
     }
-    if (std::ftell(file) + 4 > box.body_end) {
+    if (box.body_end - ftell64(file) < 4) {
         return;
     }
     read_u32(file, track.track_id);
@@ -145,17 +147,17 @@ void parse_tkhd(FILE* file, const BoxHeader& box, Mp4TrackDescription& track) {
 
 void parse_hdlr(FILE* file, const BoxHeader& box, Mp4TrackDescription& track) {
     // FullBox(4) + pre_defined(4), then handler_type.
-    if (std::fseek(file, box.body_begin + 8, SEEK_SET) != 0) {
+    if (fseek64(file, box.body_begin + 8, SEEK_SET) != 0) {
         return;
     }
-    if (std::ftell(file) + 4 > box.body_end) {
+    if (box.body_end - ftell64(file) < 4) {
         return;
     }
     read_u32(file, track.handler_type);
 }
 
 void parse_stsd(FILE* file, const BoxHeader& box, Mp4TrackDescription& track) {
-    if (std::fseek(file, box.body_begin, SEEK_SET) != 0) {
+    if (fseek64(file, box.body_begin, SEEK_SET) != 0) {
         return;
     }
     uint32_t version_and_flags = 0;
@@ -175,7 +177,7 @@ void parse_stsd(FILE* file, const BoxHeader& box, Mp4TrackDescription& track) {
 
         if (entry.type == kSampleEntryMett) {
             // SampleEntry: reserved[6] + data_reference_index(2).
-            if (std::fseek(file, entry.body_begin + 8, SEEK_SET) != 0) {
+            if (fseek64(file, entry.body_begin + 8, SEEK_SET) != 0) {
                 return;
             }
             // TextMetaDataSampleEntry: an optional content_encoding then
@@ -198,14 +200,14 @@ void parse_stsd(FILE* file, const BoxHeader& box, Mp4TrackDescription& track) {
             return;
         }
 
-        if (std::fseek(file, entry.body_end, SEEK_SET) != 0) {
+        if (fseek64(file, entry.body_end, SEEK_SET) != 0) {
             return;
         }
     }
 }
 
 void parse_tref(FILE* file, const BoxHeader& box, Mp4TrackDescription& track) {
-    if (std::fseek(file, box.body_begin, SEEK_SET) != 0) {
+    if (fseek64(file, box.body_begin, SEEK_SET) != 0) {
         return;
     }
     // Each child's box type *is* the reference type; its payload is an array of
@@ -222,7 +224,7 @@ void parse_tref(FILE* file, const BoxHeader& box, Mp4TrackDescription& track) {
                 track.cdsc_track_ids.push_back(id);
             }
         }
-        if (std::fseek(file, ref.body_end, SEEK_SET) != 0) {
+        if (fseek64(file, ref.body_end, SEEK_SET) != 0) {
             return;
         }
     }
@@ -236,7 +238,7 @@ bool is_container(uint32_t type) {
 /// Descend `[begin, end)`, appending a description per 'trak' met.
 void walk(FILE* file, int64_t begin, int64_t end, int depth,
           std::vector<Mp4TrackDescription>& tracks) {
-    if (depth > kMaxDepth || std::fseek(file, begin, SEEK_SET) != 0) {
+    if (depth > kMaxDepth || fseek64(file, begin, SEEK_SET) != 0) {
         return;
     }
 
@@ -259,7 +261,7 @@ void walk(FILE* file, int64_t begin, int64_t end, int depth,
             }
         }
 
-        if (std::fseek(file, box.body_end, SEEK_SET) != 0) {
+        if (fseek64(file, box.body_end, SEEK_SET) != 0) {
             return;
         }
     }
@@ -278,16 +280,16 @@ std::string fourcc_to_string(uint32_t code) {
 
 std::vector<Mp4TrackDescription> scan_mp4_tracks(FILE* file) {
     std::vector<Mp4TrackDescription> tracks;
-    if (!file || std::fseek(file, 0, SEEK_END) != 0) {
+    if (!file || fseek64(file, 0, SEEK_END) != 0) {
         return tracks;
     }
-    const int64_t file_size = std::ftell(file);
+    const int64_t file_size = ftell64(file);
     if (file_size <= 0) {
         return tracks;
     }
 
     // 'moov' may sit before or after 'mdat'; walk the top level to find it.
-    if (std::fseek(file, 0, SEEK_SET) != 0) {
+    if (fseek64(file, 0, SEEK_SET) != 0) {
         return tracks;
     }
     BoxHeader box;
@@ -296,7 +298,7 @@ std::vector<Mp4TrackDescription> scan_mp4_tracks(FILE* file) {
             walk(file, box.body_begin, box.body_end, 1, tracks);
             break;
         }
-        if (std::fseek(file, box.body_end, SEEK_SET) != 0) {
+        if (fseek64(file, box.body_end, SEEK_SET) != 0) {
             break;
         }
     }

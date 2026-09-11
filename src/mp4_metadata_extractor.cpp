@@ -64,11 +64,11 @@ bool starts_with_ci(std::string_view s, std::string_view prefix) {
 }
 
 int64_t file_size_of(FILE* file) {
-    if (std::fseek(file, 0, SEEK_END) != 0) {
+    if (fseek64(file, 0, SEEK_END) != 0) {
         return -1;
     }
-    const int64_t size = std::ftell(file);
-    std::fseek(file, 0, SEEK_SET);
+    const int64_t size = ftell64(file);
+    fseek64(file, 0, SEEK_SET);
     return size;
 }
 
@@ -76,7 +76,7 @@ int64_t file_size_of(FILE* file) {
 // which treats any truthy return as an error.
 int read_callback(int64_t offset, void* buffer, size_t size, void* token) {
     FILE* file = static_cast<FILE*>(token);
-    if (fseek(file, static_cast<long>(offset), SEEK_SET) != 0) {
+    if (fseek64(file, offset, SEEK_SET) != 0) {
         return 1;
     }
     return fread(buffer, 1, size, file) != size;
@@ -380,7 +380,7 @@ std::optional<MetadataSample> Mp4MetadataExtractor::extract_sample(uint32_t samp
     MetadataSample sample;
     sample.data.resize(frame_bytes);
 
-    if (fseek(impl_->file, static_cast<long>(offset), SEEK_SET) != 0) {
+    if (fseek64(impl_->file, offset, SEEK_SET) != 0) {
         return std::nullopt;
     }
     if (fread(sample.data.data(), 1, frame_bytes, impl_->file) != frame_bytes) {
@@ -442,7 +442,7 @@ uint64_t Mp4MetadataExtractor::zero_track_samples(int track_index,
             frame_bytes > file.size() - static_cast<uint64_t>(offset)) {
             continue;
         }
-        std::fill_n(file.begin() + static_cast<long>(offset), frame_bytes, uint8_t{0});
+        std::fill_n(file.begin() + static_cast<std::ptrdiff_t>(offset), frame_bytes, uint8_t{0});
         zeroed += frame_bytes;
     }
     return zeroed;
