@@ -2,6 +2,15 @@
 
 ## 2026-09-11
 
+* **setup-live control character rejection and dotenv quote escaping (#131):**
+  interactive input in `setup-live` (`ask()`) now loops and rejects control
+  characters (`*[[:cntrl:]]*`), preventing newline and carriage-return
+  injections into `.env`, with a fail-closed pre-write check. `quote_env()`
+  fixes sed delimiter escaping so single quotes inside credentials are properly
+  escaped as `\'` for Docker Compose dotenv parsing without crashing sed.
+  `test/setup_live_test.sh` covers control character rejection, single-quote
+  escaping, and real Docker Compose validation.
+
 * **MP4 box largesize bounds and 64-bit file seeking (#129):** top-level and
   nested box header scanners now use non-overflowing subtraction bounds checks
   (`size > parent_end - begin`), preventing signed integer overflow UB on

@@ -5,6 +5,7 @@
 set -euo pipefail
 
 source_dir=$(realpath -e -- "${1:?usage: setup_live_test.sh <source-dir>}")
+real_docker=$(command -v docker || true)
 tmp=$(mktemp -d)
 trap 'rm -rf -- "$tmp"' EXIT
 stage="$tmp/release"
@@ -67,7 +68,8 @@ grep -Fq 'cannot reach the Docker daemon' "$tmp/daemon-output.log" ||
 capture_dir="$tmp/captures"
 printf '%s\n' \
   y \
-  'rtsp://user:p$ss@host/live' \
+  "$(printf 'rtsp://user:p\rss@host/live')" \
+  "rtsp://user:p\$ss'wd@host/live" \
   '' \
   "$capture_dir" \
   '' \
@@ -77,18 +79,24 @@ printf '%s\n' \
   y \
   y | PATH="$fakebin:$PATH" DOCKER_LOG="$tmp/docker.log" \
     DOCKER_STATE="$tmp/docker.state" "$stage/setup-live" \
-    > "$tmp/output.log"
+    > "$tmp/output.log" 2>&1
 
+grep -Fq "Value must not contain control characters." "$tmp/output.log" ||
+  fail "control characters were not rejected"
 [ -d "$capture_dir" ] || fail "capture directory was not created"
 [ "$(stat -c '%a' "$stage/.env")" = 600 ] || fail ".env is not mode 0600"
-grep -Fqx "RTSP_URI='rtsp://user:p\$ss@host/live'" "$stage/.env" ||
-  fail "credential characters were not preserved literally"
+grep -Fqx "RTSP_URI='rtsp://user:p\$ss\\'wd@host/live'" "$stage/.env" ||
+  fail "credential characters with quotes were not escaped properly"
 grep -Fqx "OUTPUT_DIR='$capture_dir'" "$stage/.env" ||
   fail "capture directory was not written"
 grep -Fqx "HOST_UID=$(id -u)" "$stage/.env" || fail "caller UID was not written"
 grep -Fqx "HOST_GID=$(id -g)" "$stage/.env" || fail "caller GID was not written"
 grep -Fqx "load -i $stage/$image_file" "$tmp/docker.log" || fail "image was not reloaded"
 grep -Fqx 'compose config' "$tmp/docker.log" || fail "compose was not validated"
+if [ -n "$real_docker" ] && "$real_docker" compose version >/dev/null 2>&1; then
+  "$real_docker" compose --env-file "$stage/.env" -f "$stage/compose.yml" config >/dev/null ||
+    fail "real Docker Compose rejected the generated .env"
+fi
 grep -Fqx 'info' "$tmp/docker.log" || fail "Docker daemon was not checked"
 grep -Fqx 'stop --timeout 330 old123' "$tmp/docker.log" || fail "old service was not stopped"
 grep -Fqx 'rm old123' "$tmp/docker.log" || fail "old service was not removed"
