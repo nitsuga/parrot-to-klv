@@ -142,7 +142,10 @@ void check_fixture_samples(const std::string& fixture_dir) {
     check_eq(frame->lfic.size(), size_t{1}, "one LFIC entry");
     if (!frame->lfic.empty()) {
         check(frame->lfic[0].type == LficType::Cot, "LFIC entry is cursor-on-target");
-        check_near(frame->lfic[0].location.latitude_deg, 45.6, 1e-9, "LFIC latitude");
+        check(frame->lfic[0].location.has_value(), "LFIC location is present");
+        if (frame->lfic[0].location) {
+            check_near(frame->lfic[0].location->latitude_deg, 45.6, 1e-9, "LFIC latitude");
+        }
         check_near(frame->lfic[0].horizontal_radial_accuracy_m, 4.0, 1e-6, "LFIC radial accuracy");
     }
     check(frame->tracking.has_value(), "tracking present");
@@ -187,6 +190,10 @@ void check_wire_edges() {
     if (empty) {
         check_eq(empty->battery_percentage, 0, "default frame has zeroed fields");
         check(empty->skipped_field_numbers.empty(), "default frame skipped nothing");
+        check(!empty->drone_quat.is_finite(), "default frame has NaN drone_quat");
+        check(!empty->frame_quat.is_finite(), "default frame has NaN frame_quat");
+        check(!empty->frame_base_quat.is_finite(), "default frame has NaN frame_base_quat");
+        check(!empty->frame_local_quat.is_finite(), "default frame has NaN frame_local_quat");
     }
 
     // Unknown fields are the point of the format: a newer SDK's additions must
@@ -306,6 +313,53 @@ void check_wire_edges() {
         auto frame = parse_proto(msg(3, link), &err);
         check(frame.has_value(), "starfish link decodes");
         if (frame) check(frame->wifi_links.empty(), "starfish is not counted as a Wi-Fi link");
+    }
+
+    // Absent quaternions within drone metadata decode as NaN.
+    {
+        std::vector<uint8_t> drone;
+        put_tag(drone, 5, 0);
+        put_varint(drone, 40);  // battery only, no quaternion
+        auto frame = parse_proto(msg(1, drone), &err);
+        check(frame.has_value(), "drone metadata without quaternion decodes");
+        if (frame) {
+            check(!frame->drone_quat.is_finite(), "absent drone quaternion yields NaN");
+        }
+    }
+
+    // Non-unit quaternions (e.g. all-zero {0,0,0,0}) decode as NaN rather than identity.
+    {
+        std::vector<uint8_t> quat;  // empty message -> {0,0,0,0}, norm 0
+        std::vector<uint8_t> drone;
+        auto qmsg = msg(1, quat);
+        drone.insert(drone.end(), qmsg.begin(), qmsg.end());
+        auto frame = parse_proto(msg(1, drone), &err);
+        check(frame.has_value(), "drone with empty quaternion decodes");
+        if (frame) {
+            check(!frame->drone_quat.is_finite(), "zero quaternion yields NaN");
+        }
+    }
+
+    // Pixel-only LFIC entry (no location submessage).
+    {
+        std::vector<uint8_t> lfic;
+        // x = 0.5 (field 1), y = 0.5 (field 2), no field 3
+        put_tag(lfic, 1, 5);  // float (fixed32)
+        const float half = 0.5f;
+        auto* bytes = reinterpret_cast<const uint8_t*>(&half);
+        lfic.insert(lfic.end(), bytes, bytes + 4);
+        put_tag(lfic, 2, 5);  // float (fixed32)
+        lfic.insert(lfic.end(), bytes, bytes + 4);
+        auto frame = parse_proto(msg(8, lfic), &err);
+        check(frame.has_value(), "pixel-only LFIC decodes");
+        if (frame) {
+            check_eq(frame->lfic.size(), size_t{1}, "one LFIC entry");
+            if (!frame->lfic.empty()) {
+                check(!frame->lfic[0].location.has_value(), "pixel-only LFIC has no location");
+                check_near(frame->lfic[0].x, 0.5, 1e-6, "pixel-only LFIC retains x");
+                check_near(frame->lfic[0].y, 0.5, 1e-6, "pixel-only LFIC retains y");
+            }
+        }
     }
 }
 
