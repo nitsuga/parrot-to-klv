@@ -8,6 +8,10 @@ chronological history (what landed when, decision detail) lives in
 
 ## Now
 
+**Upstream libmisbklv pin bumped to `e5f0ccd`:** brings in stalled-video
+timestamp handling hardening with queue eviction and drop diagnostics (libmisbklv #75)
+and truncated long-form BER error reporting.
+
 **Live Compose setup input and dotenv quote escaping hardened (#131):**
 interactive `setup-live` prompts reject control characters and newlines fail-closed,
 preventing key injection into `.env`, while `quote_env` corrects sed escaping so single
