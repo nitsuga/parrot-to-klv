@@ -45,7 +45,7 @@ std::once_flag g_interrupt_pipe_once;
 void wake_interrupt_waiters() {
     if (!g_interrupt_pipe_ready) return;
     const char byte = 0;
-    (void)::write(g_interrupt_pipe[1], &byte, 1);
+    if (::write(g_interrupt_pipe[1], &byte, 1) < 0) return;
 }
 
 void open_interrupt_pipe() {
