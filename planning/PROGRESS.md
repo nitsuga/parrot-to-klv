@@ -8,6 +8,13 @@ chronological history (what landed when, decision detail) lives in
 
 ## Now
 
+**Conformance report preserves zero timestamp delta minimum (#89):**
+`run_conformance()` tracks timestamp deltas with an explicit seeding flag instead of
+using 0 as an unset sentinel, preventing genuine zero deltas (duplicate or non-increasing
+timestamps) from being overwritten by subsequent positive deltas. Regression coverage in
+`conformance_test` uses unique per-run temp directories (`mkdtemp`), verifies write success,
+and exercises both initial and intermediate duplicate timestamp deltas.
+
 **Scrub altitude bounds validation (#88):** `parrot-scrub` range-checks `--alt`
 against `[-32768, 32767.99609375]` meters matching the Q16.8 base frame upper bound,
 rejecting out-of-range or non-finite altitudes with a clear diagnostic instead of

@@ -2,6 +2,17 @@
 
 ## 2026-09-11
 
+* **Conformance report preserves zero timestamp delta minimum (#89):**
+  `run_conformance()` previously used 0 as an unset sentinel for `timestamp_delta_min`,
+  causing any legitimate 0 µs delta (from duplicate or non-increasing timestamps) to
+  re-seed the minimum on the subsequent frame with whatever delta followed. Consecutive
+  frame timestamps are now tracked using `std::optional<uint64_t> previous_ts` and an
+  explicit `timestamp_delta_seeded` boolean flag, preserving zero deltas across the
+  entire recording. Verified that committed conformance reports (`test/conformance/*.json`)
+  had strictly increasing timestamps and remain unaffected. Regression test in
+  `test/conformance_test.cpp` creates a unique `mkdtemp` per-run directory, verifies write
+  completion, and covers initial and intermediate zero timestamp deltas.
+
 * **Range-check `--alt` against Q16.8 bounds in `parrot-scrub` (#88):**
   altitude in `parrot-scrub` CLI is now checked against `[-32768, 32767.99609375]`
   meters matching what Parrot's signed 24-bit Q16.8 base frame (`8388607.0 / 256.0`)
