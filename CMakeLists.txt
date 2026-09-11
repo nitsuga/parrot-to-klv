@@ -345,6 +345,16 @@ add_test(NAME scrub_rejects_out_of_range_lat
                  $<TARGET_FILE:parrot-scrub> --lat 200
                  ${CMAKE_SOURCE_DIR}/test/fixtures/parrot_v3.mp4
                  ${CMAKE_CURRENT_BINARY_DIR}/scrub_cli_reject_out.mp4)
+add_test(NAME scrub_rejects_out_of_range_alt_high
+         COMMAND ${CMAKE_SOURCE_DIR}/test/cli_reject_test.sh "is outside"
+                 $<TARGET_FILE:parrot-scrub> --alt 32768
+                 ${CMAKE_SOURCE_DIR}/test/fixtures/parrot_v3.mp4
+                 ${CMAKE_CURRENT_BINARY_DIR}/scrub_cli_reject_out.mp4)
+add_test(NAME scrub_rejects_out_of_range_alt_low
+         COMMAND ${CMAKE_SOURCE_DIR}/test/cli_reject_test.sh "is outside"
+                 $<TARGET_FILE:parrot-scrub> --alt -32769
+                 ${CMAKE_SOURCE_DIR}/test/fixtures/parrot_v3.mp4
+                 ${CMAKE_CURRENT_BINARY_DIR}/scrub_cli_reject_out.mp4)
 add_test(NAME scrub_rejects_missing_value
          COMMAND ${CMAKE_SOURCE_DIR}/test/cli_reject_test.sh "needs a value"
                  $<TARGET_FILE:parrot-scrub>
@@ -453,7 +463,9 @@ set_tests_properties(
   cli_rejects_repeat_with_file_to_file cli_rejects_repeat_pts_without_repeat
   cli_rejects_repeat_pts_invalid_value
   scrub_rejects_unknown_option scrub_rejects_nan_lat
-  scrub_rejects_out_of_range_lat scrub_rejects_missing_value
+  scrub_rejects_out_of_range_lat
+  scrub_rejects_out_of_range_alt_high scrub_rejects_out_of_range_alt_low
+  scrub_rejects_missing_value
   scrub_rejects_extra_argument
   conform_rejects_unknown_option conform_rejects_missing_value
   conform_rejects_extra_argument conform_rejects_label_with_scan

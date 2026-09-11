@@ -9,6 +9,18 @@
 
 namespace parrot_to_klv {
 
+/// Valid coordinate and altitude limits for scrub operations.
+///
+/// Altitude bounds match what Parrot's signed 24-bit Q16.8 base frame
+/// ([-8388608, 8388607] / 256.0) and signed 32-bit Q16.16 automation extension
+/// can represent without integer overflow.
+inline constexpr double kMinLatitudeDeg = -90.0;
+inline constexpr double kMaxLatitudeDeg = 90.0;
+inline constexpr double kMinLongitudeDeg = -180.0;
+inline constexpr double kMaxLongitudeDeg = 180.0;
+inline constexpr double kMinAltitudeAmslM = -32768.0;
+inline constexpr double kMaxAltitudeAmslM = 8388607.0 / 256.0;  // 32767.99609375
+
 /// Synthetic values written over the real ones.
 struct ScrubValues {
     double latitude_deg = 0.0;

@@ -42,7 +42,7 @@ void usage(const char* argv0) {
         << "Options:\n"
         << "  --lat <deg>     synthetic latitude, [-90, 90] (default 0)\n"
         << "  --lon <deg>     synthetic longitude, [-180, 180] (default 0)\n"
-        << "  --alt <m>       synthetic altitude AMSL (default 0)\n"
+        << "  --alt <m>       synthetic altitude AMSL, [-32768, 32767.99609375] (default 0)\n"
         << "  --zero-media    also blank the video and audio payloads\n"
         << "  --keep-unknown-extensions\n"
         << "                  leave undecoded extension payloads intact. Their contents\n"
@@ -66,12 +66,10 @@ int main(int argc, char* argv[]) {
 
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
-        // A coordinate flag with no value, an unparseable one, or (for lat/lon)
-        // one outside a real coordinate's range must stop the program rather
+        // A coordinate flag with no value, an unparseable one, or one outside
+        // a representable coordinate's range must stop the program rather
         // than run with a silently-wrong (or zero, or garbage-bit) coordinate
-        // baked into every sample. `lo`/`hi` are optional: altitude has no
-        // natural bound the way latitude/longitude do, so it is still refused
-        // when unparseable or non-finite, just not range-checked.
+        // baked into every sample.
         const auto next_numeric = [&](double& dst, std::optional<double> lo,
                                       std::optional<double> hi) -> bool {
             if (i + 1 >= argc) {
@@ -93,11 +91,11 @@ int main(int argc, char* argv[]) {
             return true;
         };
         if (arg == "--lat") {
-            if (!next_numeric(options.values.latitude_deg, -90.0, 90.0)) return 1;
+            if (!next_numeric(options.values.latitude_deg, kMinLatitudeDeg, kMaxLatitudeDeg)) return 1;
         } else if (arg == "--lon") {
-            if (!next_numeric(options.values.longitude_deg, -180.0, 180.0)) return 1;
+            if (!next_numeric(options.values.longitude_deg, kMinLongitudeDeg, kMaxLongitudeDeg)) return 1;
         } else if (arg == "--alt") {
-            if (!next_numeric(options.values.altitude_amsl_m, std::nullopt, std::nullopt)) {
+            if (!next_numeric(options.values.altitude_amsl_m, kMinAltitudeAmslM, kMaxAltitudeAmslM)) {
                 return 1;
             }
         } else if (arg == "--zero-media") {

@@ -17,6 +17,7 @@
 #include <fstream>
 #include <iostream>
 #include <iterator>
+#include <limits>
 #include <string>
 #include <utility>
 #include <vector>
@@ -69,8 +70,8 @@ bool refusal_names_the_alias(const std::string& error) {
 std::string g_dir;
 std::string g_tmp;
 
-std::string fixture(const char* name) { return g_dir + "/" + name; }
-std::string temp(const char* name) { return g_tmp + "/" + name; }
+std::string fixture(const std::string& name) { return g_dir + "/" + name; }
+std::string temp(const std::string& name) { return g_tmp + "/" + name; }
 
 /// The coordinates make_fixture.py encodes, which must not survive a scrub.
 constexpr double kOriginalLat = 48.858370;
@@ -503,6 +504,85 @@ void test_warns_about_imagery() {
     check(mentions_imagery, "warns that the imagery is not scrubbed");
 }
 
+void test_coordinate_bounds_and_rejection() {
+    const double qnan = std::numeric_limits<double>::quiet_NaN();
+    const double inf = std::numeric_limits<double>::infinity();
+
+    const struct TestCase {
+        std::string label;
+        double lat;
+        double lon;
+        double alt;
+        std::string expected_substr;
+    } invalid_cases[] = {
+        {"altitude too high", 0.0, 0.0, 32768.0, "altitude is outside"},
+        {"altitude slightly above max", 0.0, 0.0, 32767.997, "altitude is outside"},
+        {"altitude too low", 0.0, 0.0, -32769.0, "altitude is outside"},
+        {"altitude huge", 0.0, 0.0, 1e30, "altitude is outside"},
+        {"altitude negative huge", 0.0, 0.0, -1e30, "altitude is outside"},
+        {"altitude nan", 0.0, 0.0, qnan, "altitude is outside"},
+        {"altitude inf", 0.0, 0.0, inf, "altitude is outside"},
+        {"latitude too high", 90.001, 0.0, 0.0, "latitude is outside"},
+        {"latitude too low", -90.001, 0.0, 0.0, "latitude is outside"},
+        {"latitude nan", qnan, 0.0, 0.0, "latitude is outside"},
+        {"longitude too high", 0.0, 180.001, 0.0, "longitude is outside"},
+        {"longitude too low", 0.0, -180.001, 0.0, "longitude is outside"},
+        {"longitude nan", 0.0, qnan, 0.0, "longitude is outside"},
+    };
+
+    for (const auto& tc : invalid_cases) {
+        ScrubOptions opts;
+        opts.values.latitude_deg = tc.lat;
+        opts.values.longitude_deg = tc.lon;
+        opts.values.altitude_amsl_m = tc.alt;
+
+        const std::string out = temp("invalid_coord_out.mp4");
+        std::error_code ec;
+        std::filesystem::remove(out, ec);
+
+        const auto report = scrub_file(fixture("parrot_v3_extensions.mp4"), out, opts);
+        check(!report.ok, tc.label + ": out-of-range/non-finite coordinate refused");
+        check(report.error.find(tc.expected_substr) != std::string::npos,
+              tc.label + ": error diagnostic mentions expected field");
+        check(!std::filesystem::exists(out), tc.label + ": no output file written on refusal");
+    }
+
+    // Acceptable boundary and fractional altitudes [-32768, 32767.99609375]
+    for (double alt_bound : {kMinAltitudeAmslM, 32767.0, 32767.5, kMaxAltitudeAmslM}) {
+        const std::string label = "altitude boundary " + std::to_string(alt_bound);
+        const std::string out = temp("boundary_alt_" + std::to_string(alt_bound) + ".mp4");
+        ScrubOptions opts;
+        opts.values.latitude_deg = 10.0;
+        opts.values.longitude_deg = 20.0;
+        opts.values.altitude_amsl_m = alt_bound;
+
+        const auto report = scrub_file(fixture("parrot_v3_extensions.mp4"), out, opts);
+        check(report.ok, label + ": scrub succeeds at boundary");
+        if (!report.ok) continue;
+
+        auto extractor = Mp4MetadataExtractor::open(out);
+        check(extractor.has_value(), label + ": output opens");
+        if (!extractor) continue;
+
+        const auto samples = extractor->extract_all_samples();
+        check(!samples.empty(), label + ": samples extracted");
+        if (samples.empty()) continue;
+
+        const auto frame = parse_v3(samples.front().data);
+        check(frame.has_value(), label + ": frame parsed");
+        if (!frame) continue;
+
+        check_near(frame->altitude_amsl_m, alt_bound, 1e-2, label + ": base altitude encoded correctly");
+        check(frame->automation.has_value(), label + ": automation present");
+        if (frame->automation) {
+            check_near(frame->automation->framing_target_altitude_m, alt_bound, 1e-2,
+                       label + ": automation framing altitude encoded correctly");
+            check_near(frame->automation->flight_destination_altitude_m, alt_bound, 1e-2,
+                       label + ": automation dest altitude encoded correctly");
+        }
+    }
+}
+
 }  // namespace
 
 int main(int argc, char* argv[]) {
@@ -523,6 +603,7 @@ int main(int argc, char* argv[]) {
     test_unknown_extension_payload_is_cleared();
     test_malformed_extensions_are_cleared();
     test_warns_about_imagery();
+    test_coordinate_bounds_and_rejection();
 
     if (g_failures > 0) {
         std::cerr << "\n" << g_failures << " check(s) failed\n";

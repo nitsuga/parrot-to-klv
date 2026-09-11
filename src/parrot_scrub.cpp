@@ -235,6 +235,25 @@ ScrubReport scrub_file(const std::string& input, const std::string& output,
         return report;
     }
 
+    if (!std::isfinite(options.values.latitude_deg) ||
+        options.values.latitude_deg < kMinLatitudeDeg ||
+        options.values.latitude_deg > kMaxLatitudeDeg) {
+        report.error = "latitude is outside [-90, 90] or not finite";
+        return report;
+    }
+    if (!std::isfinite(options.values.longitude_deg) ||
+        options.values.longitude_deg < kMinLongitudeDeg ||
+        options.values.longitude_deg > kMaxLongitudeDeg) {
+        report.error = "longitude is outside [-180, 180] or not finite";
+        return report;
+    }
+    if (!std::isfinite(options.values.altitude_amsl_m) ||
+        options.values.altitude_amsl_m < kMinAltitudeAmslM ||
+        options.values.altitude_amsl_m > kMaxAltitudeAmslM) {
+        report.error = "altitude is outside [-32768, 32767.99609375] or not finite";
+        return report;
+    }
+
     // Identify the track and format before touching anything.
     auto extractor = Mp4MetadataExtractor::open(input);
     if (!extractor) {
