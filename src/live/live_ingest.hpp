@@ -61,7 +61,7 @@ struct LiveIngestConfig {
     // Zero disables it, restoring a run that ends only on its deadline or
     // SIGINT. The signal is video delivery (KlvSink::last_video_delivery),
     // so a video-only stream stays up as long as its video flows.
-    std::chrono::seconds idle_timeout{10};
+    std::chrono::milliseconds idle_timeout{std::chrono::seconds(10)};
 
     // Reconnect mode (ADR 0018 mode 2): when a session ends, finalize it and
     // then poll the source on `reconnect_interval` until it returns. Runs until
@@ -71,7 +71,7 @@ struct LiveIngestConfig {
     // through a _000n counter, one finalized capture per sortie; a live sink
     // reuses its address.
     bool reconnect = false;
-    std::chrono::seconds reconnect_interval{3};
+    std::chrono::milliseconds reconnect_interval{std::chrono::seconds(3)};
 
     // Give up after this many consecutive sessions that opened and then
     // delivered nothing — neither video nor telemetry. A source that is merely absent fails to *open*,

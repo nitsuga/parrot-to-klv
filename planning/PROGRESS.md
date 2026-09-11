@@ -8,6 +8,13 @@ chronological history (what landed when, decision detail) lives in
 
 ## Now
 
+**Live test waits and replay cancellation are event-driven (#130):**
+millisecond test timing seams cut the slow idleness/reconnect waits while live
+defaults remain 10 seconds and 3 seconds. The RTP FIFO notifies the ingest
+loop on arrival, and replay's cancellation bridge blocks on a signal-safe,
+close-on-exec pipe rather than waking every 10 ms. The remaining live-test time
+is real codec and pipeline validation.
+
 **Long-running live sessions ship guided Compose setup (#125):** the container
 deliverable stages `compose.yml`, `.env.example`, and `setup-live` through
 `make-image.sh` (tag baked in as the `IMAGE_TAG` default), an `ingest` service

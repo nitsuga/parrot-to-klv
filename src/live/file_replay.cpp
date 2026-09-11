@@ -57,13 +57,8 @@ class InterruptBridge {
   public:
     InterruptBridge() {
         watcher_ = std::jthread([src = source_](std::stop_token self) mutable {
-            while (!self.stop_requested()) {
-                if (is_mux_interrupted()) {
-                    src.request_stop();
-                    return;
-                }
-                std::this_thread::sleep_for(std::chrono::milliseconds(10));
-            }
+            wait_for_mux_interrupt(self);
+            if (is_mux_interrupted()) src.request_stop();
         });
     }
     std::stop_token token() const { return source_.get_token(); }

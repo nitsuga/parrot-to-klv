@@ -1,5 +1,18 @@
 # Knowledge Bundle Log
 
+## 2026-09-11
+
+* **Live test waits and replay cancellation (#130):** live test configuration
+  now accepts millisecond idle/reconnect intervals while retaining its
+  seconds-level production defaults; the slow reconnect and idleness cases use
+  those seams. RTP extension arrival wakes the live loop through its FIFO
+  condition variable, and replay's drain-cancellation bridge waits on a
+  signal-safe, close-on-exec pipe rather than polling; unexpected `poll()`
+  errors exit instead of spinning, and test resets drain stale wakeups.
+  `live_rtp` passes in about 36 seconds
+  locally, down from the issue's 74-second baseline; codec and container
+  integration checks remain deliberately real-time.
+
 ## 2026-09-05
 
 * **Prepared the `v0.5.0` release.** `project(VERSION)` moves `0.4.1` → `0.5.0`

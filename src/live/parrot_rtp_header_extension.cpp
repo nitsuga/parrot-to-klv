@@ -4,6 +4,7 @@
 #include "live/parrot_rtp_header_extension.hpp"
 
 #include <deque>
+#include <condition_variable>
 #include <mutex>
 #include <vector>
 
@@ -13,12 +14,14 @@ namespace {
 // FIFO, bounded — drop oldest when full.
 constexpr size_t kMaxCaptured = 128;
 std::mutex g_mu;
+std::condition_variable g_available;
 std::deque<CapturedExtension> g_captured;
 
 void push_bounded(CapturedExtension cap) {
     std::lock_guard<std::mutex> lk(g_mu);
     if (g_captured.size() >= kMaxCaptured) g_captured.pop_front();
     g_captured.push_back(std::move(cap));
+    g_available.notify_one();
 }
 
 }  // namespace
@@ -29,6 +32,11 @@ std::optional<CapturedExtension> parrot_extension_pop_next() {
     auto v = std::move(g_captured.front());
     g_captured.pop_front();
     return v;
+}
+
+bool parrot_extension_wait_for(std::chrono::milliseconds timeout) {
+    std::unique_lock<std::mutex> lk(g_mu);
+    return g_available.wait_for(lk, timeout, [] { return !g_captured.empty(); });
 }
 
 void parrot_extension_clear() {

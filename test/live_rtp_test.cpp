@@ -787,8 +787,8 @@ static bool test_idle_timeout_ends_a_source_that_never_delivers() {
     // A deadline well past the timeout: the watchdog is what should end this
     // run, but without a backstop a regression would hang the suite instead of
     // failing it. Reaching the deadline trips the elapsed assertion below.
-    cfg.run_duration = std::chrono::milliseconds(8000);
-    cfg.idle_timeout = std::chrono::seconds(1);
+    cfg.run_duration = std::chrono::milliseconds(1000);
+    cfg.idle_timeout = std::chrono::milliseconds(100);
 
     const auto t0 = std::chrono::steady_clock::now();
     auto r = parrot_to_klv::live_ingest(cfg);
@@ -809,7 +809,7 @@ static bool test_idle_timeout_ends_a_source_that_never_delivers() {
     // Bounded above by the backstop and below by the two timeouts in series
     // (idle, then close's first-delivery wait): without the watchdog this run
     // never returns at all.
-    if (elapsed < 1500 || elapsed >= 8000) {
+    if (elapsed < 100 || elapsed >= 2000) {
         std::cerr << "  source that never delivers did not end on schedule: " << elapsed << " ms\n";
         ok = false;
     }
@@ -857,8 +857,8 @@ static bool test_idle_timeout_ends_after_delivery_stops() {
                    "video/x-raw,width=320,height=240,framerate=30/1 ! " +
                    enc + (h265 ? " ! h265parse" : " ! h264parse");
     cfg.udp_sink = "file:" + out;
-    cfg.run_duration = std::chrono::milliseconds(8000);  // backstop, as above
-    cfg.idle_timeout = std::chrono::seconds(1);
+    cfg.run_duration = std::chrono::milliseconds(1000);  // backstop, as above
+    cfg.idle_timeout = std::chrono::milliseconds(100);
     // One sample, then silence: the run must survive the sample and end on the
     // timeout that follows the last delivered video.
     cfg.test_injected_extensions.push_back(
@@ -876,7 +876,7 @@ static bool test_idle_timeout_ends_after_delivery_stops() {
     }
     // About a second of video plus a second of silence: well past the video
     // alone, well short of the backstop.
-    if (elapsed < 1500 || elapsed >= 8000) {
+    if (elapsed < 100 || elapsed >= 2000) {
         std::cerr << "  idle timeout did not end the run on schedule: " << elapsed << " ms\n";
         ok = false;
     }
@@ -916,15 +916,15 @@ static bool test_idle_timeout_video_only_runs_past_threshold() {
     std::filesystem::remove(out);
     parrot_to_klv::LiveIngestConfig cfg;
     // Live video with no Parrot header extensions ever arriving. Finite but
-    // long: 240 buffers at 30 fps is about 8 s of video, so a healthy source
-    // ends on the delivery stall that follows the playout (~9 s), while a
+    // long: 45 buffers at 30 fps is about 1.5 s of video, so a healthy source
+    // ends on the delivery stall that follows the playout, while a
     // source that stalls early still ends well past the threshold.
     cfg.rtsp_uri =
-        "pipeline:videotestsrc is-live=true num-buffers=240 ! videoconvert ! "
+        "pipeline:videotestsrc is-live=true num-buffers=45 ! videoconvert ! "
         "video/x-raw,format=I420,width=320,height=240,framerate=30/1 ! x265enc ! h265parse";
     cfg.udp_sink = "file:" + out;
-    cfg.run_duration = std::chrono::milliseconds(12000);  // backstop, as above
-    cfg.idle_timeout = std::chrono::seconds(1);
+    cfg.run_duration = std::chrono::milliseconds(3000);  // backstop, as above
+    cfg.idle_timeout = std::chrono::milliseconds(100);
 
     const auto t0 = std::chrono::steady_clock::now();
     auto r = parrot_to_klv::live_ingest(cfg);
@@ -936,13 +936,13 @@ static bool test_idle_timeout_video_only_runs_past_threshold() {
         std::cerr << "  expected a clean end, got error " << static_cast<int>(r.error()) << "\n";
         ok = false;
     }
-    // Must survive well past the 1 s threshold: with no extension ever
+    // Must survive well past the 100 ms threshold: with no extension ever
     // arriving, only video delivery can have kept the run up that long.
-    if (elapsed < 1500) {
+    if (elapsed < 200) {
         std::cerr << "  video-only run ended on telemetry silence: " << elapsed << " ms\n";
         ok = false;
     }
-    if (elapsed >= 12000) {
+    if (elapsed >= 3000) {
         std::cerr << "  video-only run hit its backstop: " << elapsed << " ms\n";
         ok = false;
     }
@@ -974,7 +974,7 @@ static bool test_idle_timeout_zero_disables() {
                    "video/x-raw,width=320,height=240,framerate=30/1 ! " +
                    enc + (h265 ? " ! h265parse" : " ! h264parse");
     cfg.udp_sink = "file:" + out;
-    cfg.run_duration = std::chrono::milliseconds(2000);
+    cfg.run_duration = std::chrono::milliseconds(250);
     cfg.idle_timeout = std::chrono::seconds(0);
 
     const auto t0 = std::chrono::steady_clock::now();
@@ -987,8 +987,8 @@ static bool test_idle_timeout_zero_disables() {
         std::cerr << "  expected a clean end, got error " << static_cast<int>(r.error()) << "\n";
         ok = false;
     }
-    // Must reach its 2 s deadline rather than ending early on silence.
-    if (elapsed < 1900) {
+    // Must reach its 250 ms deadline rather than ending early on silence.
+    if (elapsed < 200) {
         std::cerr << "  disabled timeout still ended the run early: " << elapsed << " ms\n";
         ok = false;
     }
@@ -1113,10 +1113,10 @@ static bool test_reconnect_discards_sessions_without_delivery() {
                    enc + (h265 ? " ! h265parse" : " ! h264parse") +
                    " ! identity drop-probability=1.0";
     cfg.udp_sink = "file:" + dir + "/flight.ts";
-    cfg.run_duration = std::chrono::milliseconds(6000);  // backstop per session
-    cfg.idle_timeout = std::chrono::seconds(1);
+    cfg.run_duration = std::chrono::milliseconds(1000);  // backstop per session
+    cfg.idle_timeout = std::chrono::milliseconds(100);
     cfg.reconnect = true;
-    cfg.reconnect_interval = std::chrono::seconds(1);
+    cfg.reconnect_interval = std::chrono::milliseconds(50);
     cfg.max_empty_sessions = 0;  // isolate the discard behavior from the guard
 
     // Reconnect ends only on interrupt. The suite latches the same global the
@@ -1126,7 +1126,7 @@ static bool test_reconnect_discards_sessions_without_delivery() {
         return true;
     }
     std::thread stopper([] {
-        std::this_thread::sleep_for(std::chrono::milliseconds(4500));
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
         parrot_to_klv::request_mux_interrupt();
     });
     auto r = parrot_to_klv::live_ingest(cfg);
@@ -1178,16 +1178,16 @@ static bool test_reconnect_retains_video_only_sessions() {
                    "video/x-raw,width=320,height=240,framerate=30/1 ! " +
                    enc + (h265 ? " ! h265parse" : " ! h264parse");
     cfg.udp_sink = "file:" + dir + "/flight.ts";
-    cfg.run_duration = std::chrono::milliseconds(6000);  // per-session backstop
-    cfg.idle_timeout = std::chrono::seconds(2);
+    cfg.run_duration = std::chrono::milliseconds(1000);  // per-session backstop
+    cfg.idle_timeout = std::chrono::milliseconds(200);
     cfg.reconnect = true;
-    cfg.reconnect_interval = std::chrono::seconds(1);
+    cfg.reconnect_interval = std::chrono::milliseconds(50);
     cfg.max_empty_sessions = 1;  // would stop the run if video-only miscounted
 
     // The session outlives the window (video keeps flowing, so no idle end),
     // and only the interrupt ends the run.
     std::thread stopper([] {
-        std::this_thread::sleep_for(std::chrono::milliseconds(3500));
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
         parrot_to_klv::request_mux_interrupt();
     });
     auto r = parrot_to_klv::live_ingest(cfg);
@@ -1264,18 +1264,18 @@ static bool test_reconnect_rolls_numbered_captures() {
     // Short per-session deadline: each session ends cleanly ~1.5 s after it
     // starts, well inside the interrupt window, so at least two numbered
     // captures land regardless of encoder pacing.
-    cfg.run_duration = std::chrono::milliseconds(1500);
+    cfg.run_duration = std::chrono::milliseconds(150);
     // Past the deadline so the deadline — not a stall — is the sole session
     // ender. A stall would only add sessions, never remove them.
-    cfg.idle_timeout = std::chrono::seconds(2);
+    cfg.idle_timeout = std::chrono::milliseconds(300);
     cfg.reconnect = true;
-    cfg.reconnect_interval = std::chrono::seconds(1);
+    cfg.reconnect_interval = std::chrono::milliseconds(30);
     // Injected afresh each session, so every session emits and therefore counts.
     cfg.test_injected_extensions.push_back(
         make_cap(std::span<const uint8_t>(s0->data.data(), s0->data.size()), 1'000'000'000ULL));
 
     std::thread stopper([] {
-        std::this_thread::sleep_for(std::chrono::milliseconds(5500));
+        std::this_thread::sleep_for(std::chrono::milliseconds(600));
         parrot_to_klv::request_mux_interrupt();
     });
     auto r = parrot_to_klv::live_ingest(cfg);
@@ -1333,15 +1333,15 @@ static bool test_reconnect_does_not_retry_a_fatal_sink() {
                    enc + (h265 ? " ! h265parse" : " ! h264parse");
     // A directory that does not exist: the sink cannot be created, ever.
     cfg.udp_sink = "file:/tmp/parrot_no_such_dir_9f2c/flight.ts";
-    cfg.run_duration = std::chrono::milliseconds(4000);
-    cfg.idle_timeout = std::chrono::seconds(1);
+    cfg.run_duration = std::chrono::milliseconds(300);
+    cfg.idle_timeout = std::chrono::milliseconds(100);
     cfg.reconnect = true;
-    cfg.reconnect_interval = std::chrono::seconds(1);
+    cfg.reconnect_interval = std::chrono::milliseconds(50);
 
     // Backstop: if the fatal path regresses to retrying, this releases the test
     // instead of hanging the suite, and the elapsed check below fails it.
     std::thread stopper([] {
-        std::this_thread::sleep_for(std::chrono::milliseconds(6000));
+        std::this_thread::sleep_for(std::chrono::milliseconds(600));
         parrot_to_klv::request_mux_interrupt();
     });
     const auto t0 = std::chrono::steady_clock::now();
@@ -1357,7 +1357,7 @@ static bool test_reconnect_does_not_retry_a_fatal_sink() {
         std::cerr << "  expected an error for an unopenable sink, got success\n";
         ok = false;
     }
-    if (elapsed >= 5000) {
+    if (elapsed >= 450) {
         std::cerr << "  fatal sink error was retried rather than surfaced: " << elapsed << " ms\n";
         ok = false;
     }
@@ -1384,14 +1384,14 @@ static bool test_reconnect_does_not_retry_an_unsupported_config() {
     // Names an element that does not exist, so the description never parses.
     cfg.rtsp_uri = "pipeline:no_such_element_9f2c ! h264parse";
     cfg.udp_sink = "file:" + out;
-    cfg.run_duration = std::chrono::milliseconds(4000);
-    cfg.idle_timeout = std::chrono::seconds(1);
+    cfg.run_duration = std::chrono::milliseconds(300);
+    cfg.idle_timeout = std::chrono::milliseconds(100);
     cfg.reconnect = true;
-    cfg.reconnect_interval = std::chrono::seconds(1);
+    cfg.reconnect_interval = std::chrono::milliseconds(50);
 
     // Backstop, so a regression to retrying fails the test instead of hanging.
     std::thread stopper([] {
-        std::this_thread::sleep_for(std::chrono::milliseconds(6000));
+        std::this_thread::sleep_for(std::chrono::milliseconds(600));
         parrot_to_klv::request_mux_interrupt();
     });
     const auto t0 = std::chrono::steady_clock::now();
@@ -1407,7 +1407,7 @@ static bool test_reconnect_does_not_retry_an_unsupported_config() {
         std::cerr << "  expected an error for an unbuildable source, got success\n";
         ok = false;
     }
-    if (elapsed >= 5000) {
+    if (elapsed >= 450) {
         std::cerr << "  unsupported config was retried rather than surfaced: " << elapsed
                   << " ms\n";
         ok = false;
@@ -1449,16 +1449,16 @@ static bool test_reconnect_bounds_consecutive_empty_sessions() {
                    enc + (h265 ? " ! h265parse" : " ! h264parse") +
                    " ! identity drop-probability=1.0";
     cfg.udp_sink = "file:" + dir + "/flight.ts";
-    cfg.run_duration = std::chrono::milliseconds(6000);
-    cfg.idle_timeout = std::chrono::seconds(1);
+    cfg.run_duration = std::chrono::milliseconds(1000);
+    cfg.idle_timeout = std::chrono::milliseconds(100);
     cfg.reconnect = true;
-    cfg.reconnect_interval = std::chrono::seconds(1);
+    cfg.reconnect_interval = std::chrono::milliseconds(50);
     cfg.max_empty_sessions = 2;
 
     // Backstop: if the bound regresses, this releases the test rather than
     // hanging the suite, and the elapsed assertion below fails it.
     std::thread stopper([] {
-        std::this_thread::sleep_for(std::chrono::milliseconds(15000));
+        std::this_thread::sleep_for(std::chrono::milliseconds(3000));
         parrot_to_klv::request_mux_interrupt();
     });
     const auto t0 = std::chrono::steady_clock::now();
@@ -1474,8 +1474,8 @@ static bool test_reconnect_bounds_consecutive_empty_sessions() {
         std::cerr << "  expected the bound to stop the run with an error\n";
         ok = false;
     }
-    // Two ~1 s sessions plus one interval; well inside the 15 s backstop.
-    if (elapsed >= 12000) {
+    // Two empty sessions plus one interval must finish within the backstop.
+    if (elapsed >= 2500) {
         std::cerr << "  bound did not stop the run: " << elapsed << " ms\n";
         ok = false;
     }
@@ -1508,13 +1508,13 @@ static bool test_reconnect_bound_ignores_sessions_that_never_open() {
     // Refused fast, so several attempts fit in the window below.
     cfg.rtsp_uri = "rtsp://127.0.0.1:9/unreachable";
     cfg.udp_sink = "file:" + out;
-    cfg.idle_timeout = std::chrono::seconds(1);
+    cfg.idle_timeout = std::chrono::milliseconds(100);
     cfg.reconnect = true;
-    cfg.reconnect_interval = std::chrono::seconds(1);
+    cfg.reconnect_interval = std::chrono::milliseconds(50);
     cfg.max_empty_sessions = 1;  // would stop after one attempt if miscounted
 
     std::thread stopper([] {
-        std::this_thread::sleep_for(std::chrono::milliseconds(4000));
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
         parrot_to_klv::request_mux_interrupt();
     });
     auto r = parrot_to_klv::live_ingest(cfg);
@@ -1577,16 +1577,16 @@ static bool test_reconnect_bound_resets_on_emitted_telemetry() {
                    "video/x-raw,width=320,height=240,framerate=30/1 ! " +
                    enc + (h265 ? " ! h265parse" : " ! h264parse") + " ! identity error-after=30";
     cfg.udp_sink = "file:" + dir + "/flight.ts";
-    cfg.run_duration = std::chrono::milliseconds(6000);
-    cfg.idle_timeout = std::chrono::seconds(2);
+    cfg.run_duration = std::chrono::milliseconds(1000);
+    cfg.idle_timeout = std::chrono::milliseconds(200);
     cfg.reconnect = true;
-    cfg.reconnect_interval = std::chrono::seconds(1);
+    cfg.reconnect_interval = std::chrono::milliseconds(50);
     cfg.max_empty_sessions = 1;  // one uncounted session would stop the run
     cfg.test_injected_extensions.push_back(
         make_cap(std::span<const uint8_t>(s0->data.data(), s0->data.size()), 1'000'000'000ULL));
 
     std::thread stopper([] {
-        std::this_thread::sleep_for(std::chrono::milliseconds(5000));
+        std::this_thread::sleep_for(std::chrono::milliseconds(600));
         parrot_to_klv::request_mux_interrupt();
     });
     auto r = parrot_to_klv::live_ingest(cfg);

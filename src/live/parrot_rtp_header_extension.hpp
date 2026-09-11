@@ -6,6 +6,7 @@
 #include <gst/rtp/gstrtphdrext.h>
 
 #include <cstddef>
+#include <chrono>
 #include <cstdint>
 #include <optional>
 #include <span>
@@ -36,6 +37,8 @@ struct CapturedExtension {
 // plus the RTP buffer PTS (running_time) so live KLV PTS can be anchored to
 // reception time per ADR 0013.
 std::optional<CapturedExtension> parrot_extension_pop_next();
+/// Wait until an extension arrives or the timeout expires.
+bool parrot_extension_wait_for(std::chrono::milliseconds timeout);
 void parrot_extension_clear();
 size_t parrot_extension_count();
 

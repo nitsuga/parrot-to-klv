@@ -304,7 +304,7 @@ misbklv::Result<std::monostate> run_one_session(const LiveIngestConfig& cfg,
     // A live insert cannot observe clean EOS before close() sends it, so EOS
     // cannot end this loop on its own.
     // run_duration has value -> timed live loop while
-    // (!is_mux_interrupted() && now < deadline) with 10 ms idle sleep;
+    // (!is_mux_interrupted() && now < deadline);
     // used for hermetic tests (e.g., 2s). If caller wants one-shot
     // startup poll (previous behavior), use a small run_duration like
     // 600ms. The one-shot drain + 600ms poll when rtsp and
@@ -402,7 +402,10 @@ misbklv::Result<std::monostate> run_one_session(const LiveIngestConfig& cfg,
         }
 
         if (!had) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            // RTP extension arrival wakes this immediately. Keep a bounded
+            // backend-poll cadence so terminal pipeline errors still surface
+            // promptly when no metadata is arriving.
+            parrot_extension_wait_for(std::chrono::milliseconds(100));
         }
         // Indefinite sources run until SIGINT, the deadline, or the idle
         // timeout. sink.poll() ends the loop only on a backend failure: a live
