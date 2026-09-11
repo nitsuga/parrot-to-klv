@@ -25,16 +25,12 @@ include(FetchContent)
 FetchContent_Declare(
   misbklv
   GIT_REPOSITORY https://github.com/nitsuga/libmisbklv.git
-  # Exposes the live video-delivery timestamp used by --idle-timeout, so a
-  # video-only stream remains live while video is flowing (libmisbklv ADR 0038).
-  # Also distinguishes a live source that is absent right now (SourceUnavailable,
-  # worth retrying) from a configuration that can never run (Unsupported), so
-  # reconnect no longer has to infer intent from the source scheme
-  # (libmisbklv ADR 0036). Prior: nonblocking polling for a backend failure so
-  # a consumer can fail before its first KLV packet (parrot-to-klv#94); clean
-  # EOS is deliberately not reported, since a live insert cannot observe one
-  # before close() sends it (libmisbklv ADR 0035).
-  GIT_TAG 4da3023c95bc45ef78bf6a1895939e6b043a5eac
+  # Hardened stalled-video timestamp queue with eviction, drop diagnostics, and
+  # rate-limited warnings (libmisbklv #75); truncated partial long-form BER
+  # lengths report Truncated. Prior: live video-delivery timestamp used by
+  # --idle-timeout (libmisbklv ADR 0038), SourceUnavailable retry distinction
+  # (libmisbklv ADR 0036), and nonblocking backend failure polling (parrot-to-klv#94).
+  GIT_TAG e5f0ccde073b507fe4f52dfc5c93d281ea9c25b7
 )
 FetchContent_MakeAvailable(misbklv)
 

@@ -2,6 +2,11 @@
 
 ## 2026-09-11
 
+* **Bumped `libmisbklv` pin to `e5f0ccd`:** updates upstream to incorporate
+  stalled-video timestamp handling hardening with 10,000-entry eviction queue
+  and drop diagnostics (libmisbklv #75), truncated long-form BER error reporting,
+  and GStreamer sanitizer CI coverage.
+
 * **setup-live control character rejection and dotenv quote escaping (#131):**
   interactive input in `setup-live` (`ask()`) now loops and rejects control
   characters (`*[[:cntrl:]]*`), preventing newline and carriage-return
