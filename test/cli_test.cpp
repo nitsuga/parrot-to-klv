@@ -86,13 +86,40 @@ int main(int argc, char* argv[]) {
     check(file_contains_subsequence(v3_out_i, "KLVA"), "v3 -i output contains KLVA descriptor");
     fs::remove(v3_out_i, ec);
 
-    // 4. Inspection mode (no output flag) with disclosure flags
+    // 4. `file:` is a sink prefix, not part of the output filesystem path.
+    const fs::path v3_out_file_uri = temp / "cli_v3_file_uri.ts";
+    fs::remove(v3_out_file_uri, ec);
+    std::string cmd_v3_file_uri = bin.string() + " " + v3_in.string() + " -o file:" +
+                                  v3_out_file_uri.string();
+    int ret_v3_file_uri = std::system(cmd_v3_file_uri.c_str());
+    check(ret_v3_file_uri == 0, "parrot-to-klv accepts file: output");
+    check(fs::exists(v3_out_file_uri) && fs::file_size(v3_out_file_uri) > 0,
+          "file: output creates the requested path");
+    fs::remove(v3_out_file_uri, ec);
+
+    // 5. Inspection mode (no output flag) with disclosure flags
     std::string cmd_inspect = bin.string() + " " + (fixtures / "parrot_v3.mp4").string() +
                               " --with-location --with-identity > /dev/null";
     int ret_inspect = std::system(cmd_inspect.c_str());
     check(ret_inspect == 0, "parrot-to-klv inspection mode exits 0");
 
-    // 5. Inspection mode via -i
+    // 6. Geotag is location data, not identity data.
+    const fs::path identity_report = temp / "cli_identity_report.txt";
+    const fs::path location_report = temp / "cli_location_report.txt";
+    std::string cmd_identity = bin.string() + " " + (fixtures / "parrot_v3.mp4").string() +
+                               " --with-identity > " + identity_report.string();
+    std::string cmd_location = bin.string() + " " + (fixtures / "parrot_v3.mp4").string() +
+                               " --with-location > " + location_report.string();
+    check(std::system(cmd_identity.c_str()) == 0, "identity-only inspection exits 0");
+    check(file_contains_subsequence(identity_report, "geotag: withheld"),
+          "identity-only inspection withholds geotag");
+    check(std::system(cmd_location.c_str()) == 0, "location inspection exits 0");
+    check(file_contains_subsequence(location_report, "geotag: +"),
+          "location inspection reveals geotag");
+    fs::remove(identity_report, ec);
+    fs::remove(location_report, ec);
+
+    // 7. Inspection mode via -i
     std::string cmd_inspect_i = bin.string() + " -i " + (fixtures / "parrot_v3.mp4").string() +
                                 " --with-location > /dev/null";
     int ret_inspect_i = std::system(cmd_inspect_i.c_str());

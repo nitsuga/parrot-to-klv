@@ -8,6 +8,11 @@ chronological history (what landed when, decision detail) lives in
 
 ## Now
 
+**CLI disclosure and file-output routing are fail-closed (#128):** takeoff
+geotags are location data, disclosed only with `--with-location`, while serials
+remain identity data. `-o file:<path>` normalizes to the requested filesystem
+path before routing to mux or live output; CLI integration coverage pins both.
+
 **Live test waits and replay cancellation are event-driven (#130):**
 millisecond test timing seams cut the slow idleness/reconnect waits while live
 defaults remain 10 seconds and 3 seconds. The RTP FIFO notifies the ingest
