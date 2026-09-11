@@ -21,13 +21,23 @@ fail() {
 ask() {
   prompt=$1
   default=$2
-  if [ -n "$default" ]; then
-    printf '%s [%s]: ' "$prompt" "$default"
-  else
-    printf '%s: ' "$prompt"
-  fi
-  IFS= read -r REPLY || fail "input ended before setup was complete"
-  [ -n "$REPLY" ] || REPLY=$default
+  while :; do
+    if [ -n "$default" ]; then
+      printf '%s [%s]: ' "$prompt" "$default"
+    else
+      printf '%s: ' "$prompt"
+    fi
+    IFS= read -r REPLY || fail "input ended before setup was complete"
+    [ -n "$REPLY" ] || REPLY=$default
+    case "$REPLY" in
+      *[[:cntrl:]]*)
+        echo "Value must not contain control characters." >&2
+        ;;
+      *)
+        break
+        ;;
+    esac
+  done
 }
 
 confirm() {
@@ -45,7 +55,7 @@ confirm() {
 }
 
 quote_env() {
-  printf %s "$1" | sed "s/'/\\\\'/g"
+  printf %s "$1" | sed "s/'/\\\\\\'/g"
 }
 
 case ${1-} in
@@ -143,6 +153,9 @@ done
 
 HOST_UID=$(id -u)
 HOST_GID=$(id -g)
+case "$RTSP_URI" in *[[:cntrl:]]*) fail "RTSP URI contains control characters" ;; esac
+case "$SINK" in *[[:cntrl:]]*) fail "sink contains control characters" ;; esac
+case "$OUTPUT_DIR" in *[[:cntrl:]]*) fail "output directory contains control characters" ;; esac
 umask 077
 tmp=$(mktemp "$HERE/.env.tmp.XXXXXX")
 trap 'rm -f -- "$tmp"' EXIT HUP INT TERM

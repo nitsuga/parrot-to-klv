@@ -8,6 +8,11 @@ chronological history (what landed when, decision detail) lives in
 
 ## Now
 
+**Live Compose setup input and dotenv quote escaping hardened (#131):**
+interactive `setup-live` prompts reject control characters and newlines fail-closed,
+preventing key injection into `.env`, while `quote_env` corrects sed escaping so single
+quotes within RTSP credentials cleanly escape for Docker Compose.
+
 **MP4 container scanning bounds and 64-bit file offsets hardened (#129):**
 subtraction-based bounds checks eliminate signed integer overflow UB on hostile
 64-bit largesize boxes and prevent backward seek loops, while project-wide
