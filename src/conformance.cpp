@@ -17,6 +17,7 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <optional>
 #include <sstream>
 #include <string>
 
@@ -111,7 +112,8 @@ ConformanceReport run_conformance(const std::string& input, const std::string& l
     r.checks["battery_within_0_100"] = true;
 
     bool first = true;
-    uint64_t previous_ts = 0;
+    std::optional<uint64_t> previous_ts;
+    bool timestamp_delta_seeded = false;
 
     for (uint32_t i = 0; i < extractor->sample_count(); ++i) {
         auto sample = extractor->extract_sample(i);
@@ -169,13 +171,16 @@ ConformanceReport run_conformance(const std::string& input, const std::string& l
             r.checks["timestamp_extension_always_present"] = false;
         } else {
             const uint64_t ts = *f->frame_timestamp_us;
-            if (!first) {
-                if (ts <= previous_ts) r.checks["timestamps_strictly_increasing"] = false;
-                const uint64_t d = ts > previous_ts ? ts - previous_ts : 0;
-                r.timestamp_delta_min = r.timestamp_delta_min == 0
-                                            ? d
-                                            : std::min(r.timestamp_delta_min, d);
-                r.timestamp_delta_max = std::max(r.timestamp_delta_max, d);
+            if (previous_ts.has_value()) {
+                if (ts <= *previous_ts) r.checks["timestamps_strictly_increasing"] = false;
+                const uint64_t d = ts > *previous_ts ? ts - *previous_ts : 0;
+                r.timestamp_delta_min = timestamp_delta_seeded
+                                            ? std::min(r.timestamp_delta_min, d)
+                                            : d;
+                r.timestamp_delta_max = timestamp_delta_seeded
+                                            ? std::max(r.timestamp_delta_max, d)
+                                            : d;
+                timestamp_delta_seeded = true;
             }
             previous_ts = ts;
         }

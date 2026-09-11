@@ -7,9 +7,13 @@
 
 #include "conformance.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
+#include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -154,6 +158,99 @@ void test_report_records_decode_failures() {
     check(json.find("\"decode_errors\"") != std::string::npos, "JSON output includes decode_errors");
 }
 
+void test_timestamp_delta_min_preserves_zero() {
+    std::ifstream in(fixture("parrot_v3.mp4"), std::ios::binary);
+    check(in.good(), "can open parrot_v3.mp4 fixture");
+    if (!in.good()) return;
+
+    const std::vector<uint8_t> valid_bytes((std::istreambuf_iterator<char>(in)),
+                                          std::istreambuf_iterator<char>());
+    in.close();
+
+    std::error_code ec;
+    const std::filesystem::path system_temp = std::filesystem::temp_directory_path(ec);
+    check(!ec, "resolved system temporary directory");
+    if (ec) return;
+
+    std::string dir_template = (system_temp / "conformance_zero_delta_XXXXXX").string();
+    char* created_dir = mkdtemp(dir_template.data());
+    check(created_dir != nullptr, "created unique temporary directory");
+    if (!created_dir) return;
+
+    const std::filesystem::path temp_dir(created_dir);
+    const std::filesystem::path temp_file = temp_dir / "conformance_zero_delta_test.mp4";
+
+    struct Cleanup {
+        std::filesystem::path dir;
+        ~Cleanup() {
+            std::error_code ec_clean;
+            std::filesystem::remove_all(dir, ec_clean);
+        }
+    } cleanup{temp_dir};
+
+    auto write_temp = [&](const std::vector<uint8_t>& data) {
+        std::ofstream out(temp_file, std::ios::binary | std::ios::trunc);
+        check(out.is_open(), "opened temporary test file for writing");
+        out.write(reinterpret_cast<const char*>(data.data()),
+                  static_cast<std::streamsize>(data.size()));
+        out.flush();
+        check(out.good(), "wrote temporary test file successfully");
+    };
+
+    // Find all 0x4531 timestamp extensions.
+    const std::vector<uint8_t> needle = {0x45, 0x31, 0x00, 0x02};
+    std::vector<size_t> ts_offsets;
+    for (size_t i = 0; i + needle.size() + 8 <= valid_bytes.size(); ++i) {
+        if (std::equal(needle.begin(), needle.end(), valid_bytes.begin() + i)) {
+            ts_offsets.push_back(i + needle.size());
+        }
+    }
+    check(ts_offsets.size() >= 4, "found at least 4 timestamp extensions in parrot_v3.mp4");
+    if (ts_offsets.size() < 4) return;
+
+    // Case 1: Intermediate zero delta.
+    // Duplicate sample 1 timestamp onto sample 2:
+    // sample 0: 0, sample 1: 33333 (delta=33333), sample 2: 33333 (delta=0),
+    // sample 3: 99999 (delta=66666), ...
+    // Before fix, sample 3 saw min==0 and re-seeded min to 66666, ending at 33333.
+    {
+        auto bytes = valid_bytes;
+        std::copy_n(bytes.data() + ts_offsets[1], 8, bytes.data() + ts_offsets[2]);
+        write_temp(bytes);
+
+        const auto report = run_conformance(temp_file.string(), "zero_delta_intermediate");
+        check(report.ok, "conformance run on intermediate zero-delta fixture succeeds");
+        check_eq(report.checks.at("timestamps_strictly_increasing"), false,
+                 "intermediate duplicate timestamp marks timestamps_strictly_increasing false");
+        check_eq(report.timestamp_delta_min, uint64_t{0},
+                 "timestamp_delta_min remains 0 after intermediate zero delta");
+        check_eq(report.timestamp_delta_max, uint64_t{66666},
+                 "timestamp_delta_max is 66666");
+        const std::string json = to_json(report);
+        check(json.find("\"timestamp_delta_us\": {\"min\": 0, \"max\": 66666}") != std::string::npos,
+              "JSON output contains min: 0, max: 66666");
+    }
+
+    // Case 2: Initial zero delta.
+    // Duplicate sample 0 timestamp onto sample 1:
+    // sample 0: 0, sample 1: 0 (delta=0), sample 2: 66666 (delta=66666), ...
+    // Before fix, sample 2 saw min==0 and re-seeded min to 66666, ending at 33333.
+    {
+        auto bytes = valid_bytes;
+        std::copy_n(bytes.data() + ts_offsets[0], 8, bytes.data() + ts_offsets[1]);
+        write_temp(bytes);
+
+        const auto report = run_conformance(temp_file.string(), "zero_delta_initial");
+        check(report.ok, "conformance run on initial zero-delta fixture succeeds");
+        check_eq(report.checks.at("timestamps_strictly_increasing"), false,
+                 "initial duplicate timestamp marks timestamps_strictly_increasing false");
+        check_eq(report.timestamp_delta_min, uint64_t{0},
+                 "timestamp_delta_min remains 0 after initial zero delta");
+        check_eq(report.timestamp_delta_max, uint64_t{66666},
+                 "timestamp_delta_max is 66666 for initial duplicate");
+    }
+}
+
 }  // namespace
 
 int main(int argc, char* argv[]) {
@@ -168,6 +265,7 @@ int main(int argc, char* argv[]) {
     test_report_is_deterministic();
     test_non_v3_is_reported_not_guessed();
     test_report_records_decode_failures();
+    test_timestamp_delta_min_preserves_zero();
 
     if (g_failures > 0) {
         std::cerr << "\n" << g_failures << " check(s) failed\n";
