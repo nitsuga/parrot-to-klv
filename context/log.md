@@ -2,6 +2,16 @@
 
 ## 2026-09-11
 
+* **Range-check `--alt` against Q16.8 bounds in `parrot-scrub` (#88):**
+  altitude in `parrot-scrub` CLI is now checked against `[-32768, 32767.99609375]`
+  meters matching what Parrot's signed 24-bit Q16.8 base frame (`8388607.0 / 256.0`)
+  and signed 32-bit Q16.16 automation extension can represent, exiting non-zero
+  on out-of-range or non-finite inputs instead of invoking `std::lround()`
+  undefined behavior and silently encoding 0 m. `scrub_file()` defensively
+  validates all coordinates and finiteness at the API boundary using shared
+  constants. CLI rejection and unit tests cover out-of-range, non-finite,
+  fractional (`32767.5`), and boundary altitude values.
+
 * **Proto absent-vs-zero policy extended to attitudes, LFIC, and Item 2 (#115):**
   absent quaternions in protobuf samples now default to NaN rather than `{1,0,0,0}`,
   preventing absent attitude from emitting straight-and-level orientation across

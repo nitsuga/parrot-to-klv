@@ -8,6 +8,13 @@ chronological history (what landed when, decision detail) lives in
 
 ## Now
 
+**Scrub altitude bounds validation (#88):** `parrot-scrub` range-checks `--alt`
+against `[-32768, 32767.99609375]` meters matching the Q16.8 base frame upper bound,
+rejecting out-of-range or non-finite altitudes with a clear diagnostic instead of
+silently emitting 0 m via `std::lround()` undefined behavior. `scrub_file()`
+validates coordinates and finiteness fail-closed at the API boundary, with full
+CLI, fractional (`32767.5`), and boundary unit test coverage.
+
 **Proto absent-vs-zero policy extended (#115):** absent protobuf attitude defaults
 to NaN rather than identity, omitting Items 5/6/7/90/91/18/19/20 as `InvalidSourceValue`
 instead of emitting 0° straight-and-level; pixel-only LFIC entries without coordinates
