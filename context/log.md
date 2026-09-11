@@ -2,6 +2,17 @@
 
 ## 2026-09-11
 
+* **Proto absent-vs-zero policy extended to attitudes, LFIC, and Item 2 (#115):**
+  absent quaternions in protobuf samples now default to NaN rather than `{1,0,0,0}`,
+  preventing absent attitude from emitting straight-and-level orientation across
+  Items 5/6/7/90/91/18/19/20, with wire norm checking rejecting non-unit quaternions
+  to NaN and `to_euler`/`relative_euler` guarding against non-finite inputs;
+  `ProtoLfic::location` is now optional (tracking protobuf field 3 presence),
+  ensuring pixel-only LFIC entries without geolocated coordinates omit Items
+  40/41/42/45/46 instead of emitting `0,0,0`; and proto frames with unusable UTC
+  timestamps report Item 2 omission as `InvalidSourceValue` rather than misleadingly
+  claiming `NeedsSessionData`.
+
 * **Bumped `libmisbklv` pin to `e5f0ccd`:** updates upstream to incorporate
   stalled-video timestamp handling hardening with 10,000-entry eviction queue
   and drop diagnostics (libmisbklv #75), truncated long-form BER error reporting,

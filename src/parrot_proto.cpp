@@ -214,17 +214,25 @@ bool read_msg(Reader& r, uint32_t wire, std::span<const uint8_t>& out) {
 
 bool parse_quaternion(std::span<const uint8_t> b, ParrotProtoError* err, Quaternion& out) {
     Reader r(b, err);
+    Quaternion q{0.0, 0.0, 0.0, 0.0};
     uint32_t field = 0, wire = 0;
     while (r.read_tag(field, wire)) {
         switch (field) {
-            case 1: read_real(r, wire, out.w); break;
-            case 2: read_real(r, wire, out.x); break;
-            case 3: read_real(r, wire, out.y); break;
-            case 4: read_real(r, wire, out.z); break;
+            case 1: read_real(r, wire, q.w); break;
+            case 2: read_real(r, wire, q.x); break;
+            case 3: read_real(r, wire, q.y); break;
+            case 4: read_real(r, wire, q.z); break;
             default: r.skip(wire); break;
         }
     }
-    return r.ok();
+    if (!r.ok()) return false;
+    const double n = q.norm();
+    if (std::isnan(n) || std::abs(n - 1.0) > 0.01) {
+        out = Quaternion::nan();
+        return true;
+    }
+    out = q;
+    return true;
 }
 
 bool parse_location(std::span<const uint8_t> b, ParrotProtoError* err, ProtoLocation& out) {
@@ -266,13 +274,16 @@ bool parse_ned(std::span<const uint8_t> b, ParrotProtoError* err, ProtoNed& out)
 bool parse_drone(std::span<const uint8_t> b, ParrotProtoError* err, ParrotProtoFrame& out) {
     Reader r(b, err);
     uint32_t field = 0, wire = 0;
+    bool has_drone_quat = false;
     while (r.read_tag(field, wire)) {
         std::span<const uint8_t> nested;
         uint64_t u = 0;
         switch (field) {
             case 1:
-                if (read_msg(r, wire, nested) && !parse_quaternion(nested, err, out.drone_quat))
-                    return false;
+                if (read_msg(r, wire, nested)) {
+                    if (!parse_quaternion(nested, err, out.drone_quat)) return false;
+                    has_drone_quat = true;
+                }
                 break;
             case 2:
                 if (read_msg(r, wire, nested) && !parse_location(nested, err, out.drone_location))
@@ -305,6 +316,9 @@ bool parse_drone(std::span<const uint8_t> b, ParrotProtoError* err, ParrotProtoF
             default: r.skip(wire); break;
         }
     }
+    if (!has_drone_quat) {
+        out.drone_quat = Quaternion::nan();
+    }
     return r.ok();
 }
 
@@ -324,6 +338,9 @@ bool parse_vector2(std::span<const uint8_t> b, ParrotProtoError* err, double& x,
 bool parse_camera(std::span<const uint8_t> b, ParrotProtoError* err, ParrotProtoFrame& out) {
     Reader r(b, err);
     uint32_t field = 0, wire = 0;
+    bool has_frame_base_quat = false;
+    bool has_frame_quat = false;
+    bool has_frame_local_quat = false;
     while (r.read_tag(field, wire)) {
         std::span<const uint8_t> nested;
         uint64_t u = 0;
@@ -332,12 +349,16 @@ bool parse_camera(std::span<const uint8_t> b, ParrotProtoError* err, ParrotProto
                 if (read_uint(r, wire, u)) out.camera_timestamp_us = u;
                 break;
             case 2:
-                if (read_msg(r, wire, nested) && !parse_quaternion(nested, err, out.frame_base_quat))
-                    return false;
+                if (read_msg(r, wire, nested)) {
+                    if (!parse_quaternion(nested, err, out.frame_base_quat)) return false;
+                    has_frame_base_quat = true;
+                }
                 break;
             case 3:
-                if (read_msg(r, wire, nested) && !parse_quaternion(nested, err, out.frame_quat))
-                    return false;
+                if (read_msg(r, wire, nested)) {
+                    if (!parse_quaternion(nested, err, out.frame_quat)) return false;
+                    has_frame_quat = true;
+                }
                 break;
             case 4: read_real(r, wire, out.exposure_time_ms); break;
             case 5:
@@ -364,8 +385,10 @@ bool parse_camera(std::span<const uint8_t> b, ParrotProtoError* err, ParrotProto
                     return false;
                 break;
             case 15:
-                if (read_msg(r, wire, nested) && !parse_quaternion(nested, err, out.frame_local_quat))
-                    return false;
+                if (read_msg(r, wire, nested)) {
+                    if (!parse_quaternion(nested, err, out.frame_local_quat)) return false;
+                    has_frame_local_quat = true;
+                }
                 break;
             case 16: read_real(r, wire, out.zoom_level); break;
             case 17:
@@ -379,6 +402,9 @@ bool parse_camera(std::span<const uint8_t> b, ParrotProtoError* err, ParrotProto
             default: r.skip(wire); break;
         }
     }
+    if (!has_frame_base_quat) out.frame_base_quat = Quaternion::nan();
+    if (!has_frame_quat) out.frame_quat = Quaternion::nan();
+    if (!has_frame_local_quat) out.frame_local_quat = Quaternion::nan();
     return r.ok();
 }
 
@@ -431,10 +457,13 @@ bool parse_lfic(std::span<const uint8_t> b, ParrotProtoError* err, ProtoLfic& ou
         switch (field) {
             case 1: read_real(r, wire, out.x); break;
             case 2: read_real(r, wire, out.y); break;
-            case 3:
-                if (read_msg(r, wire, nested) && !parse_location(nested, err, out.location))
+            case 3: {
+                ProtoLocation loc;
+                if (read_msg(r, wire, nested) && !parse_location(nested, err, loc))
                     return false;
+                out.location = loc;
                 break;
+            }
             case 4: read_real(r, wire, out.grid_precision_m); break;
             case 5:
                 if (read_uint(r, wire, u) && u <= 1) out.type = static_cast<LficType>(u);

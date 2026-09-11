@@ -3,8 +3,10 @@
 
 #pragma once
 
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <optional>
 #include <span>
 #include <string>
@@ -63,6 +65,18 @@ struct Quaternion {
     /// Norm, which a well-formed quaternion keeps near 1. Useful as a decode
     /// sanity check: a wrong field offset almost always breaks it.
     double norm() const;
+
+    /// Produces a quaternion with all components set to NaN, used by the proto
+    /// decoder to distinguish absent attitude from level flight (0 deg attitude).
+    static constexpr Quaternion nan() {
+        const double qnan = std::numeric_limits<double>::quiet_NaN();
+        return Quaternion{qnan, qnan, qnan, qnan};
+    }
+
+    /// Whether all components are finite.
+    bool is_finite() const {
+        return std::isfinite(w) && std::isfinite(x) && std::isfinite(y) && std::isfinite(z);
+    }
 };
 
 /// Automation extension (0x4533).

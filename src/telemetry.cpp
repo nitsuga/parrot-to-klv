@@ -298,26 +298,38 @@ TelemetrySnapshot from_proto(const ParrotProtoFrame& f) {
     }
 
     // LFIC *is* cursor-on-target. Prefer a COT entry when several are present;
-    // otherwise take the first, which is still a target the operator marked.
+    // otherwise take the first entry that carries a target location.
+    // Skip target location when absent (e.g. pixel-only LFIC entry without
+    // geolocated coordinates).
     if (!f.lfic.empty()) {
-        const ProtoLfic* chosen = &f.lfic.front();
+        const ProtoLfic* chosen = nullptr;
         for (const auto& entry : f.lfic) {
-            if (entry.type == LficType::Cot) {
+            if (entry.location && entry.type == LficType::Cot) {
                 chosen = &entry;
                 break;
             }
         }
-        TargetLocation target;
-        target.latitude_deg = chosen->location.latitude_deg;
-        target.longitude_deg = chosen->location.longitude_deg;
-        target.altitude_amsl_m = chosen->location.altitude_egm96_m;
-        if (chosen->horizontal_radial_accuracy_m != 0.0) {
-            target.radial_accuracy_m = chosen->horizontal_radial_accuracy_m;
+        if (!chosen) {
+            for (const auto& entry : f.lfic) {
+                if (entry.location) {
+                    chosen = &entry;
+                    break;
+                }
+            }
         }
-        if (chosen->horizontal_tangential_accuracy_m != 0.0) {
-            target.tangential_accuracy_m = chosen->horizontal_tangential_accuracy_m;
+        if (chosen && chosen->location) {
+            TargetLocation target;
+            target.latitude_deg = chosen->location->latitude_deg;
+            target.longitude_deg = chosen->location->longitude_deg;
+            target.altitude_amsl_m = chosen->location->altitude_egm96_m;
+            if (chosen->horizontal_radial_accuracy_m != 0.0) {
+                target.radial_accuracy_m = chosen->horizontal_radial_accuracy_m;
+            }
+            if (chosen->horizontal_tangential_accuracy_m != 0.0) {
+                target.tangential_accuracy_m = chosen->horizontal_tangential_accuracy_m;
+            }
+            s.target = target;
         }
-        s.target = target;
     }
     return s;
 }

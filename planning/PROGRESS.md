@@ -8,6 +8,13 @@ chronological history (what landed when, decision detail) lives in
 
 ## Now
 
+**Proto absent-vs-zero policy extended (#115):** absent protobuf attitude defaults
+to NaN rather than identity, omitting Items 5/6/7/90/91/18/19/20 as `InvalidSourceValue`
+instead of emitting 0° straight-and-level; pixel-only LFIC entries without coordinates
+omit target Items 40/41/42/45/46 via optional field 3 presence tracking instead of
+emitting `0,0,0`; and unusable proto UTC timestamps report Item 2 omission as
+`InvalidSourceValue` rather than `NeedsSessionData`.
+
 **Upstream libmisbklv pin bumped to `e5f0ccd`:** brings in stalled-video
 timestamp handling hardening with queue eviction and drop diagnostics (libmisbklv #75)
 and truncated long-form BER error reporting.

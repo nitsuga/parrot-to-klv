@@ -103,7 +103,7 @@ struct ProtoNed {
 struct ProtoLfic {
     double x = 0.0;  ///< image coordinate, normalized
     double y = 0.0;
-    ProtoLocation location;
+    std::optional<ProtoLocation> location;  ///< empty for pixel-only LFIC
     double grid_precision_m = 0.0;
     LficType type = LficType::Cot;
     double horizontal_tangential_accuracy_m = 0.0;
@@ -146,7 +146,7 @@ struct ProtoWifiLink {
 /// longitude are degrees. Conversion happens once, in the transform stage.
 struct ParrotProtoFrame {
     // --- drone ---
-    Quaternion drone_quat;
+    Quaternion drone_quat = Quaternion::nan();
     ProtoLocation drone_location;
     double ground_distance_m = 0.0;
     double altitude_ato_m = 0.0;  ///< above take-off
@@ -163,9 +163,9 @@ struct ParrotProtoFrame {
     /// Zero means `utc_timestamp_us` is **invalid** — the frame has no usable
     /// absolute time and Item 2 must fall back to the monotonic clock.
     uint32_t utc_timestamp_accuracy = 0;
-    Quaternion frame_base_quat;
-    Quaternion frame_quat;
-    Quaternion frame_local_quat;
+    Quaternion frame_base_quat = Quaternion::nan();
+    Quaternion frame_quat = Quaternion::nan();
+    Quaternion frame_local_quat = Quaternion::nan();
     ProtoLocation camera_location;
     double principal_point_x = 0.0;
     double principal_point_y = 0.0;

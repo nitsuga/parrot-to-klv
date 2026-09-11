@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <iomanip>
+#include <limits>
 #include <span>
 #include <sstream>
 #include <string>
@@ -222,6 +223,10 @@ std::string to_string(OmissionReason reason) {
 }
 
 Euler to_euler(const Quaternion& q) {
+    if (!q.is_finite()) {
+        const double qnan = std::numeric_limits<double>::quiet_NaN();
+        return Euler{qnan, qnan, qnan};
+    }
     Euler e;
     e.yaw_deg = wrap_360(
         std::atan2(2.0 * (q.w * q.z + q.x * q.y), 1.0 - 2.0 * (q.y * q.y + q.z * q.z)) *
@@ -237,6 +242,10 @@ Euler to_euler(const Quaternion& q) {
 }
 
 Euler relative_euler(const Quaternion& drone, const Quaternion& frame) {
+    if (!drone.is_finite() || !frame.is_finite()) {
+        const double qnan = std::numeric_limits<double>::quiet_NaN();
+        return Euler{qnan, qnan, qnan};
+    }
     return to_euler(multiply(conjugate(drone), frame));
 }
 
@@ -386,12 +395,14 @@ Klv0601Frame to_0601(const TelemetrySnapshot& s, const SessionMetadata* session,
         // for Item 2. A present v3 clock plus parsed session media_date but no
         // absolute timestamp means the recording's origin clock was absent.
         // Other unanchored frames need session data; proto says "invalid"
-        // through a zero accuracy.
+        // through a zero accuracy (and cannot be anchored to session metadata).
         if (s.source_format == ParrotFormat::V3 && !s.monotonic_us) {
             coverage.omitted[2] = OmissionReason::SourceAbsent;
         } else if (s.source_format == ParrotFormat::V3 && s.monotonic_us && session &&
                    session->media_date_epoch_s) {
             coverage.omitted[2] = OmissionReason::NoAnchorOrigin;
+        } else if (s.source_format == ParrotFormat::Proto) {
+            coverage.omitted[2] = OmissionReason::InvalidSourceValue;
         } else {
             coverage.omitted[2] = OmissionReason::NeedsSessionData;
         }

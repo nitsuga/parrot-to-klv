@@ -247,9 +247,11 @@ void check_proto_mapping() {
     frame.subtype = CameraSubtype::Wide;
     ProtoLfic target;
     target.type = LficType::Cot;
-    target.location.latitude_deg = 45.6;
-    target.location.longitude_deg = -73.6;
-    target.location.altitude_egm96_m = 100.0;
+    ProtoLocation loc;
+    loc.latitude_deg = 45.6;
+    loc.longitude_deg = -73.6;
+    loc.altitude_egm96_m = 100.0;
+    target.location = loc;
     target.horizontal_radial_accuracy_m = 4.0;
     frame.lfic.push_back(target);
 
@@ -393,6 +395,8 @@ void check_unknown_utc_is_not_invented() {
 
     const auto klv = to_0601(snapshot);
     check(klv.coverage.omitted.count(2) == 1, "Item 2 omitted rather than invented");
+    check(klv.coverage.omitted.at(2) == OmissionReason::InvalidSourceValue,
+          "proto unusable UTC accuracy reports InvalidSourceValue");
     check(!klv.packet.empty(), "packet is still produced without the mandatory Item 2");
 }
 
@@ -920,6 +924,78 @@ void check_sentinel_sv_count_omits_position_and_navsat() {
     check(decoded.uints.count(124) == 0, "sentinel emits no Item 124");
 }
 
+void check_absent_quaternion_proto_frame_omits_attitude() {
+    // Absent proto quaternions must not default to {1,0,0,0} (straight and level).
+    // An absent orientation yields NaN quaternions, which to_0601 omits across
+    // Items 5/6/7/90/91/18/19/20 as InvalidSourceValue rather than emitting 0 deg values.
+    ParrotProtoFrame frame;
+    // drone_quat and frame_quat default to Quaternion::nan().
+    const auto snapshot = from_proto(frame);
+    check(!snapshot.drone_quat.is_finite(), "absent drone_quat is non-finite");
+    check(!snapshot.frame_quat.is_finite(), "absent frame_quat is non-finite");
+
+    const auto klv = to_0601(snapshot);
+    const auto decoded = decode_packet(klv.packet);
+    for (uint16_t tag : {5, 6, 7, 90, 91, 18, 19, 20}) {
+        check(klv.coverage.omitted.count(tag) == 1,
+              "Item " + std::to_string(tag) + " is omitted when quaternions are absent");
+        check(klv.coverage.omitted.at(tag) == OmissionReason::InvalidSourceValue,
+              "Item " + std::to_string(tag) + " omission reason is InvalidSourceValue");
+        check(decoded.reals.count(tag) == 0,
+              "Item " + std::to_string(tag) + " not present in decoded reals");
+        check(decoded.raw_len.count(tag) == 0,
+              "Item " + std::to_string(tag) + " not present in packet");
+    }
+}
+
+void check_pixel_only_lfic_omits_target() {
+    // Pixel-only LFIC entry (no geolocated coordinates) must not emit Items 40/41/42 as 0,0,0.
+    ParrotProtoFrame frame;
+    frame.drone_quat = identity();
+    frame.frame_quat = identity();
+    ProtoLfic pixel_target;
+    pixel_target.x = 0.5;
+    pixel_target.y = 0.5;
+    pixel_target.type = LficType::Cot;
+    // location left empty
+    frame.lfic.push_back(pixel_target);
+
+    const auto snapshot = from_proto(frame);
+    check(!snapshot.target.has_value(), "pixel-only LFIC does not populate s.target");
+
+    const auto klv = to_0601(snapshot);
+    const auto decoded = decode_packet(klv.packet);
+    for (uint16_t tag : {40, 41, 42, 45, 46}) {
+        check(klv.coverage.omitted.count(tag) == 1,
+              "Item " + std::to_string(tag) + " is omitted for pixel-only LFIC");
+        check(klv.coverage.omitted.at(tag) == OmissionReason::SourceAbsent,
+              "Item " + std::to_string(tag) + " omission reason is SourceAbsent");
+        check(decoded.reals.count(tag) == 0,
+              "Item " + std::to_string(tag) + " not in decoded packet");
+    }
+
+    // Now verify that if a pixel-only COT entry precedes a located User entry,
+    // the located entry is selected.
+    ProtoLfic located_user;
+    located_user.x = 0.6;
+    located_user.y = 0.4;
+    located_user.type = LficType::User;
+    ProtoLocation loc;
+    loc.latitude_deg = 45.6;
+    loc.longitude_deg = -73.6;
+    loc.altitude_egm96_m = 100.0;
+    located_user.location = loc;
+    frame.lfic.push_back(located_user);
+
+    const auto snapshot2 = from_proto(frame);
+    check(snapshot2.target.has_value(), "located user entry is selected over pixel-only COT");
+    if (snapshot2.target) {
+        check_near(snapshot2.target->latitude_deg, 45.6, 1e-6, "selected target latitude");
+        check_near(snapshot2.target->longitude_deg, -73.6, 1e-6, "selected target longitude");
+        check_near(snapshot2.target->altitude_amsl_m, 100.0, 1e-6, "selected target altitude");
+    }
+}
+
 }  // namespace
 
 int main() {
@@ -948,6 +1024,8 @@ int main() {
     check_zero_sv_count_omits_item_124();
     check_nan_attitude_is_invalid_not_out_of_range();
     check_sentinel_sv_count_omits_position_and_navsat();
+    check_absent_quaternion_proto_frame_omits_attitude();
+    check_pixel_only_lfic_omits_target();
 
     if (g_failures > 0) {
         std::cerr << g_failures << " check(s) failed\n";
