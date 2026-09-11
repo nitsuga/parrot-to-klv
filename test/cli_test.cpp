@@ -97,6 +97,18 @@ int main(int argc, char* argv[]) {
           "file: output creates the requested path");
     fs::remove(v3_out_file_uri, ec);
 
+    const fs::path v3_out_file_uri_slashes = temp / "cli_v3_file_uri_slashes.ts";
+    fs::remove(v3_out_file_uri_slashes, ec);
+    std::string cmd_v3_file_uri_slashes = bin.string() + " " + v3_in.string() + " -o file://" +
+                                          v3_out_file_uri_slashes.string();
+    check(std::system(cmd_v3_file_uri_slashes.c_str()) == 0, "parrot-to-klv accepts file:// output");
+    check(fs::exists(v3_out_file_uri_slashes) && fs::file_size(v3_out_file_uri_slashes) > 0,
+          "file:// output creates the requested path");
+    fs::remove(v3_out_file_uri_slashes, ec);
+
+    std::string cmd_empty_file_uri = bin.string() + " " + v3_in.string() + " -o file: > /dev/null 2>&1";
+    check(std::system(cmd_empty_file_uri.c_str()) != 0, "parrot-to-klv rejects empty file: output");
+
     // 5. Inspection mode (no output flag) with disclosure flags
     std::string cmd_inspect = bin.string() + " " + (fixtures / "parrot_v3.mp4").string() +
                               " --with-location --with-identity > /dev/null";

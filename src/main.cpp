@@ -306,7 +306,8 @@ bool is_udp_sink_value(const std::string& s) { return s.starts_with("udp:"); }
 bool is_srt_sink_value(const std::string& s) { return s.starts_with("srt:"); }
 
 std::string normalize_file_output(std::string output) {
-    if (output.starts_with("file:")) output.erase(0, 5);
+    if (output.starts_with("file://")) output.erase(0, 7);
+    else if (output.starts_with("file:")) output.erase(0, 5);
     return output;
 }
 
@@ -564,7 +565,12 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+    const bool has_output = !output.empty();
     output = cli_detail::normalize_file_output(std::move(output));
+    if (has_output && output.empty()) {
+        std::cerr << "Error: -o needs a non-empty path.\n";
+        return 1;
+    }
     const bool is_live_input = cli_detail::is_live_input_value(input);
     const bool is_udp_output = !output.empty() && cli_detail::is_udp_sink_value(output);
     const bool is_srt_output = !output.empty() && cli_detail::is_srt_sink_value(output);

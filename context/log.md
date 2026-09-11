@@ -4,9 +4,10 @@
 
 * **CLI location disclosure and `file:` outputs (#128):** takeoff geotags now
   require `--with-location`, independent of the airframe-identity flag; help
-  describes the distinction. The CLI strips one `file:` sink prefix before
-  routing, so offline and live file outputs use the requested filesystem path.
-  The end-to-end CLI test covers both disclosure combinations and `-o file:`.
+  describes the distinction. The CLI strips `file:` or `file://` before
+  routing, rejects an empty normalized URI, and sends offline/live file output
+  to the requested filesystem path. The end-to-end CLI test covers both
+  disclosure combinations and each URI form.
 
 ## 2026-09-11
 
