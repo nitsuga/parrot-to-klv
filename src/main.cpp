@@ -249,8 +249,9 @@ void print_usage(std::ostream& out, const char* program) {
         << "  --klv maps each successfully decoded sample to ST 0601 and prints\n"
         << "  the conversion coverage report — what was carried, omitted, and\n"
         << "  dropped.\n"
-        << "  --with-identity prints the airframe serial and geotag from the\n"
-        << "  session metadata, which are withheld by default.\n"
+        << "  --with-identity prints the airframe serial from session metadata;\n"
+        << "  --with-location also prints its takeoff geotag. Both are withheld\n"
+        << "  by default.\n"
         << "  -h/--help prints this; --version prints the version.\n\n"
         << "  Examples:\n"
         << "    " << program << " flight.mp4 -o flight.ts\n"
@@ -303,6 +304,12 @@ bool is_live_input_value(const std::string& s) {
 bool is_udp_sink_value(const std::string& s) { return s.starts_with("udp:"); }
 
 bool is_srt_sink_value(const std::string& s) { return s.starts_with("srt:"); }
+
+std::string normalize_file_output(std::string output) {
+    if (output.starts_with("file://")) output.erase(0, 7);
+    else if (output.starts_with("file:")) output.erase(0, 5);
+    return output;
+}
 
 }  // namespace cli_detail
 
@@ -558,6 +565,12 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+    const bool has_output = !output.empty();
+    output = cli_detail::normalize_file_output(std::move(output));
+    if (has_output && output.empty()) {
+        std::cerr << "Error: -o needs a non-empty path.\n";
+        return 1;
+    }
     const bool is_live_input = cli_detail::is_live_input_value(input);
     const bool is_udp_output = !output.empty() && cli_detail::is_udp_sink_value(output);
     const bool is_srt_output = !output.empty() && cli_detail::is_srt_sink_value(output);
@@ -731,14 +744,14 @@ int main(int argc, char* argv[]) {
         if (session.model) std::cout << "  model: " << *session.model << "\n";
         if (session.software_version) std::cout << "  software: " << *session.software_version << "\n";
         if (session.media_date) std::cout << "  media date: " << *session.media_date << "\n";
-        // Serial and geotag identify the airframe and the place; withheld like
-        // every other sensitive value unless asked for.
+        // Serial identifies the airframe; geotag identifies the place. Each
+        // needs its own disclosure flag.
         if (session.serial_number) {
             std::cout << "  serial: "
                       << (with_identity ? *session.serial_number : "withheld") << "\n";
         }
         if (session.geotag) {
-            std::cout << "  geotag: " << (with_identity ? *session.geotag : "withheld") << "\n";
+            std::cout << "  geotag: " << (with_location ? *session.geotag : "withheld") << "\n";
         }
     }
 

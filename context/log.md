@@ -2,6 +2,15 @@
 
 ## 2026-09-11
 
+* **CLI location disclosure and `file:` outputs (#128):** takeoff geotags now
+  require `--with-location`, independent of the airframe-identity flag; help
+  describes the distinction. The CLI strips `file:` or `file://` before
+  routing, rejects an empty normalized URI, and sends offline/live file output
+  to the requested filesystem path. The end-to-end CLI test covers both
+  disclosure combinations and each URI form.
+
+## 2026-09-11
+
 * **Live test waits and replay cancellation (#130):** live test configuration
   now accepts millisecond idle/reconnect intervals while retaining its
   seconds-level production defaults; the slow reconnect and idleness cases use
