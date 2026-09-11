@@ -2,6 +2,11 @@
 
 ## 2026-09-11
 
+* **Published `v0.5.1`:** the tag workflow built, glibc-floor checked, and
+  smoke-tested native bundle and container deliverables on both x86-64 and
+  aarch64, then published the eight versioned archives and checksums with the
+  matching `CHANGELOG.md` notes.
+
 * **Declared `v0.5.1` for release:** patch release for the hardening batch
   merged after `v0.5.0`: fail-closed location/identity disclosure and proto
   absent-value handling; safe file-output URI routing and scrub coordinate

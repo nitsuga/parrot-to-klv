@@ -8,10 +8,10 @@ chronological history (what landed when, decision detail) lives in
 
 ## Now
 
-**Preparing the `v0.5.1` patch release.** The release notes are in
-[`CHANGELOG.md`](../CHANGELOG.md); the tag will build and publish native x86-64
-and aarch64 bundles and container images. The detailed hardening history belongs
-in the [log](../context/log.md), not here.
+**`v0.5.1` is the current published release.** It provides native x86-64 and
+aarch64 bundles and container images; release notes are in
+[`CHANGELOG.md`](../CHANGELOG.md). The detailed hardening history belongs in the
+[log](../context/log.md), not here.
 
 ## In progress
 
