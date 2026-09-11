@@ -106,7 +106,11 @@ bool read_box_header(FILE* file, int64_t parent_end, BoxHeader& out) {
         size = parent_end - begin;
     }
 
-    const int64_t header_bytes = ftell64(file) - begin;
+    const int64_t cur = ftell64(file);
+    if (cur < 0) {
+        return false;
+    }
+    const int64_t header_bytes = cur - begin;
     // `begin + size > parent_end` can wrap for a hostile 64-bit largesize near
     // INT64_MAX. Safe subtraction `size > parent_end - begin` prevents signed overflow.
     if (size < header_bytes || size > parent_end - begin) {
@@ -139,7 +143,8 @@ void parse_tkhd(FILE* file, const BoxHeader& box, Mp4TrackDescription& track) {
     if (fseek64(file, times_bytes, SEEK_CUR) != 0) {
         return;
     }
-    if (box.body_end - ftell64(file) < 4) {
+    const int64_t pos = ftell64(file);
+    if (pos < 0 || box.body_end - pos < 4) {
         return;
     }
     read_u32(file, track.track_id);
@@ -150,7 +155,8 @@ void parse_hdlr(FILE* file, const BoxHeader& box, Mp4TrackDescription& track) {
     if (fseek64(file, box.body_begin + 8, SEEK_SET) != 0) {
         return;
     }
-    if (box.body_end - ftell64(file) < 4) {
+    const int64_t pos = ftell64(file);
+    if (pos < 0 || box.body_end - pos < 4) {
         return;
     }
     read_u32(file, track.handler_type);

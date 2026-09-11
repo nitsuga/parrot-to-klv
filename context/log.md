@@ -9,7 +9,9 @@
   `pos` backwards seeking. `_FILE_OFFSET_BITS=64` is enabled project-wide, and
   low-level file seeking/telling is unified under portable 64-bit `fseek64`/`ftell64`
   wrappers (`fseeko`/`ftello` / `_fseeki64`/`_ftelli64`), supporting drone media
-  files larger than 2 GiB across all architectures.
+  files larger than 2 GiB across all architectures. Position query error returns
+  (`< 0`) are guarded prior to subtraction, and the 3 GiB seek test probes
+  filesystem sparse-file capability with graceful fallback.
 
 * **CLI location disclosure and `file:` outputs (#128):** takeoff geotags now
   require `--with-location`, independent of the airframe-identity flag; help
