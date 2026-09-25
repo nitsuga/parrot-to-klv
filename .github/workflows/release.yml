@@ -118,6 +118,7 @@ jobs:
             ${{ env.DOCKER_NAME }}.tar.gz
             ${{ env.DOCKER_NAME }}.tar.gz.sha256
           if-no-files-found: error
+          retention-days: 1
 
       # Carried separately so the smoke job needs no checkout: a bare container
       # has no git, and the point of that job is to add as little as possible.
@@ -126,6 +127,7 @@ jobs:
           name: smoke-fixtures-${{ matrix.arch }}
           path: test/fixtures/parrot_v3_video_audio.mp4
           if-no-files-found: error
+          retention-days: 1
 
   smoke:
     # The actual claim under test: a clean, *newest* target with no GStreamer
